@@ -12,9 +12,9 @@ const bytes = statSync(p).size;
 const sha = createHash('sha256').update(buf).digest('hex');
 
 const EXPECT = {
-  loc: 651,
-  bytes: 27031,
-  sha: '238dc9dee9db352643c1a5399e43f8a801fceed3a46b08aa705736bb93a357cd'
+  loc: 686,
+  bytes: 28825,
+  sha: '22080fd151565f454900b5a8b3461e918c8e0f07b668a4f102c7b8aa933440a6'
 };
 
 if (loc !== EXPECT.loc || bytes !== EXPECT.bytes || sha !== EXPECT.sha) {

@@ -470,15 +470,46 @@ const GuestManager: React.FC = () => {
       {/* Instructions & Add Guest (two-up) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card title="Instructions">
-          <p>Enter guest names separated by commas or line breaks. Use "+1", "&1", or phrases like "plus one" for party sizes.</p>
+          <div className="space-y-2 text-sm text-[#566F9B]" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+            <p>1.) Click "Load Test Guest List" button.</p>
+            <p>2.) Click "Your Rules" at the top.</p>
+            <p>3.) Pair and Prevent as you like.</p>
+          </div>
+          
+          {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
+          <div className="flex justify-end pr-4">
+            <div
+              className="pulsing-arrow self-end translate-y-2"
+              style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
+              aria-hidden
+            >
+              ➡️
+            </div>
+          </div>
         </Card>
 
         <Card title="Add Guest Names">
+          <div className="text-[1.05rem] text-gray-500 mt-2 space-y-1">
+            <p>Enter guest names separated by commas or line breaks.</p>
+            <p>Connect couples and parties with an ampersand (&).</p>
+          </div>
+          
+          <div className="mt-3 text-sm text-gray-600">
+            {!isPremium && (
+              <p>Free plan: {(() => {
+                const totalSeats = (state.guests ?? []).reduce((s,g)=> s + Math.max(1, g.count ?? 1), 0);
+                return totalSeats;
+              })()}/80 guests used</p>
+            )}
+          </div>
+          
           <textarea
             value={guestInput}
             onChange={(e) => setGuestInput(e.target.value)}
-            placeholder="Enter guests (e.g., Chris %Evans +1, Jordan %Lee & Casey)"
-            className="w-full p-2 border rounded"
+            placeholder="e.g., Alice, Bob&#13;&#10;Carol & David"
+            className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[80px] mt-2"
+            rows={3}
+            onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handleAddGuest()}
           />
            <div className="flex space-x-2 mt-2">
              <Button onClick={handleAddGuest}>Add Guests</Button>
@@ -566,12 +597,16 @@ const GuestManager: React.FC = () => {
         </div>
       </Card>
 
-      {/* % Sorting Note */}
-      <div className="bg-blue-50 border border-indigo-200 rounded-md p-4 flex items-start gap-2">
-        <Info className="text-[#586D78] mt-0.5" />
-        <div className="text-gray-700">
-          <p>
-            <strong>NOTE:</strong> For names with 3+ words (e.g., "Tatiana Sokolov Boyko", "Jan Tomasz Kowalski Nowak"), you can choose the sorting surname by prefixing it with a percent character (<span style={{ color: '#959595' }}>%</span>). Example: <code>Tatiana <span style={{ color: '#959595' }}>%</span>Sokolov Boyko</code>.
+
+      {/* Last Name Sorting Note */}
+      <div className="bg-blue-50 border border-indigo-200 rounded-md p-4 flex items-start">
+        <Info className="text-[#586D78] mr-2 mt-1 flex-shrink-0" />
+        <div>
+          <p className="text-gray-700">
+            <strong>NOTE:</strong> For names with 3 or more words (e.g., "Tatiana Sokolov Boyko", "Jan Tomasz Kowalski Nowak", "Angel Alba Salavador Costa Almeida"), if you want one of those surnames (other than the "last" word of the last name) to be the alphabetical sorting word "By Last Name" then put a percentage symbol (<span style={{ color: '#959595' }}>%</span>) before that name.
+          </p>
+          <p className="text-gray-700 mt-1">
+            Examples: "Tatiana <span style={{ color: '#959595' }}>%</span>Sokolov Boyko", "Jan Tomasz <span style={{ color: '#959595' }}>%</span>Kowalski Nowak", "Angel Alba Salavador <span style={{ color: '#959595' }}>%</span>Costa Almeida"
           </p>
         </div>
       </div>
