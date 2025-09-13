@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+npm run gm:check || { echo "GuestManager integrity failed."; exit 1; }

@@ -6,7 +6,9 @@ import { isPremiumSubscription } from "../utils/premium";
 import { supabase } from "../lib/supabase";
 import { getMostRecentState, clearMostRecentState, saveMostRecentState } from "../lib/mostRecentState";
 import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
-import { normalizeAssignmentInputToIdsWithWarnings } from "../utils/assignments";
+import { migrateState, normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds, migrateAssignmentsToIdKeys } from '../utils/assignments';
+import { detectConflicts } from '../utils/conflicts';
+import { computePlanSignature } from '../utils/planSignature';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
@@ -138,18 +140,23 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       return { ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "UPDATE_ASSIGNMENT": {
-      const { guestId, tables } = action.payload;
-      const assignments = { ...state.assignments, [guestId]: tables };
-      // P-4: Detect conflicts after assignment change
-      const conflicts = detectConstraintConflicts(state.guests, state.tables, state.constraints, true, state.adjacents);
-      const assignmentErrors = conflicts.filter(c => c.type === 'error' && (c.message.toLowerCase().includes('assignment') || c.message.toLowerCase().includes('conflict')));
-      
+      const { payload } = action;
+      const { guestId, raw } = payload;
+      const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(raw, state.tables);
+      const newAssignments = { ...state.assignments, [guestId]: idCsv };
+      const signature = JSON.stringify(Object.entries(newAssignments).sort((a, b) => a[0].localeCompare(b[0])));
+      const conflictWarnings = detectConflicts(newAssignments, state.constraints);
+      const ids = parseAssignmentIds(idCsv);
+      const allValid = ids.every(id => state.tables.some(t => t.id === id));
+      if (state.userSetTables && idCsv && !allValid) {
+        return { ...state, warnings: [...new Set([...state.warnings, `Invalid table assignment for guest ${guestId}`])] };
+      }
       return {
         ...state,
-        assignments,
+        assignments: newAssignments,
+        assignmentSignature: signature,
         seatingPlans: [],
-        currentPlanIndex: 0,
-        conflictWarnings: assignmentErrors.length > 0 ? assignmentErrors.map(e => e.message) : state.conflictWarnings
+        warnings: [...new Set([...state.warnings, ...warnings, ...conflictWarnings])]
       };
     }
     case "SET_CONSTRAINT": {
@@ -201,28 +208,53 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       return { ...state, loadedSavedSetting: action.payload };
     case "SET_USER_SET_TABLES":
       return { ...state, userSetTables: action.payload };
-    case "SET_WARNING":
-      return { ...state, conflictWarnings: [...(state.conflictWarnings ?? []), action.payload] };
+    case "SET_WARNING": {
+      const { payload } = action;
+      return { ...state, warnings: [...new Set([...state.warnings, ...(Array.isArray(payload) ? payload : [payload])])] };
+    }
     case "CLEAR_WARNINGS":
-      return { ...state, conflictWarnings: [] };
+      return { ...state, warnings: [] };
+    case "SET_PLANS": {
+      const { payload } = action;
+      const { plans, errors = [], planSig } = payload;
+      const toText = (e: any) => (typeof e === 'string' ? e : e?.message ?? JSON.stringify(e));
+      return {
+        ...state,
+        seatingPlans: plans,
+        lastGeneratedSignature: state.assignmentSignature,
+        lastGeneratedPlanSig: planSig ?? computePlanSignature(state),
+        warnings: [...new Set([...state.warnings, ...errors.map(toText)])]
+      };
+    }
+    case "PURGE_PLANS": {
+      return { ...state, seatingPlans: [] };
+    }
     case "AUTO_RECONCILE_TABLES":
       return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case "LOAD_MOST_RECENT":
     case "LOAD_SAVED_SETTING": {
-      const loaded = action.payload;
-      // P-1: Fully sanitize and migrate state on load
-      const sanitized = sanitizeAndMigrateAppState(loaded);
-      
-      const sig = JSON.stringify(Object.entries(sanitized.assignments).sort(([a], [b]) => a.localeCompare(b)));
-      
-      const conflicts = detectConstraintConflicts(sanitized.guests, sanitized.tables, sanitized.constraints, true, sanitized.adjacents);
-      const initialWarnings = conflicts.map(c => c.message);
-      
+      const { payload } = action;
+      const { constraints, adjacents } = migrateState(payload);
+      const idKeyed = migrateAssignmentsToIdKeys(payload.assignments || {}, payload.guests || []);
+      const normAssignments = Object.fromEntries(
+        Object.entries(idKeyed).map(([k, v]) => [
+          k,
+          normalizeAssignmentInputToIdsWithWarnings(v, payload.tables || []).idCsv
+        ])
+      );
+      const assignmentSignature = JSON.stringify(
+        Object.entries(normAssignments).sort((a, b) => a[0].localeCompare(b[0]))
+      );
       return {
-        ...sanitized,
-        loadedSavedSetting: true,
-        assignmentSignature: sig,
-        conflictWarnings: initialWarnings,
+        ...state,
+        ...payload,
+        constraints,
+        adjacents,
+        assignments: normAssignments,
+        assignmentSignature,
+        seatingPlans: [],
+        lastGeneratedPlanSig: null,
+        warnings: []
       };
     }
     default:
@@ -410,4 +442,6 @@ const initialState: AppState = {
   duplicateGuests: [],
   assignmentSignature: "",
   conflictWarnings: [],
+  lastGeneratedSignature: null,
+  lastGeneratedPlanSig: null,
 };

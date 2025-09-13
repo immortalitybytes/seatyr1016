@@ -3,8 +3,8 @@ import type { Table, Guest, GuestID, Constraints, Adjacents } from '../types';
 export function normalizeAssignmentInputToIdsWithWarnings(
   raw: string | string[] | undefined | null,
   tables: Pick<Table, 'id' | 'name'>[]
-): { idsCsv: string; unknownTokens: string[] } {
-  if (!raw) return { idsCsv: '', unknownTokens: [] };
+): { idCsv: string; warnings: string[] } {
+  if (!raw) return { idCsv: '', warnings: [] };
   const inputStr = Array.isArray(raw) ? raw.join(',') : String(raw);
   const nameToId = new Map<string, number>();
   tables.forEach(table => {
@@ -13,7 +13,7 @@ export function normalizeAssignmentInputToIdsWithWarnings(
     }
   });
   const resolvedIds = new Set<number>();
-  const unknownTokens: string[] = [];
+  const warnings: string[] = [];
   const tokens = inputStr.split(',').map(token => token.trim()).filter(token => token.length > 0);
   
   tokens.forEach(token => {
@@ -22,19 +22,46 @@ export function normalizeAssignmentInputToIdsWithWarnings(
       if (tables.some(t => t.id === numericId)) {
         resolvedIds.add(numericId);
       } else {
-        unknownTokens.push(token);
+        warnings.push(`Unknown table ID: ${token}`);
       }
     } else {
       const id = nameToId.get(token.toLowerCase());
       if (typeof id === 'number') {
         resolvedIds.add(id);
       } else {
-        unknownTokens.push(token);
+        warnings.push(`Unknown table name: ${token}`);
       }
     }
   });
   
-  return { idsCsv: Array.from(resolvedIds).sort((a, b) => a - b).join(','), unknownTokens };
+  return { idCsv: Array.from(resolvedIds).sort((a, b) => a - b).join(','), warnings };
+}
+
+export function normalizeGuestInputToIdsWithWarnings(
+  raw: string | string[] | null | undefined,
+  guests: Array<Pick<Guest, 'id' | 'name'>>
+): { guestIds: string[]; warnings: string[] } {
+  if (!raw) return { guestIds: [], warnings: [] };
+  const inputStr = Array.isArray(raw) ? raw.join(',') : String(raw);
+  const nameToId = new Map<string, string>();
+  guests.forEach(g => nameToId.set(g.name.trim().toLowerCase(), g.id));
+  const guestIds: string[] = [];
+  const warnings: string[] = [];
+  
+  inputStr.split(',').map(s => s.trim()).filter(Boolean).forEach(token => {
+    const asId = token;
+    if (nameToId.has(token.toLowerCase())) {
+      guestIds.push(nameToId.get(token.toLowerCase())!);
+    } else if (guests.some(g => g.id === asId)) {
+      guestIds.push(asId);
+    } else {
+      warnings.push(`Unknown guest: ${token}`);
+    }
+  });
+  
+  const seen = new Set<string>();
+  const uniq = guestIds.filter(id => (seen.has(id) ? false : (seen.add(id), true)));
+  return { guestIds: uniq, warnings };
 }
 
 export function parseAssignmentIds(csv: string | undefined | null): number[] {
@@ -63,8 +90,8 @@ export function migrateAssignmentsToIdKeys(assignments: Record<string, string>, 
       const guestId = nameToId.get(key.toLowerCase());
       if (guestId) {
         migrated[guestId] = value;
-      } else {
-        if (import.meta?.env?.DEV) console.warn(`Unresolved assignment key: "${key}"`);
+      } else if (import.meta.env.DEV) {
+        console.warn(`Unresolved assignment key: "${key}"`);
       }
     }
   });
@@ -91,25 +118,19 @@ export function migrateState(state: { guests: Guest[]; constraints: any; adjacen
       }
     }
   }
-  
-  const acc: Record<GuestID, Set<GuestID>> = {};
+  const migratedAdjacents: Adjacents = {};
   for (const [key, value] of Object.entries(state.adjacents || {})) {
     const id = validIds.has(key) ? key : (guestNameToId.get(squash(key)) || null);
     if (!id || !guestIdToName.has(id)) continue;
     const partners: GuestID[] = Array.isArray(value) ? value : Object.keys(value || {});
+    const validPartners: GuestID[] = [];
     for (const adj of partners) {
       const adjId = validIds.has(adj) ? adj : (guestNameToId.get(squash(adj)) || null);
       if (!adjId || !guestIdToName.has(adjId) || adjId === id) continue;
-      (acc[id] ||= new Set<GuestID>()).add(adjId);
-      (acc[adjId] ||= new Set<GuestID>()).add(id);
+      validPartners.push(adjId);
     }
+    if (validPartners.length) migratedAdjacents[id] = validPartners; // No cap unless 0910 enforces
   }
-  
-  const migratedAdjacents: Adjacents = {};
-  for (const [k, set] of Object.entries(acc)) {
-    migratedAdjacents[k] = Array.from(set).slice(0, 2);
-  }
-  
   return { constraints: migratedConstraints, adjacents: migratedAdjacents };
 }
 

@@ -1,23 +1,40 @@
 import type { Assignments, Table } from '../types';
 
+// Centralized regex for detecting party size additions
+export const PLUS_ONE_RE = /(?:\+|&|\band\b|\bplus\b)\s*(\d+)/i;
+
+export function extractPartyExtra(name: string): number | null {
+  const m = name.match(/(?:\+|&|\band\b|\bplus\b)\s*(\d+)/i);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+export function countHeads(name: string): number {
+  const extra = extractPartyExtra(name);
+  if (extra !== null && Number.isFinite(extra) && extra >= 0) return 1 + extra; // John +2 => 3
+  const fam = name.match(/\bfamily of (\w+)\b/i);
+  if (fam) {
+    const words: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const n = words[fam[1].toLowerCase()];
+    if (n) return n;
+  }
+  return 1;
+}
+
+// Centralized display name formatter (from guestCount.ts)
+export function getDisplayName(raw: string): string {
+  return raw
+    .replace(/\s*\(\s*\d+\s*\)\s*$/i, '')
+    .replace(/\s*[&+]\s*\d+\s*$/i, '')
+    .replace(/\s+(?:and|plus|\+|&)\s+(?:guest|guests?)\s*$/i, '')
+    .trim();
+}
+
 /**
  * Extracts the effective last name for sorting purposes.
  * If a name contains a '%' symbol, it returns the single word immediately
  * following it. Otherwise, it returns the last word of the name.
- * 
- * This function handles edge cases gracefully and provides consistent sorting
- * behavior for guest lists.
- *
- * @param fullName The full name string of the guest.
- * @returns The name to be used for sorting, or empty string if invalid.
- * 
- * @example
- * getLastNameForSorting("John Smith") // "Smith"
- * getLastNameForSorting("Jane%Doe") // "Doe"
- * getLastNameForSorting("") // ""
  */
 export function getLastNameForSorting(fullName: string): string {
-  // Robust input validation
   if (!fullName || typeof fullName !== 'string') {
     return '';
   }
@@ -27,14 +44,13 @@ export function getLastNameForSorting(fullName: string): string {
     return '';
   }
   
-  // 2.a.) Priority: Look for first instance of word prefixed with % character
+  // Priority: Look for first instance of word prefixed with % character
   const percentMatch = trimmedName.match(/%([A-Za-z][\w-]*)/);
   if (percentMatch) {
     return percentMatch[1];
   }
   
-  // 2.b.) Look for multi-word guest names separated by addition signifiers
-  // Split by &, +, "and", "plus" (case insensitive)
+  // Look for multi-word guest names separated by addition signifiers
   const separators = /[&+]|\b(?:and|plus)\b/gi;
   const parts = trimmedName.split(separators);
   
@@ -50,31 +66,19 @@ export function getLastNameForSorting(fullName: string): string {
     }
   }
   
-  // 2.c.) If no multi-word names, treat first name as last name
+  // If no multi-word names, treat first name as last name
   const words = trimmedName.split(/\s+/).filter(word => word.length > 0);
   return words.length > 0 ? words[0] : trimmedName;
 }
 
 /**
  * Formats a guest's table assignments into a human-readable string.
- * Provides clear, user-friendly labels for table assignments with proper
- * handling of named and unnamed tables.
- *
- * @param assignments The application's assignments map (ID-CSV format).
- * @param tables The application's list of tables with IDs and names.
- * @param guestId The stable ID of the guest.
- * @returns A formatted string of assigned tables, or a default message.
- * 
- * @example
- * formatTableAssignment(assignments, tables, "guest123")
- * // Returns: "Table #1 (Main Hall) • Table #3 • Table #5 (Sweetheart)"
  */
 export function formatTableAssignment(
   assignments: Assignments | undefined,
   tables: Pick<Table, 'id' | 'name'>[],
   guestId: string
 ): string {
-  // Input validation
   if (!assignments || !tables || !guestId) {
     return 'Table: unassigned';
   }
@@ -137,7 +141,6 @@ export function formatTableAssignment(
 
 /**
  * Splits a composite GuestUnit name into tokens to "bold" in rotation.
- * Connectors considered: " and ", " & ", " + ", " plus ", " also " (case-insensitive).
  */
 export function seatingTokensFromGuestUnit(raw: string): string[] {
   if (!raw || typeof raw !== 'string') return [raw || ''];
@@ -178,7 +181,7 @@ export function nOfNTokensFromSuffix(raw: string): string[] {
   else if (paren) n = parseInt(paren[1], 10);
   else if (plusGuest) n = 1;
   else if (plusWord) {
-    const map: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+    const map: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};                                                                                                        
     n = map[plusWord[1].toLowerCase()] || 1;
   }
   

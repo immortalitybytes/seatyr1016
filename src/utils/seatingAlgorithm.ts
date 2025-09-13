@@ -56,11 +56,11 @@ export async function generateSeatingPlans(
 
     // Constraints: Ignore self-references
     const engineConstraints: Engine.ConstraintsMap = {};
-    Object.entries(constraints).forEach(([guestName, cons]) => {
+    Object.entries(constraints ?? {}).forEach(([guestName, cons]) => {
       const guestId = nameToIdMap.get(guestName);
       if (guestId && cons) {
         engineConstraints[guestId] = {};
-        Object.entries(cons).forEach(([otherName, value]) => {
+        Object.entries(cons ?? {}).forEach(([otherName, value]) => {
           const otherId = nameToIdMap.get(otherName) ?? otherName;
           if (otherId !== guestId) engineConstraints[guestId][otherId] = value as 'must' | 'cannot' | '';
         });
@@ -69,7 +69,7 @@ export async function generateSeatingPlans(
 
     // Adjacents: Filter self
     const engineAdjacents: Engine.AdjRecord = {};
-    Object.entries(adjacents).forEach(([guestName, adjNames]) => {
+    Object.entries(adjacents ?? {}).forEach(([guestName, adjNames]) => {
       const guestId = nameToIdMap.get(guestName);
       if (guestId && adjNames) {
         engineAdjacents[guestId] = (adjNames as string[]).map(name => nameToIdMap.get(name) ?? name).filter(id => id !== guestId);
@@ -79,18 +79,18 @@ export async function generateSeatingPlans(
     // Normalize assignments via SSoT, surface unknown tokens
     const engineAssignments: Engine.AssignmentsIn = {};
     const unknownErrors: ValidationError[] = [];
-    Object.entries(assignments).forEach(([guestName, raw]) => {
+    Object.entries(assignments ?? {}).forEach(([guestName, raw]) => {
       const guestId = nameToIdMap.get(guestName);
       if (guestId && raw) {
         const norm = normalizeAssignmentInputToIdsWithWarnings(raw, tables);
-        engineAssignments[guestId] = norm.idsCsv;
-        if (norm.unknownTokens.length > 0) {
+        engineAssignments[guestId] = norm.idCsv;
+        if (norm.warnings.length > 0) {
           unknownErrors.push({
             type: 'warn',
-            message: `Unknown tables for ${guestName}: ${norm.unknownTokens.join(', ')}`,
+            message: `Unknown tables for ${guestName}: ${norm.warnings.join(', ')}`,
           });
           if (import.meta?.env?.DEV) {
-            console.warn(`Unknown assignment tokens for ${guestName}: ${norm.unknownTokens}`);
+            console.warn(`Unknown assignment tokens for ${guestName}: ${norm.warnings.join(', ')}`);
           }
         }
       }
@@ -98,7 +98,7 @@ export async function generateSeatingPlans(
 
     // Allowed tables hint
     const allowedTablesByGuest: Record<string, number[]> = {};
-    Object.entries(engineAssignments).forEach(([guestId, csv]) => {
+    Object.entries(engineAssignments ?? {}).forEach(([guestId, csv]) => {
       allowedTablesByGuest[guestId] = parseAssignmentIds(csv);
     });
 

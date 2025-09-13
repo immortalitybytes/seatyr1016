@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapPin, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
@@ -7,6 +7,7 @@ import { ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { isPremiumSubscription } from '../utils/premium';
 import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/formatters';
+import { computePlanSignature } from '../utils/planSignature';
 
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
@@ -91,24 +92,30 @@ const SeatingPlanViewer: React.FC = () => {
 
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
 
-  // Auto-generate seating plan if none exists
+  // Debounced auto-generation with proper signature checking
+  const inFlightRef = useRef(false);
   useEffect(() => {
-    if (state.seatingPlans.length === 0 && state.guests.length > 0 && state.tables.length > 0) {
-      setIsGenerating(true);
-      generateSeatingPlans(state.guests, state.tables, state.constraints, state.adjacents, {}, isPremium)
-        .then(result => {
-          if (result.plans.length > 0) {
-            dispatch({ type: 'SET_SEATING_PLANS', payload: result.plans });
-          }
-        })
-        .catch(error => {
-          console.error('Auto-generation failed:', error);
-        })
-        .finally(() => {
-          setIsGenerating(false);
-        });
-    }
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.seatingPlans.length, isPremium, dispatch]);
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const ready = state.guests.length && state.tables.length;
+      const planSigNow = computePlanSignature(state);
+      const stale = state.lastGeneratedPlanSig !== planSigNow;
+      if (!ready || !stale || inFlightRef.current) return;
+      inFlightRef.current = true;
+      generateSeatingPlans(
+        state.guests,
+        state.tables,
+        state.constraints,
+        state.adjacents,
+        state.assignments
+      ).then(({ plans, errors }) => {
+        if (!cancelled) dispatch({ type: 'SET_PLANS', payload: { plans, errors, planSig: planSigNow } });
+      }).finally(() => {
+        inFlightRef.current = false;
+      });
+    }, 300); // Debounce window
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [state.assignmentSignature, state.guests, state.tables, state.constraints, state.adjacents]);
 
   // Guest pagination logic (matching Constraints page)
   useEffect(() => {
@@ -265,6 +272,14 @@ const SeatingPlanViewer: React.FC = () => {
                   <h3 className="flex items-center text-red-800 font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Errors</h3>
                   <ul className="list-disc pl-5 text-red-700 text-sm space-y-1">
                       {errors.map((error, index) => (<li key={index}>{error.message}</li>))}
+                  </ul>
+              </div>
+          )}
+          {state.warnings && state.warnings.length > 0 && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                  <h3 className="flex items-center text-yellow-800 font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Warnings</h3>
+                  <ul className="list-disc pl-5 text-yellow-700 text-sm space-y-1">
+                      {state.warnings.map((warning, index) => (<li key={index}>{warning}</li>))}
                   </ul>
               </div>
           )}

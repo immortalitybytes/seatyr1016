@@ -31,19 +31,19 @@ const AssignmentManager: React.FC = () => {
     setErrorMessage(null);
     try {
       // SSoT: Normalize all assignments to ID-CSV format on input
-      const { idsCsv, unknownTokens } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
+      const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
       
-      if (unknownTokens.length > 0) {
+      if (warnings.length > 0) {
         dispatch({
           type: 'SET_WARNING',
-          payload: `Unknown table(s) entered: ${unknownTokens.join(', ')}`
+          payload: warnings.map(w => `Guest ${guestId}: ${w}`)
         });
       }
       
       // Dispatch the normalized ID-based payload
       dispatch({
         type: 'UPDATE_ASSIGNMENT',
-        payload: { guestId, tables: idsCsv }
+        payload: { guestId, raw: idCsv }
       });
       
       purgeSeatingPlans();
@@ -166,6 +166,12 @@ const AssignmentManager: React.FC = () => {
               ))}
             </ul>
           </div>
+        </div>
+      )}
+      
+      {state.warnings && state.warnings.length > 0 && (
+        <div className="text-red-50 mt-2">
+          {state.warnings.map(w => <p key={w}>{w}</p>)}
         </div>
       )}
       

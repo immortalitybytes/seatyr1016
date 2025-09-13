@@ -127,16 +127,16 @@ const TableManager: React.FC = () => {
   };
 
   const handleUpdateAssignment = (guestId: string, value: string) => {
-    const { idsCsv, unknownTokens } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
-    if (unknownTokens.length > 0) {
+    const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
+    if (warnings.length > 0) {
       dispatch({
         type: 'SET_WARNING',
-        payload: `Unknown table(s) entered: ${unknownTokens.join(', ')}`
+        payload: warnings.map(w => `Guest ${guestId}: ${w}`)
       });
     }
     dispatch({
       type: 'UPDATE_ASSIGNMENT',
-      payload: { guestId, tables: idsCsv }
+      payload: { guestId, raw: idCsv }
     });
     purgePlans();
   };
@@ -375,6 +375,12 @@ const TableManager: React.FC = () => {
                     ))}
                   </ul>
                 </div>
+              </div>
+            )}
+            
+            {state.warnings && state.warnings.length > 0 && (
+              <div className="text-red-50 mt-2">
+                {state.warnings.map(w => <p key={w}>{w}</p>)}
               </div>
             )}
             

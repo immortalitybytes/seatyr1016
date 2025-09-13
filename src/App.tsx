@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import GuestManager from './pages/GuestManager';
@@ -16,31 +16,41 @@ import BetaCodeAdmin from './pages/BetaCodeAdmin';
 import AdminDashboard from './pages/AdminDashboard';
 import { AppProvider } from './context/AppContext';
 import Footer from './components/Footer';
-import DeploymentStatusCheck from './components/DeploymentStatusCheck';
 import ErrorBoundary from './components/ErrorBoundary';
-import FallbackPage from './components/FallbackPage';
 
 function App() {
-  const [envConfigured, setEnvConfigured] = useState(false);
+  // Simple environment check to prevent blank screen
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  const isConfigured = 
+    typeof supabaseUrl === 'string' && 
+    supabaseUrl.trim() !== '' && 
+    typeof supabaseAnonKey === 'string' && 
+    supabaseAnonKey.trim() !== '';
 
-  // Check if environment variables are configured
-  useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    // Check if both Supabase URL and Anon Key are defined and not empty strings
-    const isConfigured = 
-      typeof supabaseUrl === 'string' && 
-      supabaseUrl.trim() !== '' && 
-      typeof supabaseAnonKey === 'string' && 
-      supabaseAnonKey.trim() !== '';
-    
-    setEnvConfigured(isConfigured);
-  }, []);
-
-  // If environment variables are not configured, show the fallback page
-  if (!envConfigured) {
-    return <FallbackPage />;
+  // If environment variables are not configured, show a simple message
+  if (!isConfigured) {
+    return (
+      <div className="min-h-screen bg-[#dde1e3] flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-md p-6 max-w-lg w-full">
+          <h1 className="text-2xl font-bold text-[#7973BB] mb-4">Seatyr - Configuration Needed</h1>
+          <div className="bg-[#88abc6] border border-[#88abc6] rounded-md p-4 mb-6">
+            <h2 className="text-lg font-semibold text-white mb-2">Missing Environment Configuration</h2>
+            <p className="text-white">
+              The application is missing required environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Netlify environment variables.
+            </p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+            <h3 className="font-medium mb-2">Required Environment Variables:</h3>
+            <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto">
+              VITE_SUPABASE_URL=https://your-project-id.supabase.co{'\n'}
+              VITE_SUPABASE_ANON_KEY=your-anon-key-here
+            </pre>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -67,7 +77,6 @@ function App() {
               </Routes>
             </main>
             <Footer />
-            <DeploymentStatusCheck />
           </div>
         </AppProvider>
       </Router>

@@ -99,4 +99,7 @@ export interface AppState {
   duplicateGuests?: string[]; // List of duplicate guest names for warnings
   assignmentSignature: string; // Stable signature for assignment changes to trigger effects
   conflictWarnings: string[]; // SURGICAL ADDITION: User-facing conflict warnings
+  warnings: string[]; // Non-blocking warnings for display
+  lastGeneratedSignature: string | null; // Signature of last generated plan
+  lastGeneratedPlanSig: string | null; // Plan signature of last generated plan
 }

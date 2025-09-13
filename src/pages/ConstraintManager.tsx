@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
+import { detectConflicts } from '../utils/conflicts';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 
@@ -433,12 +434,20 @@ const ConstraintManager: React.FC = () => {
     return true;
   }, []);
 
+  const conflictWarnings = detectConflicts(state.assignments, state.constraints);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <ClipboardList className="mr-2" />
         Constraint Manager
       </h1>
+      
+      {conflictWarnings.length > 0 && (
+        <div className="text-red-50 mt-2">
+          {conflictWarnings.map(w => <p key={w}>{w}</p>)}
+        </div>
+      )}
       
       <Card>
         <div className="space-y-4">
