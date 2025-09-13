@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronUp, Edit2, Info, Trash2, X } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronUp, Edit2, Info, Trash2, X, Play } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import AuthModal from '../components/AuthModal';
@@ -55,22 +55,41 @@ const GuestManager: React.FC = () => {
     }
   }, [state.user]);
 
-  const toggleVideoVisible = () => {
-    const next = !videoVisible;
-    setVideoVisible(next);
-    localStorage.setItem('seatyr_video_visible', JSON.stringify(next));
-  };
 
-  // Ensure autoplay & muted params are present when accordion opens
+  // Auto-hide arrows after 20 seconds
   useEffect(() => {
-    if (videoVisible && videoRef.current) {
+    const timer = setTimeout(() => {
+      hideArrows();
+    }, 20000); // 20 seconds
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Function to toggle video visibility
+  const toggleVideo = () => {
+    const newVisibility = !videoVisible;
+    setVideoVisible(newVisibility);
+    localStorage.setItem('seatyr_video_visible', newVisibility.toString());
+    
+    // If expanding, set autoplay
+    if (newVisibility && videoRef.current) {
       const iframe = videoRef.current;
-      const src = iframe.src || 'https://player.vimeo.com/video/1099357191?autoplay=1&muted=1';
-      if (!/autoplay=1/.test(src)) {
-        iframe.src = src + (src.includes('?') ? '&' : '?') + 'autoplay=1&muted=1';
+      // Update the src to include autoplay parameter
+      const currentSrc = iframe.src;
+      if (currentSrc.includes('autoplay=0')) {
+        iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1');
+      } else if (!currentSrc.includes('autoplay=1')) {
+        iframe.src = currentSrc + (currentSrc.includes('?') ? '&' : '?') + 'autoplay=1';
       }
     }
-  }, [videoVisible]);
+  };
+
+  const hideArrows = () => {
+    const leftArrow = document.getElementById('leftArrow');
+    const rightArrow = document.getElementById('rightArrow');
+    if (leftArrow) leftArrow.classList.add('hidden');
+    if (rightArrow) rightArrow.classList.add('hidden');
+  };
 
   // Pull saved settings immediately on auth change
   useEffect(() => {
@@ -203,7 +222,7 @@ const GuestManager: React.FC = () => {
     }
 
     dispatch({ type: 'PURGE_PLANS' });
-    saveRecentSessionSettings(state);
+    saveRecentSessionSettings(state.user?.id, isPremium, state.tables);
     setGuestInput('');
 
     // Optional capacity warning if tables are user-defined
@@ -217,7 +236,7 @@ const GuestManager: React.FC = () => {
   const handleRemoveGuest = (id: string) => {
     dispatch({ type: 'REMOVE_GUEST', payload: id });
     dispatch({ type: 'PURGE_PLANS' });
-    saveRecentSessionSettings(state);
+    saveRecentSessionSettings(state.user?.id, isPremium, state.tables);
   };
 
   const beginEdit = (guest: any) => {
@@ -237,19 +256,9 @@ const GuestManager: React.FC = () => {
     dispatch({ type: 'PURGE_PLANS' });
     setEditingGuestId(null);
     setEditingGuestName('');
-    saveRecentSessionSettings(state);
+    saveRecentSessionSettings(state.user?.id, isPremium, state.tables);
   };
 
-  const handleLoadTest = () => {
-    const testGuests = ['Guest1 +1', 'Guest2 &3', 'Guest3 plus 2'];
-    testGuests.forEach((name, index) => {
-      const count = Math.max(1, countHeads(name));
-      const id = `g-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${index}`;
-      dispatch({ type: 'ADD_GUEST', payload: { id, name, count } });
-    });
-    dispatch({ type: 'PURGE_PLANS' });
-    saveRecentSessionSettings(state);
-  };
 
   const onImportCSV: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const file = e.target.files?.[0];
@@ -294,12 +303,61 @@ const GuestManager: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const handleUpgrade = () => redirectToCheckout();
+  const loadTestGuestList = () => {
+    // Hide arrows immediately when button is clicked
+    hideArrows();
+    
+    const testGuests = [
+      { id: 'guest_test_1', name: 'Maria Garcia+1', count: 2 },
+      { id: 'guest_test_2', name: 'James Johnson&1', count: 2 },
+      { id: 'guest_test_3', name: 'Wei & Sara Chen', count: 2 },
+      { id: 'guest_test_4', name: 'Sarah&Bobby Williams+1', count: 3 },
+      { id: 'guest_test_5', name: 'Carlos Rodriguez+2', count: 3 },
+      { id: 'guest_test_6', name: 'Emily Davis& 2', count: 3 },
+      { id: 'guest_test_7', name: 'Raj Patel +1', count: 2 },
+      { id: 'guest_test_8', name: 'Ashley Brown &1', count: 2 },
+      { id: 'guest_test_9', name: 'Jose Martinez & Billy & Jessica Li', count: 3 },
+      { id: 'guest_test_10', name: 'David Kim + 1', count: 2 },
+      { id: 'guest_test_11', name: 'Michelle Jones+ 1', count: 2 },
+      { id: 'guest_test_12', name: 'Luis Hernandez', count: 1 },
+      { id: 'guest_test_13', name: 'Amanda %Zeta Taylor+ 2', count: 3 },
+      { id: 'guest_test_14', name: 'Priya Sharma plus 1', count: 2 },
+      { id: 'guest_test_15', name: 'Michael Miller + 2', count: 3 },
+      { id: 'guest_test_16', name: 'Ana Macron plus 1', count: 2 },
+      { id: 'guest_test_17', name: 'Christopher Anderson + 2', count: 3 },
+      { id: 'guest_test_18', name: 'Mo Rashid', count: 1 },
+      { id: 'guest_test_19', name: 'Cher', count: 1 },
+      { id: 'guest_test_20', name: 'Tyler Goldberg+3', count: 4 },
+      { id: 'guest_test_21', name: 'Stephanie Jackson', count: 1 },
+      { id: 'guest_test_22', name: 'Arjun Gupta', count: 1 },
+      { id: 'guest_test_23', name: 'Nicole White', count: 1 },
+      { id: 'guest_test_24', name: 'Diego Ramirez', count: 1 },
+      { id: 'guest_test_25', name: 'Samantha Harris', count: 1 },
+      { id: 'guest_test_26', name: 'Jin Wang', count: 1 },
+      { id: 'guest_test_27', name: 'Rachel Martin &2', count: 3 },
+      { id: 'guest_test_28', name: 'Sergio Gambuto', count: 1 },
+      { id: 'guest_test_29', name: 'Kayla & Daveed Lopez', count: 2 },
+      { id: 'guest_test_30', name: 'Ravi Berns-Krishnan+wife', count: 2 },
+      { id: 'guest_test_31', name: 'Kenji Nakamura+2', count: 3 },
+      { id: 'guest_test_32', name: 'Megan Kaczmarek', count: 1 }
+    ];
+    
+    // Clear existing guests and add test list
+    dispatch({ type: 'SET_GUESTS', payload: testGuests });
+    
+    // Clear any warnings
+    dispatch({ type: 'CLEAR_WARNINGS' });
+    
+    // Purge seating plans since guests changed
+    dispatch({ type: 'PURGE_PLANS' });
+  };
+
+  const handleUpgrade = () => redirectToCheckout(state.user?.id);
 
   const confirmClearAll = () => {
     dispatch({ type: 'CLEAR_GUESTS' });
     dispatch({ type: 'PURGE_PLANS' });
-    clearRecentSessionSettings();
+    clearRecentSessionSettings(state.user?.id, true);
     setShowClearConfirm(false);
   };
 
@@ -368,23 +426,43 @@ const GuestManager: React.FC = () => {
         </div>
       )}
 
-      {/* Video Accordion */}
-      <div className="border rounded-lg overflow-hidden">
-        <button onClick={toggleVideoVisible} className="w-full flex justify-between items-center p-4 bg-[#586D78] text-white font-bold">
-          <span>Watch Tutorial Video</span>
-          {videoVisible ? <ChevronUp /> : <ChevronDown />}
-        </button>
-        {videoVisible && (
-          <div className="p-4">
-            <iframe
-              ref={videoRef}
-              src="https://player.vimeo.com/video/1099357191?autoplay=1&muted=1"
-              width="100%"
-              height="360"
-              frameBorder={0}
-              allow="autoplay; fullscreen"
-              allowFullScreen
-            />
+      {/* Video Section with Collapse/Expand - Full width */}
+      <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
+        {videoVisible ? (
+          <div className="relative">
+            {/* Hide Section button moved above video with spacing */}
+            <div className="p-2 flex justify-end">
+              <button 
+                onClick={toggleVideo}
+                className="danstyle1c-btn"
+                aria-label="Hide video section"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Hide Section
+              </button>
+            </div>
+            {/* Video shifted down to accommodate button */}
+            <div className="relative w-full pt-[37.5%] overflow-hidden">
+              <iframe
+                ref={videoRef}
+                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!state.user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
+                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                title="SeatyrBannerV1cVideo"
+                className="absolute top-0 left-0 w-full h-full"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 flex justify-end items-center">
+            <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
+            <button 
+              onClick={toggleVideo}
+              className="danstyle1c-btn"
+              aria-label="Replay video"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Replay Video
+            </button>
           </div>
         )}
       </div>
@@ -402,12 +480,23 @@ const GuestManager: React.FC = () => {
             placeholder="Enter guests (e.g., Chris %Evans +1, Jordan %Lee & Casey)"
             className="w-full p-2 border rounded"
           />
-          <div className="flex space-x-2 mt-2">
-            <Button onClick={handleAddGuest}>Add Guests</Button>
-            {!state.user && <Button onClick={handleLoadTest}>Load Test Guest List</Button>}
-            <Button onClick={() => fileInputRef.current?.click()}>{state.user ? 'Upload Guests' : 'Import CSV'}</Button>
-                <input ref={fileInputRef} type="file" accept=".csv" onChange={onImportCSV} className="hidden" />
-          </div>
+           <div className="flex space-x-2 mt-2">
+             <Button onClick={handleAddGuest}>Add Guests</Button>
+             {!state.user && (
+               <button
+                 onClick={loadTestGuestList}
+                 className="danstyle1c-btn inline-flex items-center justify-center"
+                 style={{ height: '70.2px', width: '60%' }}
+                 id="loadTestGuestListBtn"
+               >
+                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
+                 <span className="mx-8">Load Test Guest List</span>
+                 <span className="pulsing-arrow" id="rightArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>⬅️</span>
+               </button>
+             )}
+             <Button onClick={() => fileInputRef.current?.click()}>{state.user ? 'Upload Guests' : 'Import CSV'}</Button>
+                 <input ref={fileInputRef} type="file" accept=".csv" onChange={onImportCSV} className="hidden" />
+           </div>
           {savedSettingsError && <p className="text-red-500 mt-2">{savedSettingsError}</p>}
         </Card>
       </div>
@@ -465,7 +554,7 @@ const GuestManager: React.FC = () => {
                 />
               ) : (
                 <div className="flex-1 min-w-0">
-                  <FormatGuestName name={getDisplayName(guest.name)} count={guest.count} />
+                  <FormatGuestName name={getDisplayName(guest.name)} />
                 </div>
               )}
               <div className="flex items-center gap-1 shrink-0">
@@ -525,5 +614,38 @@ const GuestManager: React.FC = () => {
     </div>
   );
 };
+
+// Add CSS animation for the pulsing arrow
+if (typeof window !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes pulseAndColor {
+      0% { 
+        transform: scale(1); 
+        filter: hue-rotate(0deg) saturate(1) brightness(1);
+      }
+      25% { 
+        transform: scale(1.2); 
+        filter: hue-rotate(90deg) saturate(1.5) brightness(1.2);
+      }
+      50% { 
+        transform: scale(1.4); 
+        filter: hue-rotate(180deg) saturate(2) brightness(1.4);
+      }
+      75% { 
+        transform: scale(1.2); 
+        filter: hue-rotate(270deg) saturate(1.5) brightness(1.2);
+      }
+      100% { 
+        transform: scale(1); 
+        filter: hue-rotate(360deg) saturate(1) brightness(1);
+      }
+    }
+  `;
+  if (!document.querySelector('#pulsing-arrow-styles')) {
+    style.id = 'pulsing-arrow-styles';
+    document.head.appendChild(style);
+  }
+}
 
 export default GuestManager;
