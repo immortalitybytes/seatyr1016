@@ -9,6 +9,7 @@ import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
 import { migrateState, normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds, migrateAssignmentsToIdKeys } from '../utils/assignments';
 import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
+import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
@@ -138,6 +139,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       Object.keys(constraints).forEach(key => delete constraints[key][id]);
       Object.keys(adjacents).forEach(key => adjacents[key] = adjacents[key].filter(aid => aid !== id));
       return { ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 };
+    }
+    case "RENAME_GUEST": {
+      const { id, name } = action.payload;
+      const guests = state.guests.map(g => g.id === id ? { ...g, name, count: countHeads(name) } : g);
+      return { ...state, guests, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "UPDATE_ASSIGNMENT": {
       const { payload } = action;

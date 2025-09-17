@@ -24,6 +24,7 @@ const ConstraintManager: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
+  const [adjacentInstructionsOpen, setAdjacentInstructionsOpen] = useState(false);
   
   const isPremium = isPremiumSubscription(state.subscription);
   
@@ -460,7 +461,7 @@ const ConstraintManager: React.FC = () => {
                 <div className="mt-1 flex flex-wrap gap-4">
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#22cf04', border: '2px solid #000', lineHeight: '1.5em', color: 'white' }}
+                          style={{ width: '2.25em', height: '2.25em', background: '#22cf04', border: '2px solid #000', lineHeight: '2.25em', color: 'white', fontSize: '0.9em' }}
                           aria-label="Must">
                       &
                     </span>
@@ -468,7 +469,7 @@ const ConstraintManager: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#e6130b', border: '2px solid #000', lineHeight: '1.5em', color: 'white' }}
+                          style={{ width: '2.25em', height: '2.25em', background: '#e6130b', border: '2px solid #000', lineHeight: '2.25em', color: 'white', fontSize: '0.9em' }}
                           aria-label="Cannot">
                       X
                     </span>
@@ -476,23 +477,35 @@ const ConstraintManager: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
+                          style={{ width: '2.25em', height: '2.25em', background: '#ffffff', border: '2px solid #000', lineHeight: '2.25em', fontSize: '0.9em' }}
                           aria-label="No constraint">
                     </span>
                     <span>No constraint</span>
                   </div>
                 </div>
               </div>
-                <p className="mt-4">
-                  To set "Adjacent Seating" (guests sit right next to each other):
-                </p>
-                <ol className="list-decimal pl-5 mt-1 text-gray-600 text-sm">
-                  <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
-                  <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
-                </ol>
-                <p className="mt-2 text-gray-600 text-sm">
-                  Guests with adjacent constraints are marked with <span className="text-yellow-600 font-bold">*</span>
-                </p>
+              
+              {state.user && (
+                <div className="mt-6">
+                  <div className="bg-blue-50 border border-blue-200 rounded-md">
+                    <button
+                      className="w-full px-4 py-3 text-left font-medium text-[#586D78] hover:bg-blue-100 transition-colors"
+                      onClick={() => setAdjacentInstructionsOpen(!adjacentInstructionsOpen)}
+                    >
+                      ▶ To Set Adjacent-Seating:
+                    </button>
+                    {adjacentInstructionsOpen && (
+                      <div className="px-4 pb-4">
+                        <div className="text-gray-600 text-sm space-y-2">
+                          <p>1) Double-click a guest name to select it.</p>
+                          <p>2) Double-click another guest and the adjacency will be set automatically.</p>
+                          <p>Guests with adjacent constraints are marked with ⭐</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

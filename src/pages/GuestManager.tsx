@@ -317,7 +317,7 @@ const GuestManager: React.FC = () => {
   const commitEdit = () => {
     if (editingGuestId && editingGuestName.trim()) {
       dispatch({
-        type: 'UPDATE_GUEST',
+        type: 'RENAME_GUEST',
         payload: { id: editingGuestId, name: editingGuestName },
       });
     }
@@ -412,23 +412,22 @@ const GuestManager: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="Instructions" className="lg:col-span-1">
-          <div className="space-y-2 text-sm text-[#566F9B]" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-            <p>1.) Click "Load Test Guest List" button.</p>
-            <p>2.) Click "Your Rules" at the top.</p>
-            <p>3.) Pair and Prevent as you like.</p>
-          </div>
-          
-          {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
-          <div className="flex justify-end pr-4">
+          <div className="flex flex-col items-center justify-center h-full space-y-4">
+            <div className="text-sm text-[#566F9B] text-center" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+              <p>1.) Click "Load Test Guest List" button.</p>
+              <p>2.) Click "Your Rules" at the top.</p>
+              <p>3.) Pair and Prevent as you like.</p>
+            </div>
+            
+            {/* Pulsing Arrow Emoji - vertically middle-aligned with Load Test Guest List button */}
             <div
-              className="pulsing-arrow self-end translate-y-2"
+              className="pulsing-arrow"
               style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
               aria-hidden
             >
               ➡️
             </div>
           </div>
-          
         </Card>
 
         <Card title="Add Guest Names" className="lg:col-span-2">
@@ -445,27 +444,26 @@ const GuestManager: React.FC = () => {
             onChange={(e) => setGuestInput(e.target.value)}
             placeholder=" e.g., Alice & Andrew Jones, Bob Smith+1
 Conseula & Cory & Cleon Lee, Darren Winnik+4"
-            className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-gray-400"
+            className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex justify-between items-center">
-            <div className="flex gap-2">
-              {!state.user && (
-                <button
-                  onClick={loadTestGuestList}
-                  className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '60%' }}
-                  id="loadTestGuestListBtn"
-                >
-                  <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
-                  <span className="mx-8">Load Test Guest List</span>
-                  <span className="pulsing-arrow" id="rightArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>⬅️</span>
-                </button>
-              )}
-            </div>
+          <div className="mt-4 flex gap-2 w-full">
+            {!state.user && (
+              <button
+                onClick={loadTestGuestList}
+                className="danstyle1c-btn inline-flex items-center justify-center flex-1"
+                style={{ height: '70.2px' }}
+                id="loadTestGuestListBtn"
+              >
+                <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
+                <span className="mx-8">Load Test Guest List</span>
+                <span className="pulsing-arrow" id="rightArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>⬅️</span>
+              </button>
+            )}
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
+              className="flex-1"
               style={{ height: '70.2px' }}
             >
               Add Guests
@@ -613,15 +611,16 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                   </span>
                 )}
 
-                {guest.count > 1 && (
-                  <span className="text-sm text-gray-700 font-medium mt-1">
-                    Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
-                  </span>
-                )}
-                
-                <span className="text-sm text-gray-600 mt-1">Table: {label}</span>
-                
-                <div className="flex space-x-2 mt-3">
+                <div className="flex justify-between items-end w-full mt-auto">
+                  <div className="flex flex-col">
+                    {guest.count > 1 && (
+                      <span className="text-sm text-gray-700 font-medium">
+                        Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
+                      </span>
+                    )}
+                    <span className="text-sm text-gray-600">Table: {label}</span>
+                  </div>
+                  
                   <button
                     className="danstyle1c-btn danstyle1c-remove btn-small"
                     onClick={() => handleRemoveGuest(guest.id)}
