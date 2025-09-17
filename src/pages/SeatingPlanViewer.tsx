@@ -42,7 +42,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       tokenToBold = ordinalToShow;
     }
     
-    // Build the display
+    // Build the display with proper bold formatting
     const result: React.ReactNode[] = [];
     
     // For cases with addition signifiers, preserve the full original name structure
@@ -53,12 +53,49 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
           /(?:(?:\+|&)\s*1(?!\d))|(?:\b(?:and|plus)\b\s*(?:one|1)(?!\d))/gi,
           ' plus One'
         );
-        result.push(<span key="display">{displayName}</span>);
+        
+        // Apply bold formatting to the appropriate token
+        if (tokenToBold && displayName.includes(tokenToBold)) {
+          const parts = displayName.split(tokenToBold);
+          result.push(
+            <span key="display">
+              {parts[0]}
+              <strong>{tokenToBold}</strong>
+              {parts[1]}
+            </span>
+          );
+        } else {
+          result.push(<span key="display">{displayName}</span>);
+        }
+      } else {
+        // Apply bold formatting to the appropriate token in the original name
+        if (tokenToBold && originalName.includes(tokenToBold)) {
+          const parts = originalName.split(tokenToBold);
+          result.push(
+            <span key="original">
+              {parts[0]}
+              <strong>{tokenToBold}</strong>
+              {parts[1]}
+            </span>
+          );
+        } else {
+          result.push(<span key="original">{originalName}</span>);
+        }
+      }
+    } else {
+      // For simple names without addition signifiers, apply bold formatting
+      if (tokenToBold && originalName.includes(tokenToBold)) {
+        const parts = originalName.split(tokenToBold);
+        result.push(
+          <span key="original">
+            {parts[0]}
+            <strong>{tokenToBold}</strong>
+            {parts[1]}
+          </span>
+        );
       } else {
         result.push(<span key="original">{originalName}</span>);
       }
-    } else {
-        result.push(<span key="original">{originalName}</span>);
     }
 
     return <>{result}</>;
