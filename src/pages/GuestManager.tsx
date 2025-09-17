@@ -1,3 +1,4 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ChevronDown, ChevronUp, Edit2, Info, Trash2, X, Play, RefreshCw, Users, FolderOpen, ArrowDownAZ, Crown, Upload, ArrowRight } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
