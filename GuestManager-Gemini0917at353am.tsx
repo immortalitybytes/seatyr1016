@@ -77,7 +77,7 @@ const parseGuestLine = (line: string) => {
   const trimmed = line.trim();
   if (!trimmed) return null;
   const count = Math.max(1, countHeads(trimmed));
-  const plusOneRegex = /(?:(?:\+|&)\s*1(?!\d))|(?:\b(?:and|plus|family of)\b\s*(?:one|1|\d+)(?!\d))/gi;
+  const plusOneRegex = /(?:(?:+|&)*1(?!))|(?:(?:and|plus|family of)*(?:one|1|+)(?!))/gi;
   const name = trimmed.replace(plusOneRegex, (m) => {
     const hasSpace = m.trim() !== m;
     return hasSpace ? ' plus One' : 'plus One';
@@ -752,4 +752,5 @@ if (typeof window !== 'undefined') {
     document.head.appendChild(style);
   }
 }
-export default GuestManager;
+
+export default GuestManager;}
