@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Edit2, Info, Trash2, X, Play, Users, ArrowDownAZ, Crown, ArrowRight } from 'lucide-react';
+import { AlertCircle, Edit2, Info, Trash2, X, Play, Users, Crown } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import AuthModal from '../components/AuthModal';
@@ -11,8 +11,6 @@ import { isPremiumSubscription, getMaxGuestLimit } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
 import { getDisplayName, countHeads } from '../utils/guestCount';
-import { calculateTotalCapacity } from '../utils/tables';
-import { useNavigate } from 'react-router-dom';
 
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
@@ -95,7 +93,6 @@ if (!crypto.randomUUID) {
 
 const GuestManager: React.FC = () => {
   const { state, dispatch } = useApp();
-  const navigate = useNavigate();
   const [guestInput, setGuestInput] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -181,7 +178,6 @@ const GuestManager: React.FC = () => {
     dispatch({ type: 'SET_GUESTS', payload: testGuests });
   };
   const totalGuests = useMemo(() => state.guests.reduce((sum, g) => sum + countHeads(g.name), 0), [state.guests]);
-  const totalSeats = useMemo(() => calculateTotalCapacity(state.tables), [state.tables]);
 
   useEffect(() => {
     const userIsLoggedIn = !!state.user;
@@ -294,7 +290,7 @@ const GuestManager: React.FC = () => {
     }
   };
   const handleAddGuests = () => {
-    const lines = guestInput.split('');
+    const lines = guestInput.split('\n');
     const newGuests = [];
     const seen = new Set(state.guests.map((g) => normalizeName(g.name)));
     const duplicates = [];
@@ -362,7 +358,7 @@ const GuestManager: React.FC = () => {
 
   const sortedGuests = useMemo(() => {
     const guests = [...state.guests];
-    if (sortOption === 'first-name') {
+      if (sortOption === 'first-name') {
       return guests.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortOption === 'last-name') {
       return guests.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
@@ -394,12 +390,12 @@ const GuestManager: React.FC = () => {
               >
                 <X className="w-4 h-4 mr-2" />
                 Hide Section
-              </button>
-            </div>
+          </button>
+        </div>
             {/* Video shifted down to accommodate button */}
             <div className="relative w-full pt-[37.5%] overflow-hidden">
-              <iframe
-                ref={videoRef}
+            <iframe
+              ref={videoRef}
                 src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!state.user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
                 allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
                 title="SeatyrBannerV1cVideo"
@@ -457,12 +453,10 @@ const GuestManager: React.FC = () => {
             onChange={(e) => setGuestInput(e.target.value)}
             placeholder=" e.g., Alice & Andrew Jones, Bob Smith+1
 Conseula & Cory & Cleon Lee, Darren Winnik+4"
-            className="w-full h-32 p-3 border rounded-lg resize-none text-gray-400"
+            className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-gray-400"
+            style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
           <div className="mt-4 flex justify-between items-center">
-            <div className="text-sm text-gray-600">
-              Total Guests: {totalGuests} / Seats: {totalSeats}
-            </div>
             <div className="flex gap-2">
               {!state.user && (
                 <button
@@ -476,10 +470,14 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                   <span className="pulsing-arrow" id="rightArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>⬅️</span>
                 </button>
               )}
-              <Button onClick={handleAddGuests} disabled={!guestInput.trim()}>
-                Add Guests
-              </Button>
             </div>
+            <Button 
+              onClick={handleAddGuests} 
+              disabled={!guestInput.trim()}
+              style={{ height: '70.2px' }}
+            >
+              Add Guests
+            </Button>
           </div>
           {showDuplicateWarning && (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start">
@@ -493,14 +491,6 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           
             </div>
           )}
-          {sortedGuests.length > 0 && (
-            <div className="mt-6 flex justify-center">
-              <Button variant="primary" onClick={() => navigate('/tables')}>
-                Go to Table & Constraint Setup <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
- 
-            </div>
-          )}
         </Card>
       </div>
 
@@ -512,50 +502,106 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5" />
       
-            <span>{sortedGuests.length} Guests ({totalGuests} Heads)</span>
+            <span>{sortedGuests.length} Invitations ({totalGuests} Seats)</span>
           </div>
           <div className="flex items-center gap-2">
-            <ArrowDownAZ className="w-4 h-4" />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as SortOption)}
-         
-              className="border rounded px-2 py-1"
-            >
-              <option value="as-entered">As Entered</option>
-              <option value="first-name">By First Name</option>
-              <option value="last-name">By Last Name</option>
-              <option value="current-table">By Current Table</option>
-            </select>
- 
+            <span className="text-sm text-gray-700 font-medium">Sort by:</span>
+            {!state.user ? (
+              // Non-logged-in users: only First Name and Last Name
+              <>
+                <button
+                  onClick={() => setSortOption('first-name')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'first-name' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  First Name
+                </button>
+                <button
+                  onClick={() => setSortOption('last-name')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'last-name' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Last Name
+                </button>
+              </>
+            ) : (
+              // Logged-in users: First Name, Last Name, As Entered, By Table
+              <>
+                <button
+                  onClick={() => setSortOption('first-name')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'first-name' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  First Name
+                </button>
+                <button
+                  onClick={() => setSortOption('last-name')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'last-name' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Last Name
+                </button>
+                <button
+                  onClick={() => setSortOption('as-entered')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'as-entered' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  As Entered
+                </button>
+                <button
+                  onClick={() => setSortOption('current-table')}
+                  className={`px-3 py-1 text-sm rounded ${
+                    sortOption === 'current-table' 
+                      ? 'bg-[#586D78] text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  By Table
+                </button>
+              </>
+            )}
           </div>
-        </div>
+      </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {sortedGuests.map((guest, index) => {
             const isEditing = editingGuestId === guest.id;
             const label = getGuestTableAssignment(guest.id, state.tables?.map(t => ({ id: t.id, name: t.name || undefined, seats: t.seats })), state.seatingPlans?.[state.currentPlanIndex], state.assignments);
-            const opacity = label === 'Unassigned' ? 'opacity-50' : '';
             return (
               <div 
                 key={`${guest.name}-${index}`}
-                className={`border border-[#586D78] border-[0.5px] rounded-lg p-4 flex flex-col items-start bg-white shadow ${opacity}`}
+                className="border border-[#586D78] border-[0.5px] rounded-lg p-4 flex flex-col items-start bg-white shadow"
                 onDoubleClick={() => beginEdit(guest.id, guest.name)}
               >
                 {isEditing ? (
-                  <input
+                <input
                     type="text"
-                    value={editingGuestName}
+                  value={editingGuestName}
                     autoFocus
-                    onChange={(e) => setEditingGuestName(e.target.value)}
+                  onChange={(e) => setEditingGuestName(e.target.value)}
                     onBlur={() => commitEdit()}
-                    onKeyDown={(e) => {
+                  onKeyDown={(e) => {
                       if (e.key === "Enter") commitEdit();
                       if (e.key === "Escape") cancelEdit();
                     }}
                     className="guest-name-input font-medium text-[#586D78] text-xl w-full"
                     style={{ fontWeight: "bold" }}
-                  />
-                ) : (
+                />
+              ) : (
                   <span
                     className="font-medium text-[#586D78] text-xl flex items-center cursor-pointer"
                     onDoubleClick={() => beginEdit(guest.id, guest.name)}
@@ -581,7 +627,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                   </span>
                 )}
                 
-                <span className={`text-sm text-gray-600 mt-1 ${opacity}`}>Table: {label}</span>
+                <span className="text-sm text-gray-600 mt-1">Table: {label}</span>
                 
                 <div className="flex space-x-2 mt-3">
                   <button
@@ -595,7 +641,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               </div>
             );
           })}
-        </div>
+            </div>
         <div className="mt-4 flex justify-end">
           <Button variant="danger" onClick={handleClearAll}>
             <Trash2 className="w-4 h-4 mr-2" />
