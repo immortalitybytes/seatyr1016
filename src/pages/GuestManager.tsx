@@ -283,7 +283,6 @@ const GuestManager: React.FC = () => {
   };
   const handleAddGuests = () => {
     const lines = guestInput.split('\n');
-    const newGuests = [];
     const seen = new Set(state.guests.map((g) => normalizeName(g.name)));
     const duplicates = [];
     for (const line of lines) {
@@ -294,15 +293,16 @@ const GuestManager: React.FC = () => {
           duplicates.push(parsed.name);
         } else {
           seen.add(norm);
-          newGuests.push({
-            id: crypto.randomUUID(),
-            name: parsed.name,
+          dispatch({ 
+            type: 'ADD_GUEST', 
+            payload: {
+              id: crypto.randomUUID(),
+              name: parsed.name,
+              count: parsed.count
+            }
           });
         }
       }
-    }
-    if (newGuests.length > 0) {
-      dispatch({ type: 'ADD_GUESTS', payload: newGuests });
     }
     setLocalDuplicates(duplicates);
     setGuestInput('');
@@ -411,26 +411,30 @@ const GuestManager: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Instructions" className="lg:col-span-1">
-          <div className="flex flex-col items-center justify-center h-full space-y-4">
-            <div className="text-sm text-[#566F9B] text-center" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-              <p>1.) Click "Load Test Guest List" button.</p>
-              <p>2.) Click "Your Rules" at the top.</p>
-              <p>3.) Pair and Prevent as you like.</p>
+        <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
+          <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
+            <div className="flex-1 flex items-center">
+              <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+                <p>1.) Click "Load Test Guest List" button.</p>
+                <p>2.) Click "Your Rules" at the top.</p>
+                <p>3.) Pair and Prevent as you like.</p>
+              </div>
             </div>
             
-            {/* Pulsing Arrow Emoji - vertically middle-aligned with Load Test Guest List button */}
-            <div
-              className="pulsing-arrow"
-              style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
-              aria-hidden
-            >
-              ➡️
+            {/* Pulsing Arrow Emoji - vertically aligned with Load Test Guest List button */}
+            <div className="flex justify-center items-end pb-4">
+              <div
+                className="pulsing-arrow"
+                style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
+                aria-hidden
+              >
+                ➡️
+              </div>
             </div>
           </div>
         </Card>
 
-        <Card title="Add Guest Names" className="lg:col-span-2">
+        <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-4">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.<br />Connect couples and parties with an ampersand ("&").</p>
             {isPremium ? (
@@ -469,6 +473,10 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               Add Guests
             </Button>
           </div>
+          
+          {/* Add spacing below buttons for alignment */}
+          <div className="mt-6"></div>
+          
           {showDuplicateWarning && (
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start">
            
@@ -488,12 +496,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
       {state.user && <SavedSettingsAccordion />}
 
       <Card title="Your Guests" className="relative">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5" />
-      
             <span>{sortedGuests.length} Invitations ({totalGuests} Seats)</span>
           </div>
+          
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Sort by:</span>
             {!state.user ? (
@@ -501,20 +509,20 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <>
                 <button
                   onClick={() => setSortOption('first-name')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'first-name' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   First Name
                 </button>
                 <button
                   onClick={() => setSortOption('last-name')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'last-name' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   Last Name
@@ -525,40 +533,40 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <>
                 <button
                   onClick={() => setSortOption('first-name')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'first-name' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   First Name
                 </button>
                 <button
                   onClick={() => setSortOption('last-name')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'last-name' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   Last Name
                 </button>
                 <button
                   onClick={() => setSortOption('as-entered')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'as-entered' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   As Entered
                 </button>
                 <button
                   onClick={() => setSortOption('current-table')}
-                  className={`px-3 py-1 text-sm rounded ${
+                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
                     sortOption === 'current-table' 
                       ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
                   }`}
                 >
                   By Table
@@ -566,7 +574,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               </>
             )}
           </div>
-      </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {sortedGuests.map((guest, index) => {
             const isEditing = editingGuestId === guest.id;

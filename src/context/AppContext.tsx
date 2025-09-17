@@ -145,6 +145,18 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const guests = state.guests.map(g => g.id === id ? { ...g, name, count: countHeads(name) } : g);
       return { ...state, guests, seatingPlans: [], currentPlanIndex: 0 };
     }
+    case "CLEAR_ALL": {
+      return {
+        ...state,
+        guests: [],
+        constraints: {},
+        adjacents: {},
+        assignments: {},
+        seatingPlans: [],
+        currentPlanIndex: 0,
+        warnings: []
+      };
+    }
     case "UPDATE_ASSIGNMENT": {
       const { payload } = action;
       const { guestId, raw } = payload;
