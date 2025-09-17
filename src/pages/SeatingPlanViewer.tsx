@@ -14,91 +14,68 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     
     const originalName = rawName.trim();
     
-    // Get base tokens (names) and extra tokens (ordinals)
+    // Parse the guest name to extract base names and additional guests
     const baseTokens = seatingTokensFromGuestUnit(rawName);
     const extraTokens = nOfNTokensFromSuffix(rawName);
-    
-    // Surgical change: Hardened regex for +1 detection with negative lookahead
-    const hasAdditionSignifier = /[&+]|\b(?:and|plus)\b/i.test(originalName);
-    const hasPlusOne = hasAdditionSignifier &&
-                      /(?:(?:\+|&)\s*1(?!\d))|(?:\b(?:and|plus)\b\s*(?:one|1)(?!\d))/i.test(originalName);
     
     // Calculate total seats needed
     const totalSeats = baseTokens.length + extraTokens.length;
     
-    // Determine which token to bold based on seat index
-    let tokenToBold = '';
-    let showOrdinal = false;
-    let ordinalToShow = '';
-    
+    // Determine what to display based on seat index
     if (seatIndex < baseTokens.length) {
-      // Bold one of the base name tokens
-      tokenToBold = baseTokens[seatIndex];
-    } else {
-      // Show ordinal for additional seats
-      showOrdinal = true;
-      const ordinalIndex = seatIndex - baseTokens.length;
-      ordinalToShow = extraTokens[ordinalIndex] || '';
-      tokenToBold = ordinalToShow;
-    }
-    
-    // Build the display with proper bold formatting
-    const result: React.ReactNode[] = [];
-    
-    // For cases with addition signifiers, preserve the full original name structure
-    if (hasAdditionSignifier) {
-      if (hasPlusOne) {
-        // Special case: For "+1", convert to "plus One" format on ALL cells
-        const displayName = originalName.replace(
-          /(?:(?:\+|&)\s*1(?!\d))|(?:\b(?:and|plus)\b\s*(?:one|1)(?!\d))/gi,
-          ' plus One'
-        );
-        
-        // Apply bold formatting to the appropriate token
-        if (tokenToBold && displayName.includes(tokenToBold)) {
-          const parts = displayName.split(tokenToBold);
-          result.push(
-            <span key="display">
-              {parts[0]}
-              <strong>{tokenToBold}</strong>
-              {parts[1]}
-            </span>
-          );
-        } else {
-          result.push(<span key="display">{displayName}</span>);
-        }
-      } else {
-        // Apply bold formatting to the appropriate token in the original name
-        if (tokenToBold && originalName.includes(tokenToBold)) {
-          const parts = originalName.split(tokenToBold);
-          result.push(
-            <span key="original">
-              {parts[0]}
-              <strong>{tokenToBold}</strong>
-              {parts[1]}
-            </span>
-          );
-        } else {
-          result.push(<span key="original">{originalName}</span>);
-        }
-      }
-    } else {
-      // For simple names without addition signifiers, apply bold formatting
-      if (tokenToBold && originalName.includes(tokenToBold)) {
-        const parts = originalName.split(tokenToBold);
-        result.push(
-          <span key="original">
+      // This is one of the base name tokens - bold the specific name
+      const tokenToBold = baseTokens[seatIndex];
+      
+      // Build display with the specific name bolded
+      const parts = originalName.split(tokenToBold);
+      if (parts.length > 1) {
+        return (
+          <span>
             {parts[0]}
             <strong>{tokenToBold}</strong>
             {parts[1]}
           </span>
         );
       } else {
-        result.push(<span key="original">{originalName}</span>);
+        return <span><strong>{originalName}</strong></span>;
       }
+    } else {
+      // This is an additional seat - show ordinal number
+      const ordinalIndex = seatIndex - baseTokens.length;
+      const ordinalNumber = ordinalIndex + 1;
+      
+      // Generate ordinal text (1st, 2nd, 3rd, etc.)
+      const getOrdinalText = (num: number): string => {
+        const lastDigit = num % 10;
+        const lastTwoDigits = num % 100;
+        
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+          return `${num}th`;
+        }
+        
+        switch (lastDigit) {
+          case 1: return `${num}st`;
+          case 2: return `${num}nd`;
+          case 3: return `${num}rd`;
+          default: return `${num}th`;
+        }
+      };
+      
+      const ordinalText = getOrdinalText(ordinalNumber);
+      const totalAdditional = extraTokens.length;
+      
+      // Build display with ordinal number bolded
+      // Format: "BaseName + 1st (of X)"
+      const baseName = baseTokens.join(' & ');
+      const additionalPart = originalName.match(/[&+]|\b(?:and|plus)\b.*$/i)?.[0] || '';
+      
+      return (
+        <span>
+          {baseName} {additionalPart.replace(/\d+/, '').trim()}
+          <strong> {ordinalText}</strong> (of {totalAdditional})
+        </span>
+      );
     }
-
-    return <>{result}</>;
 };
 
 const displayTableLabel = (table: { id: number; name?: string | null }, index: number): string => {

@@ -31,8 +31,10 @@ export function getDisplayName(raw: string): string {
 
 /**
  * Extracts the effective last name for sorting purposes.
- * If a name contains a '%' symbol, it returns the single word immediately
- * following it. Otherwise, it returns the last word of the name.
+ * Priority order:
+ * 1. First instance of word prefixed with % character (user-designated sorting word)
+ * 2. Last word of first multi-word name separated by addition signifiers
+ * 3. First name if no multi-word names exist
  */
 export function getLastNameForSorting(fullName: string): string {
   if (!fullName || typeof fullName !== 'string') {
@@ -44,13 +46,14 @@ export function getLastNameForSorting(fullName: string): string {
     return '';
   }
   
-  // Priority: Look for first instance of word prefixed with % character
+  // Priority 1: Look for first instance of word prefixed with % character
   const percentMatch = trimmedName.match(/%([A-Za-z][\w-]*)/);
   if (percentMatch) {
     return percentMatch[1];
   }
   
-  // Look for multi-word guest names separated by addition signifiers
+  // Priority 2: Look for multi-word guest names separated by addition signifiers
+  // Split by addition signifiers: &, +, and, plus
   const separators = /[&+]|\b(?:and|plus)\b/gi;
   const parts = trimmedName.split(separators);
   
@@ -62,11 +65,12 @@ export function getLastNameForSorting(fullName: string): string {
       .filter(w => w.length > 0 && !/^(?:&|\+|and|plus)$/i.test(w));
     if (words.length > 1) {
       // Return the last word of the first multi-word part
+      // Handle hyphens as single words (e.g., "Berns-Krishnan" is one word)
       return words[words.length - 1];
     }
   }
   
-  // If no multi-word names, treat first name as last name
+  // Priority 3: If no multi-word names, treat first name as last name
   const words = trimmedName.split(/\s+/).filter(word => word.length > 0);
   return words.length > 0 ? words[0] : trimmedName;
 }
