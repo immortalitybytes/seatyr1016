@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, ChevronDown, ChevronUp, Edit2, Info, Trash2, X, Play, RefreshCw, Users, FolderOpen, ArrowDownAZ, Crown, Upload, ArrowRight } from 'lucide-react';
+import { AlertCircle, Edit2, Info, Trash2, X, Play, Users, ArrowDownAZ, Crown, ArrowRight } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import AuthModal from '../components/AuthModal';
@@ -8,21 +8,13 @@ import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit } from '../utils/premium';
-import { clearRecentSessionSettings, saveRecentSessionSettings } from '../lib/sessionSettings';
+import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
 import { getDisplayName, countHeads } from '../utils/guestCount';
-import FormatGuestName from '../components/FormatGuestName';
 import { calculateTotalCapacity } from '../utils/tables';
 import { useNavigate } from 'react-router-dom';
 
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
-interface SavedSettingRec {
-  id: string;
-  name: string;
-  created_at: string;
-  user_id: string;
-  settings: any;
-}
 
 const normalizeName = (name: string) => name.trim().toLowerCase();
 
@@ -88,7 +80,7 @@ const parseGuestLine = (line: string) => {
 
 // Polyfill for older browsers (RFC4122 v4 compliant)
 if (!crypto.randomUUID) {
-  crypto.randomUUID = () => {
+  (crypto as any).randomUUID = () => {
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -114,9 +106,6 @@ const GuestManager: React.FC = () => {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [localDuplicates, setLocalDuplicates] = useState<string[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [realtimeError, setRealtimeError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLIFrameElement>(null);
   const realtimeSubscriptionRef = useRef<any>(null);
   const pulsingArrowTimeout = useRef<number | null>(null);
@@ -253,8 +242,6 @@ const GuestManager: React.FC = () => {
       )
       .subscribe((status: string, err: any) => {
         if (status === 'SUBSCRIPTION_ERROR' && err) {
-          setRealtimeError('Failed to subscribe to settings updates. Please try again.');
-  
           console.error('Supabase subscription error:', err);
         }
       });
@@ -333,21 +320,6 @@ const GuestManager: React.FC = () => {
     setGuestInput('');
   };
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        setGuestInput(text);
-      } else {
-        setImportError('Failed to read file.');
-      }
-    };
-    reader.onerror = () => setImportError('Error reading file.');
-    reader.readAsText(file);
-  };
 
   const beginEdit = (id: string, name: string) => {
     setEditingGuestId(id);
@@ -377,7 +349,7 @@ const GuestManager: React.FC = () => {
   };
   const confirmClearAll = () => {
     dispatch({ type: 'CLEAR_ALL' });
-    clearRecentSessionSettings();
+    clearRecentSessionSettings(state.user?.id);
     setShowClearConfirm(false);
   };
   const handleUpgrade = async () => {
@@ -396,18 +368,60 @@ const GuestManager: React.FC = () => {
       return guests.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
     } else if (sortOption === 'current-table') {
       return guests.sort((a, b) => {
-        const keyA = currentTableKey(a.id, state.seatingPlan, state.assignments);
-        const keyB = currentTableKey(b.id, state.seatingPlan, state.assignments);
+        const keyA = currentTableKey(a.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
+        const keyB = currentTableKey(b.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
         return keyA === keyB ? 0 : keyA < keyB ? -1 : 1;
       });
     }
     return guests;
-  }, [state.guests, sortOption, state.seatingPlan, state.assignments]);
+  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments]);
   const monthYear = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
   return (
     <div className="space-y-6 relative">
       <div id="leftArrow" className="absolute left-0 top-1/2 transform -translate-y-1/2 text-4xl animate-pulseAndColor"></div>
       <div id="rightArrow" className="absolute right-0 top-1/2 transform -translate-y-1/2 text-4xl animate-pulseAndColor"></div>
+      
+      {/* Video Section with Collapse/Expand - Full width at top */}
+      <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
+        {videoVisible ? (
+          <div className="relative">
+            {/* Hide Section button moved above video with spacing */}
+            <div className="p-2 flex justify-end">
+              <button 
+                onClick={toggleVideo}
+                className="danstyle1c-btn"
+                aria-label="Hide video section"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Hide Section
+              </button>
+            </div>
+            {/* Video shifted down to accommodate button */}
+            <div className="relative w-full pt-[37.5%] overflow-hidden">
+              <iframe
+                ref={videoRef}
+                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!state.user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
+                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                title="SeatyrBannerV1cVideo"
+                className="absolute top-0 left-0 w-full h-full"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 flex justify-end items-center">
+            <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
+            <button 
+              onClick={toggleVideo}
+              className="danstyle1c-btn"
+              aria-label="Replay video"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Replay Video
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="Instructions" className="lg:col-span-1">
           <div className="space-y-2 text-sm text-[#566F9B]" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
@@ -427,42 +441,23 @@ const GuestManager: React.FC = () => {
             </div>
           </div>
           
-          <div className="space-y-4 text-gray-700">
-            <p>Enter one guest name or group per line. Examples:</p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>John Doe</li>
-              <li>Jane Smith +1</li>
-              <li>The Johnson Family (4)</li>
-              <li>Alex & Taylor</li>
-            </ul>
-            <p className="pt-2">You can add up to {maxGuests} guests on free accounts. Upgrade for unlimited.</p>
-            {importError && <p className="text-red-500">{importError}</p>}
-            {realtimeError && <p className="text-red-500">{realtimeError}</p>}
-            <div className="flex items-center gap-2">
-              <Button onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" />
-               
-                Import List (CSV/TXT)
-              </Button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImportFile}
-                accept=".csv,.txt"
-     
-                className="hidden"
-              />
-            </div>
-          </div>
         </Card>
 
         <Card title="Add Guest Names" className="lg:col-span-2">
+          <div className="space-y-2 mb-4">
+            <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.<br />Connect couples and parties with an ampersand ("&").</p>
+            {isPremium ? (
+              <p className="text-sm text-gray-700">Premium Plan: {totalGuests} guests used</p>
+            ) : (
+              <p className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</p>
+            )}
+          </div>
           <textarea
             value={guestInput}
-           
             onChange={(e) => setGuestInput(e.target.value)}
-            placeholder="Enter guest names, one per line..."
-            className="w-full h-32 p-3 border rounded-lg resize-none"
+            placeholder=" e.g., Alice & Andrew Jones, Bob Smith+1
+Conseula & Cory & Cleon Lee, Darren Winnik+4"
+            className="w-full h-32 p-3 border rounded-lg resize-none text-gray-400"
           />
           <div className="mt-4 flex justify-between items-center">
             <div className="text-sm text-gray-600">
@@ -509,23 +504,7 @@ const GuestManager: React.FC = () => {
         </Card>
       </div>
 
-      <Card title="Video Tutorial" collapsible defaultOpen={videoVisible}>
-        <div className="relative">
-          <iframe
-            ref={videoRef}
-            width="100%"
-            
-            height="315"
-            src="https://player.vimeo.com/video/1085961997?autoplay=0"
-            title="Seatyr Tutorial"
-            frameBorder="0"
-            allow="autoplay;
-fullscreen"
-            allowFullScreen
-          ></iframe>
-        </div>
-      </Card>
-
+      {/* Saved Settings Accordion */}
       {state.user && <SavedSettingsAccordion />}
 
       <Card title="Your Guests" className="relative">
@@ -552,51 +531,66 @@ fullscreen"
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {sortedGuests.map((guest) => {
+          {sortedGuests.map((guest, index) => {
             const isEditing = editingGuestId === guest.id;
-            const label = getGuestTableAssignment(guest.id, state.tables, state.seatingPlan, state.assignments);
+            const label = getGuestTableAssignment(guest.id, state.tables?.map(t => ({ id: t.id, name: t.name || undefined, seats: t.seats })), state.seatingPlans?.[state.currentPlanIndex], state.assignments);
             const opacity = label === 'Unassigned' ? 'opacity-50' : '';
             return (
-              <div key={guest.id} className={`flex items-center justify-between p-3 border rounded-lg bg-white ${opacity}`}>
+              <div 
+                key={`${guest.name}-${index}`}
+                className={`border border-[#586D78] border-[0.5px] rounded-lg p-4 flex flex-col items-start bg-white shadow ${opacity}`}
+                onDoubleClick={() => beginEdit(guest.id, guest.name)}
+              >
                 {isEditing ? (
-                  <div className="flex flex-1 items-center gap-2">
-                    <input
-                
-                      value={editingGuestName}
-                      onChange={(e) => setEditingGuestName(e.target.value)}
-                      onKeyDown={(e) => (e.key === 'Enter' ? commitEdit() : e.key === 'Escape' ? cancelEdit() : null)}
-                      autoFocus
-            
-                      className="flex-1 min-w-0 border rounded px-2 py-1"
-                    />
-                    <Button size="sm" onClick={commitEdit}>
-                      Save
-                    </Button>
- 
-                    <Button size="sm" variant="secondary" onClick={cancelEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                ) : 
-                (
-                  <div
-                    className="flex-1 min-w-0 cursor-text"
+                  <input
+                    type="text"
+                    value={editingGuestName}
+                    autoFocus
+                    onChange={(e) => setEditingGuestName(e.target.value)}
+                    onBlur={() => commitEdit()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitEdit();
+                      if (e.key === "Escape") cancelEdit();
+                    }}
+                    className="guest-name-input font-medium text-[#586D78] text-xl w-full"
+                    style={{ fontWeight: "bold" }}
+                  />
+                ) : (
+                  <span
+                    className="font-medium text-[#586D78] text-xl flex items-center cursor-pointer"
                     onDoubleClick={() => beginEdit(guest.id, guest.name)}
                   >
-                   
-                    <FormatGuestName name={getDisplayName(guest.name)} />
-                    <span className={`text-sm text-gray-600 block ${opacity}`}>Table: {label}</span>
-                  </div>
+                    {(() => {
+                      const displayName = getDisplayName(guest.name);
+                      return displayName.includes('%') ? (
+                        <>
+                          {displayName.split('%')[0]}
+                          <span style={{ color: '#959595' }}>%</span>
+                          {displayName.split('%')[1]}
+                        </>
+                      ) : displayName;
+                    })()}
+                    <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 
+                        onClick={() => beginEdit(guest.id, guest.name)} />
+                  </span>
                 )}
-                <div className="flex items-center gap-1 shrink-0">
-                  
-                    <Button size="sm" onClick={() => beginEdit(guest.id, guest.name)} title="Rename">
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => handleRemoveGuest(guest.id)} title="Remove">
-                    <Trash2 className="w-4 h-4" />
-      
-                    </Button>
+
+                {guest.count > 1 && (
+                  <span className="text-sm text-gray-700 font-medium mt-1">
+                    Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
+                  </span>
+                )}
+                
+                <span className={`text-sm text-gray-600 mt-1 ${opacity}`}>Table: {label}</span>
+                
+                <div className="flex space-x-2 mt-3">
+                  <button
+                    className="danstyle1c-btn danstyle1c-remove btn-small"
+                    onClick={() => handleRemoveGuest(guest.id)}
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Remove
+                  </button>
                 </div>
               </div>
             );
