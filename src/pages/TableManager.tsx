@@ -17,6 +17,127 @@ const useDebounce = (value: string, delay: number): string => {
   return debouncedValue;
 };
 
+// ConstraintChipsInput component for autocomplete functionality
+type ChipTone = 'must' | 'cannot';
+const ConstraintChipsInput: React.FC<{
+  tone: ChipTone;
+  ownerName: string;
+  value: string[];
+  onChange: (names: string[]) => void;
+  allGuests: { name: string; count: number }[];
+  activeFieldKey: string | null;
+  setActiveFieldKey: (key: string | null) => void;
+}> = ({ tone, ownerName, value, onChange, allGuests, activeFieldKey, setActiveFieldKey }) => {
+  const inputKey = `${tone}:${ownerName}`;
+  const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const debouncedQuery = useDebounce(query, 300);
+
+  const suggestions = useMemo(() => {
+    const raw = debouncedQuery.trim().toLowerCase();
+    if (!raw) return [];
+    const ignore = /(?:\b(?:and|plus|with|guest|guests?)\b|[&+]|[0-9]+)/gi;
+    const norm = (s: string) => s.toLowerCase().replace(ignore, '').replace(/\s+/g, ' ').trim();
+    return allGuests
+      .map(g => g.name)
+      .filter(n => norm(n).includes(raw) && !value.includes(n) && n !== ownerName)
+      .slice(0, 8);
+  }, [debouncedQuery, value, ownerName, allGuests]);
+
+  const addChip = (name: string) => {
+    const trimmedName = name.trim();
+    if (trimmedName && !value.includes(trimmedName)) {
+      onChange([...value, trimmedName]);
+    }
+    setQuery('');
+    setActiveIndex(-1);
+  };
+
+  const removeChip = (name: string) => {
+    onChange(value.filter(v => v !== name));
+  };
+
+  const chipClass = tone === 'must' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+
+  return (
+    <div className="relative">
+      <div className="mb-1">
+        {value.map(v => (
+          <span
+            key={v}
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-sm mr-1 mb-1 ${chipClass} border`}
+          >
+            {v}
+            <button
+              type="button"
+              className="ml-1 text-xs hover:text-red-600"
+              onClick={() => removeChip(v)}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
+
+      <input
+        value={query}
+        onChange={e => {
+          setQuery(e.target.value);
+          setActiveIndex(-1);
+        }}
+        onFocus={() => setActiveFieldKey(inputKey)}
+        onBlur={e => {
+          setTimeout(() => {
+            if (document.activeElement !== e.currentTarget) {
+              setActiveFieldKey(prev => prev === inputKey ? null : prev);
+            }
+          }, 100);
+        }}
+        onKeyDown={e => {
+          if (e.key === 'ArrowDown') {
+            setActiveIndex(i => Math.min(i + 1, suggestions.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            setActiveIndex(i => Math.max(i - 1, 0));
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (suggestions[activeIndex]) {
+              addChip(suggestions[activeIndex]);
+            } else if (query.trim()) {
+              addChip(query.trim());
+            }
+          }
+        }}
+        role="combobox"
+        aria-expanded={activeFieldKey === inputKey && suggestions.length > 0}
+        aria-controls={`${inputKey}-listbox`}
+        aria-autocomplete="list"
+        className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm"
+        placeholder={tone === 'must' ? 'Type to add "must sit with"…' : 'Type to add "cannot sit with"…'}
+      />
+
+      {activeFieldKey === inputKey && suggestions.length > 0 && (
+        <ul
+          id={`${inputKey}-listbox`}
+          role="listbox"
+          className="absolute z-10 mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto"
+        >
+          {suggestions.map((s, i) => (
+            <li
+              key={s}
+              role="option"
+              aria-selected={i === activeIndex}
+              onMouseDown={() => addChip(s)}
+              className={`px-2 py-1 text-sm cursor-pointer ${i === activeIndex ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const TableManager: React.FC = () => {
   const { state, dispatch } = useApp();
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
@@ -25,6 +146,7 @@ const TableManager: React.FC = () => {
   const [isTablesOpen, setIsTablesOpen] = useState(true);
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('as-entered');
+  const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, table) => sum + table.seats, 0), [state.tables]);
   const isPremium = isPremiumSubscription(state.subscription);
@@ -452,12 +574,28 @@ const TableManager: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-green-700 mb-1">Must Sit With</label>
-                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(id => <span key={`adj-${id}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">* {state.guests.find(g => g.id === id)?.name}</span>)}</div>}
-                          <input type="text" value={must.join(', ')} onChange={e => updateConstraints(guest.id, e.target.value.split(',').map(n => n.trim()).filter(Boolean), 'must')} className="w-full border-2 border-green-300 rounded px-2 py-1 text-sm" placeholder="e.g., Jane, Bob" />
+                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(id => <span key={`adj-${id}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">⭐ {state.guests.find(g => g.id === id)?.name}</span>)}</div>}
+                          <ConstraintChipsInput
+                            tone="must"
+                            ownerName={guest.name}
+                            value={must}
+                            onChange={(names) => updateConstraints(guest.id, names, 'must')}
+                            allGuests={state.guests}
+                            activeFieldKey={activeFieldKey}
+                            setActiveFieldKey={setActiveFieldKey}
+                          />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-red-700 mb-1">Cannot Sit With</label>
-                          <input type="text" value={cannot.join(', ')} onChange={e => updateConstraints(guest.id, e.target.value.split(',').map(n => n.trim()).filter(Boolean), 'cannot')} className="w-full border-2 border-red-300 rounded px-2 py-1 text-sm" placeholder="e.g., Sue, Chris" />
+                          <ConstraintChipsInput
+                            tone="cannot"
+                            ownerName={guest.name}
+                            value={cannot}
+                            onChange={(names) => updateConstraints(guest.id, names, 'cannot')}
+                            allGuests={state.guests}
+                            activeFieldKey={activeFieldKey}
+                            setActiveFieldKey={setActiveFieldKey}
+                          />
                         </div>
                       </div>
                     </div>
