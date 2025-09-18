@@ -275,6 +275,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         warnings: []
       };
     }
+    case "RESET_APP_STATE":
+      return {
+        ...initialState,
+        user: null,
+        subscription: null
+      };
+    case "SET_DUPLICATE_GUESTS":
+      return { ...state, duplicateGuests: action.payload };
     default:
       return state;
   }

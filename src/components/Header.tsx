@@ -63,9 +63,10 @@ const Header: React.FC = () => {
         dispatch({ type: 'SET_USER', payload: newUser });
         fetchSubscription(newUser.id, true); // Force fetch on auth change
       } else {
-        // Clear subscription when user logs out
+        // Clear subscription and reset app state when user logs out
         setSubscription(null);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: null });
+        dispatch({ type: 'RESET_APP_STATE' });
       }
     });
 
@@ -269,21 +270,12 @@ const Header: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // First, reset app state
-      dispatch({ type: 'RESET_APP_STATE' });
-      
-      // Clear duplicate guests warnings
-      dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
-      
-      // Then clear local storage
+      // Clear local storage first
       clearAllSeatyrData();
       
-      // Finally sign out
+      // Sign out - this will trigger the auth state change handler
+      // which will automatically reset app state and component state
       await supabase.auth.signOut();
-      
-      // Reset component state
-      setUser(null);
-      setSubscription(null);
       
       // Navigate back to home
       navigate('/');
@@ -292,10 +284,7 @@ const Header: React.FC = () => {
       // Attempt forced logout anyway in case of error
       try {
         await supabase.auth.signOut();
-        dispatch({ type: 'RESET_APP_STATE' });
         clearAllSeatyrData();
-        setUser(null);
-        setSubscription(null);
         navigate('/');
       } catch (finalError) {
         console.error('Final error during forced logout:', finalError);
