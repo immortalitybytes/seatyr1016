@@ -112,7 +112,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
-            *
+            ⭐
           </span>
         );
       }
@@ -154,7 +154,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest1.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
-            *
+            ⭐
           </span>
         );
       }
@@ -216,9 +216,9 @@ const ConstraintManager: React.FC = () => {
             bgColor = 'bg-green-500';
             cellContent = (
               <div className="flex items-center justify-center space-x-1">
-                <span className="text-yellow-600 font-bold">*</span>
+                <span className="text-yellow-600 font-bold">⭐</span>
                 <span className="text-white font-bold">&</span>
-                <span className="text-yellow-600 font-bold">*</span>
+                <span className="text-yellow-600 font-bold">⭐</span>
               </div>
             );
           }
@@ -519,31 +519,52 @@ const ConstraintManager: React.FC = () => {
               Sort by:
             </span>
             <div className="flex space-x-2">
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
-              <button
-                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('first-name')}
-              >
-                First Name
-              </button>
-              <button
-                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('last-name')}
-              >
-                Last Name
-              </button>
-              <button
-                className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
-                onClick={() => setSortOption('current-table')}
-                disabled={state.seatingPlans.length === 0}
-              >
-                Current Table
-              </button>
+              {!state.user ? (
+                // Non-logged-in users: only First Name and Last Name
+                <>
+                  <button
+                    className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                    onClick={() => setSortOption('first-name')}
+                  >
+                    First Name
+                  </button>
+                  <button
+                    className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                    onClick={() => setSortOption('last-name')}
+                  >
+                    Last Name
+                  </button>
+                </>
+              ) : (
+                // Logged-in users: all 4 buttons
+                <>
+                  <button
+                    className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                    onClick={() => setSortOption('as-entered')}
+                  >
+                    As Entered
+                  </button>
+                  <button
+                    className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                    onClick={() => setSortOption('first-name')}
+                  >
+                    First Name
+                  </button>
+                  <button
+                    className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                    onClick={() => setSortOption('last-name')}
+                  >
+                    Last Name
+                  </button>
+                  <button
+                    className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
+                    onClick={() => setSortOption('current-table')}
+                    disabled={state.seatingPlans.length === 0}
+                  >
+                    Current Table
+                  </button>
+                </>
+              )}
             </div>
           </div>
           
