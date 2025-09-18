@@ -233,16 +233,16 @@ const ConstraintManager: React.FC = () => {
           
           if (constraintValue === 'cannot') {
             bgColor = 'bg-red-500';
-            cellContent = <span className="text-white font-bold">X</span>;
+            cellContent = <span className="text-black font-bold">X</span>;
           } else if (constraintValue === 'must') {
             bgColor = 'bg-green-500';
-            cellContent = <span className="text-white font-bold">&</span>;
+            cellContent = <span className="text-black font-bold">&</span>;
           } else if (isAdjacent) {
             bgColor = 'bg-green-500';
             cellContent = (
               <div className="flex items-center justify-center space-x-1">
                 <span className="text-yellow-600 font-bold">⭐</span>
-                <span className="text-white font-bold">&</span>
+                <span className="text-black font-bold">&</span>
                 <span className="text-yellow-600 font-bold">⭐</span>
               </div>
             );
