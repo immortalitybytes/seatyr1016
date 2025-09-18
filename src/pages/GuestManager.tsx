@@ -420,10 +420,10 @@ const GuestManager: React.FC = () => {
       <div id="rightArrow" className="absolute right-0 top-1/2 transform -translate-y-1/2 text-4xl animate-pulseAndColor"></div>
       
       {/* Video Section with Collapse/Expand - Full width at top */}
-      <div className="w-full bg-[#DDE1E3] rounded-lg shadow-md overflow-hidden">
+      <div className="w-full rounded-lg shadow-md overflow-hidden">
         {videoVisible ? (
           <div className="relative">
-            {/* Hide Section button against Geyser color background */}
+            {/* Hide Section button against Geyser color background - NO white bar when expanded */}
             <div className="p-2 flex justify-end bg-[#DDE1E3]">
               <button 
                 onClick={toggleVideo}
@@ -446,7 +446,7 @@ const GuestManager: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="p-4 flex justify-end items-center bg-[#DDE1E3]">
+          <div className="p-4 flex justify-end items-center bg-white">
             <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
             <button 
               onClick={toggleVideo}
@@ -486,8 +486,9 @@ const GuestManager: React.FC = () => {
 
         <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2">
+            <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
             <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.<br />Connect couples and parties with an ampersand ("&").</p>
+              <p className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</p>
               {isPremium ? (
                 <p className="text-sm text-gray-700 text-right">Premium Plan: {totalGuests} guests used</p>
               ) : (
@@ -508,7 +509,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '46%' }}
+                style={{ height: '70.2px', width: '42%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -519,7 +520,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '46%' }}
+              style={{ height: '70.2px', width: '42%' }}
             >
               Add Guests
             </Button>
@@ -536,7 +537,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '46%' }}
+                  style={{ height: '70.2px', width: '42%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -684,7 +685,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                         Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
                       </span>
                     )}
-                    <span className={`text-sm ${label === 'Unassigned' ? 'text-gray-400' : 'text-gray-600'}`}>Table: {label}</span>
+                    <span className={`text-sm ${label === 'Unassigned' ? 'text-gray-500' : 'text-gray-700'}`} style={label === 'Unassigned' ? { opacity: 0.6 } : {}}>Table: {label}</span>
                   </div>
                   
                   <button
