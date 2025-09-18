@@ -231,21 +231,21 @@ const ConstraintManager: React.FC = () => {
           let cellContent = null;
           let bgColor = '';
           
-          if (constraintValue === 'must') { 
-            bgColor = 'bg-[#22cf04]'; 
-            cellContent = isAdjacent ? (
+          if (constraintValue === 'cannot') {
+            bgColor = 'bg-red-500';
+            cellContent = <span className="text-white font-bold">X</span>;
+          } else if (constraintValue === 'must') {
+            bgColor = 'bg-green-500';
+            cellContent = <span className="text-white font-bold">&</span>;
+          } else if (isAdjacent) {
+            bgColor = 'bg-green-500';
+            cellContent = (
               <div className="flex items-center justify-center space-x-1">
-                <span className="font-bold text-yellow-600">⭐</span>
-                <span className="font-bold">&</span>
-                <span className="font-bold text-yellow-600">⭐</span>
+                <span className="text-yellow-600 font-bold">⭐</span>
+                <span className="text-white font-bold">&</span>
+                <span className="text-yellow-600 font-bold">⭐</span>
               </div>
-            ) : (
-              <span className="font-bold">&</span>
-            ); 
-          }
-          else if (constraintValue === 'cannot') { 
-            bgColor = 'bg-[#e6130b]'; 
-            cellContent = <span className="font-bold">X</span>; 
+            );
           }
           
           const isCellHighlighted = highlightedPair && 
