@@ -504,17 +504,12 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         className={accordionHeaderStyles}
         onClick={toggleAccordion}
       >
-        <h2 className="text-lg font-semibold text-[#586D78] flex items-center">
+        <h2 className="text-lg font-bold text-[#586D78] flex items-center">
           <FolderOpen className="mr-2 h-5 w-5" />
           Saved Settings
         </h2>
         <div className="flex items-center space-x-2">
-          {isPremium && state.user && (
-            <span className="flex items-center px-3 py-1 bg-green-700 text-white rounded-md text-sm font-medium">
-              <Crown className="w-4 h-4 mr-1" />
-              Premium
-            </span>
-          )}
+          
           {isOpen ? <ChevronUp className="h-5 w-5 text-[#586D78]" /> : <ChevronDown className="h-5 w-5 text-[#586D78]" />}
         </div>
       </div>
@@ -550,18 +545,11 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                       : ` Premium users can save up to 50 configurations.`}
                   </p>
                   
-                  {isPremium && state.user && (
-                    <div className="bg-green-50 border border-green-300 rounded-md p-2 flex-none">
-                      <p className="text-sm text-green-700 flex items-center whitespace-nowrap">
-                        <Crown className="w-4 h-4 mr-1 text-yellow-500" />
-                        Premium users: Your Current Settings are preserved between sessions.
-                      </p>
-                    </div>
-                  )}
+
                 </div>
 
                 <button
-                  className="px-4 py-2 bg-[#586D78] text-white rounded-md hover:bg-[#586D78]/90 border border-[#586D78]"
+                  className="danstyle1c-btn"
                   onClick={() => setShowSaveModal(true)}
                   disabled={isPremium ? settings.length >= 50 : settings.length >= maxSettings}
                 >
@@ -696,7 +684,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <button
-                                className={`px-3 py-2 bg-[#586D78] text-white rounded-md hover:bg-[#586D78]/90 border border-[#586D78] ${exceedsGuestLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`danstyle1c-btn bg-[#586D78] text-white ${exceedsGuestLimit ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (!exceedsGuestLimit) {
@@ -710,7 +698,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                                 Load
                               </button>
                               <button
-                                className="px-3 py-2 bg-white text-[#586D78] rounded-md hover:bg-[#586D78] hover:text-white border border-[#586D78]"
+                                className="danstyle1c-btn"
                                 onClick={(e) => handleDuplicate(setting, e)}
                                 disabled={(!isPremium && settings.length >= maxSettings) || clickingDisabled}
                               >
@@ -718,7 +706,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                                 Duplicate
                               </button>
                               <button
-                                className="px-3 py-2 bg-[#cd1c17] text-white rounded-md hover:bg-red-700 border border-[#cd1c17]"
+                                className="danstyle1c-btn danstyle1c-remove"
                                 onClick={(e) => handleDelete(setting.id, e)}
                                 disabled={clickingDisabled}
                               >
@@ -764,7 +752,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
             
             <div className="flex justify-end space-x-2">
               <button
-                className="px-4 py-2 bg-white text-[#586D78] rounded-md hover:bg-[#586D78] hover:text-white border border-[#586D78]"
+                className="danstyle1c-btn"
                 onClick={() => {
                   setShowSaveModal(false);
                   setError(null);
@@ -774,7 +762,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-[#586D78] text-white rounded-md hover:bg-[#586D78]/90 border border-[#586D78]"
+                className="danstyle1c-btn bg-[#586D78] text-white"
                 onClick={handleSave}
                 disabled={!newSettingName.trim() || savingSettings}
               >

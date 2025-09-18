@@ -386,30 +386,51 @@ const TableManager: React.FC = () => {
             
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-sm text-gray-600">Sort by:</span>
-              <button
-                onClick={() => setSortOption('as-entered')}
-                className={`px-3 py-1 text-sm rounded ${sortOption === 'as-entered' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                As Entered
-              </button>
-              <button
-                onClick={() => setSortOption('first-name')}
-                className={`px-3 py-1 text-sm rounded ${sortOption === 'first-name' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                First Name
-              </button>
-              <button
-                onClick={() => setSortOption('last-name')}
-                className={`px-3 py-1 text-sm rounded ${sortOption === 'last-name' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                Last Name
-              </button>
-              <button
-                onClick={() => setSortOption('current-table')}
-                className={`px-3 py-1 text-sm rounded ${sortOption === 'current-table' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
-              >
-                Current Table
-              </button>
+              {!state.user ? (
+                // Non-logged-in users: only First Name and Last Name
+                <>
+                  <button
+                    onClick={() => setSortOption('first-name')}
+                    className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
+                  >
+                    First Name
+                  </button>
+                  <button
+                    onClick={() => setSortOption('last-name')}
+                    className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
+                  >
+                    Last Name
+                  </button>
+                </>
+              ) : (
+                // Logged-in users: First Name, Last Name, As Entered, By Table
+                <>
+                  <button
+                    onClick={() => setSortOption('as-entered')}
+                    className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
+                  >
+                    As Entered
+                  </button>
+                  <button
+                    onClick={() => setSortOption('first-name')}
+                    className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
+                  >
+                    First Name
+                  </button>
+                  <button
+                    onClick={() => setSortOption('last-name')}
+                    className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
+                  >
+                    Last Name
+                  </button>
+                  <button
+                    onClick={() => setSortOption('current-table')}
+                    className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
+                  >
+                    Current Table
+                  </button>
+                </>
+              )}
             </div>
             
             <div className="space-y-4">

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, FolderOpen, Edit2, Copy, Trash2, AlertCircle, Crown, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
-import { useApp } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
+import { useAppContext } from '../context/AppContext';
+import { getSupabase } from '../lib/supabase';
 import { isPremiumSubscription, getMaxSavedSettingsLimit, isSettingLoadable } from '../utils/premium';
 import AuthModal from './AuthModal';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +21,7 @@ interface SavedSettingsAccordionProps {
 }
 
 const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefaultOpen = false }) => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch } = useAppContext();
   const [settings, setSettings] = useState<SavedSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +65,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
           setSessionLoading(true);
           setSessionError(null);
           
+          const supabase = getSupabase();
           const { data, error } = await supabase.auth.getSession();
           
           if (error) {
@@ -147,6 +148,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setLoading(true);
       setError(null);
       
+      const supabase = getSupabase();
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
@@ -215,6 +217,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
       
       // Update the setting's last_accessed timestamp
+      const supabase = getSupabase();
       await supabase
         .from('saved_settings')
         .update({ updated_at: new Date().toISOString() })
@@ -272,6 +275,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         userSetTables: state.userSetTables
       };
 
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .insert({
@@ -335,6 +339,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         return;
       }
       
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .insert({
@@ -348,8 +353,6 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
           throw new Error('You\'re duplicating too quickly. Please wait a moment and try again.');
         } else if (error.message.includes('check_settings_limit')) {
           throw new Error(`You've reached your limit of saved settings. Upgrade to Premium for more.`);
-        } else if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
-          throw new Error('A setting with this name already exists. Please choose a different name.');
         } else {
           throw error;
         }
@@ -372,6 +375,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     if (!window.confirm('Are you sure you want to delete these settings?')) return;
 
     try {
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .delete()
@@ -438,6 +442,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     setNameError(null);
     
     try {
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .update({ name: trimmedName })
@@ -510,7 +515,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         </h2>
         <div className="flex items-center space-x-2">
           {isPremium && state.user && (
-            <span className="flex items-center px-3 py-1 bg-green-700 text-white rounded-md text-sm font-medium">
+            <span className="flex items-center px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
               <Crown className="w-4 h-4 mr-1" />
               Premium
             </span>

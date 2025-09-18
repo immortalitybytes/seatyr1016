@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, Edit2, Info, Trash2, X, Play, Users, Crown } from 'lucide-react';
+import { AlertCircle, Edit2, Info, Trash2, X, Play, Users, Crown, Upload } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import AuthModal from '../components/AuthModal';
@@ -103,9 +103,11 @@ const GuestManager: React.FC = () => {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [localDuplicates, setLocalDuplicates] = useState<string[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const videoRef = useRef<HTMLIFrameElement>(null);
   const realtimeSubscriptionRef = useRef<any>(null);
   const pulsingArrowTimeout = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isPremium = isPremiumSubscription(state.subscription);
   const maxGuests = getMaxGuestLimit(state.subscription);
@@ -308,6 +310,53 @@ const GuestManager: React.FC = () => {
     setGuestInput('');
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const lines = content.split('\n').filter(line => line.trim());
+        
+        // Parse CSV format
+        const guests = [];
+        for (const line of lines) {
+          const parsed = parseGuestLine(line.trim());
+          if (parsed) {
+            guests.push({
+              id: crypto.randomUUID(),
+              name: parsed.name,
+              count: parsed.count
+            });
+          }
+        }
+
+        if (guests.length > 0) {
+          // Add guests one by one to respect limits
+          guests.forEach(guest => {
+            dispatch({ type: 'ADD_GUEST', payload: guest });
+          });
+          
+          setImportError(null);
+        } else {
+          setImportError('No valid guests found in the file.');
+        }
+      } catch (error) {
+        console.error('Error parsing file:', error);
+        setImportError('Invalid file format. Please ensure it\'s a CSV file with the correct format.');
+      }
+
+      // Reset the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
 
   const beginEdit = (id: string, name: string) => {
     setEditingGuestId(id);
@@ -472,6 +521,26 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             >
               Add Guests
             </Button>
+            {state.user && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.txt"
+                  className="hidden"
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="danstyle1c-btn inline-flex items-center justify-center flex-1"
+                  style={{ height: '70.2px' }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Guests & Settings
+                </button>
+              </>
+            )}
           </div>
           
           {/* Add spacing below buttons for alignment */}
@@ -489,13 +558,24 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           
             </div>
           )}
+          
+          {importError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start">
+              <AlertCircle className="text-red-600 mr-2 mt-1 flex-shrink-0" />
+              <div>
+                <p className="text-red-700">
+                  {importError}
+                </p>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
       {/* Saved Settings Accordion */}
       {state.user && <SavedSettingsAccordion />}
 
-      <Card title="Your Guests" className="relative">
+      <Card title="Guest List" className="relative">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5" />
@@ -509,21 +589,13 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <>
                 <button
                   onClick={() => setSortOption('first-name')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'first-name' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
                 >
                   First Name
                 </button>
                 <button
                   onClick={() => setSortOption('last-name')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'last-name' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
                 >
                   Last Name
                 </button>
@@ -533,41 +605,25 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <>
                 <button
                   onClick={() => setSortOption('first-name')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'first-name' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
                 >
                   First Name
                 </button>
                 <button
                   onClick={() => setSortOption('last-name')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'last-name' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
                 >
                   Last Name
                 </button>
                 <button
                   onClick={() => setSortOption('as-entered')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'as-entered' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
                 >
                   As Entered
                 </button>
                 <button
                   onClick={() => setSortOption('current-table')}
-                  className={`px-4 py-2 text-sm rounded-full shadow-md transition-colors ${
-                    sortOption === 'current-table' 
-                      ? 'bg-[#586D78] text-white' 
-                      : 'bg-gray-200 text-gray-700 hover:bg-blue-400 hover:text-white'
-                  }`}
+                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
                 >
                   By Table
                 </button>
