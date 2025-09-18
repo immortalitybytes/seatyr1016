@@ -49,35 +49,53 @@ const ConstraintManager: React.FC = () => {
   };
   
   const sortedGuests = useMemo(() => {
-    if (!isPremium || sortOption === 'as-entered') {
-      return [...state.guests];
+    const guests = [...state.guests];
+    
+    if (sortOption === 'as-entered') {
+      return guests;
     }
     
-    return [...state.guests].sort((a, b) => {
-      if (sortOption === 'first-name') {
+    if (sortOption === 'first-name') {
+      return guests.sort((a, b) => {
         const firstNameA = a.name.split(' ')[0].toLowerCase();
         const firstNameB = b.name.split(' ')[0].toLowerCase();
         return firstNameA.localeCompare(firstNameB);
-      } else if (sortOption === 'last-name') {
+      });
+    }
+    
+    if (sortOption === 'last-name') {
+      return guests.sort((a, b) => {
         const lastNameA = getLastNameForSorting(a.name);
         const lastNameB = getLastNameForSorting(b.name);
         return lastNameA.localeCompare(lastNameB);
-      } else if (sortOption === 'current-table') {
-        if (state.seatingPlans.length === 0) return 0;
-        const plan = state.seatingPlans[state.currentPlanIndex];
-        const findTableId = (guestId: string) => {
-          for (const table of plan.tables) {
-            if (table.seats.some(seat => (seat as any).id === guestId)) {
-              return table.id;
-            }
+      });
+    }
+    
+    if (sortOption === 'current-table') {
+      // Current table sorting requires seating plans
+      if (!state.seatingPlans || state.seatingPlans.length === 0) return guests;
+      const plan = state.seatingPlans[state.currentPlanIndex];
+      const findTableId = (guestId: string) => {
+        for (const table of plan.tables) {
+          if (table.seats.some(seat => (seat as any).id === guestId)) {
+            return table.id;
           }
-          return Number.MAX_SAFE_INTEGER;
-        };
-        return findTableId(a.id) - findTableId(b.id);
-      }
-      return 0;
-    });
-  }, [state.guests, sortOption, isPremium, state.seatingPlans, state.currentPlanIndex]);
+        }
+        return Number.MAX_SAFE_INTEGER;
+      };
+      return guests.sort((a, b) => {
+        const tableA = findTableId(a.id);
+        const tableB = findTableId(b.id);
+        if (tableA === Number.MAX_SAFE_INTEGER && tableB !== Number.MAX_SAFE_INTEGER) return 1;
+        if (tableB === Number.MAX_SAFE_INTEGER && tableA !== Number.MAX_SAFE_INTEGER) return -1;
+        if (tableA !== tableB) return tableA - tableB;
+        // Stable tie-breaker by name
+        return a.name.localeCompare(b.name);
+      });
+    }
+    
+    return guests;
+  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex]);
 
   const constraintGrid = useMemo(() => {
     const guests = sortedGuests;
