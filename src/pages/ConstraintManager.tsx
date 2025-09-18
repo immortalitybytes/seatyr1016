@@ -231,11 +231,8 @@ const ConstraintManager: React.FC = () => {
           let cellContent = null;
           let bgColor = '';
           
-          if (constraintValue === 'cannot') {
-            bgColor = 'bg-[#e6130b]';
-            cellContent = <span className="font-bold">X</span>;
-          } else if (constraintValue === 'must') {
-            bgColor = 'bg-[#22cf04]';
+          if (constraintValue === 'must') { 
+            bgColor = 'bg-[#22cf04]'; 
             cellContent = isAdjacent ? (
               <div className="flex items-center justify-center space-x-1">
                 <span className="font-bold text-yellow-600">⭐</span>
@@ -244,16 +241,11 @@ const ConstraintManager: React.FC = () => {
               </div>
             ) : (
               <span className="font-bold">&</span>
-            );
-          } else if (isAdjacent) {
-            bgColor = 'bg-[#22cf04]';
-            cellContent = (
-              <div className="flex items-center justify-center space-x-1">
-                <span className="font-bold text-yellow-600">⭐</span>
-                <span className="font-bold">&</span>
-                <span className="font-bold text-yellow-600">⭐</span>
-              </div>
-            );
+            ); 
+          }
+          else if (constraintValue === 'cannot') { 
+            bgColor = 'bg-[#e6130b]'; 
+            cellContent = <span className="font-bold">X</span>; 
           }
           
           const isCellHighlighted = highlightedPair && 
