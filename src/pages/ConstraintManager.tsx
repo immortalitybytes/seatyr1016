@@ -200,11 +200,18 @@ const ConstraintManager: React.FC = () => {
                 Party size: {guest1.count}
               </div>
             )}
-            {isPremium && (
-              <div className={`text-xs text-gray-600 truncate max-w-[140px]`} title={formatTableAssignment(state.assignments, state.tables, guest1.id)}>
-                {formatTableAssignment(state.assignments, state.tables, guest1.id)}
-              </div>
-            )}
+            {(() => {
+              const tableText = formatTableAssignment(state.assignments, state.tables, guest1.id);
+              const isUnassigned = tableText.includes('unassigned');
+              return (
+                <div 
+                  className={`text-xs truncate max-w-[140px] ${isUnassigned ? 'text-gray-500' : 'text-gray-700'}`} 
+                  title={tableText}
+                >
+                  {tableText}
+                </div>
+              );
+            })()}
           </div>
         </td>
       ];
@@ -226,24 +233,24 @@ const ConstraintManager: React.FC = () => {
           
           if (constraintValue === 'cannot') {
             bgColor = 'bg-red-500';
-            cellContent = <span className="text-white font-bold">X</span>;
+            cellContent = <span className="text-black font-bold">X</span>;
           } else if (constraintValue === 'must') {
             bgColor = 'bg-green-500';
             cellContent = isAdjacent ? (
               <div className="flex items-center justify-center space-x-1">
                 <span className="text-yellow-600 font-bold">⭐</span>
-                <span className="text-white font-bold">&</span>
+                <span className="text-black font-bold">&</span>
                 <span className="text-yellow-600 font-bold">⭐</span>
               </div>
             ) : (
-              <span className="text-white font-bold">&</span>
+              <span className="text-black font-bold">&</span>
             );
           } else if (isAdjacent) {
             bgColor = 'bg-green-500';
             cellContent = (
               <div className="flex items-center justify-center space-x-1">
                 <span className="text-yellow-600 font-bold">⭐</span>
-                <span className="text-white font-bold">&</span>
+                <span className="text-black font-bold">&</span>
                 <span className="text-yellow-600 font-bold">⭐</span>
               </div>
             );

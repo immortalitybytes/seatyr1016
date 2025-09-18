@@ -284,7 +284,8 @@ const GuestManager: React.FC = () => {
     }
   };
   const handleAddGuests = () => {
-    const lines = guestInput.split('\n');
+    // Split on both line breaks and commas to handle bulk input
+    const lines = guestInput.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
     const seen = new Set(state.guests.map((g) => normalizeName(g.name)));
     const duplicates = [];
     for (const line of lines) {

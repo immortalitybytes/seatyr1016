@@ -12,6 +12,36 @@ const FormatGuestName: React.FC<FormatGuestNameProps> = ({ name, seatIndex = -1,
     if (!name) return <span className={className}></span>;
     const originalName = name.trim();
     
+    // Handle percentage symbol for sorting word (hide % and style the word after it)
+    if (originalName.includes('%')) {
+      const [prefix, ...restParts] = originalName.split('%');
+      const rest = restParts.join('%');
+      
+      // Handle edge case where % is at the end
+      if (!rest.trim()) {
+        return <span className={className}>{prefix.replace('%', '')}</span>;
+      }
+      
+      // Extract the first word after % for styling
+      const match = rest.match(/(\s*)(\S+)(.*)/);
+      if (!match) {
+        return <span className={className}>{prefix}{rest}</span>;
+      }
+      
+      const [, leadingSpace, styledWord, suffixText] = match;
+      
+      return (
+        <span className={className}>
+          {prefix}
+          {leadingSpace}
+          <span style={{ color: '#666666', fontStyle: 'italic' }}>
+            {styledWord}
+          </span>
+          {suffixText}
+        </span>
+      );
+    }
+    
     // Get base tokens (names) and extra tokens (ordinals)
     const baseTokens = seatingTokensFromGuestUnit(originalName);
     const extraTokens = nOfNTokensFromSuffix(originalName);
