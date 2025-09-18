@@ -130,7 +130,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
-            ⭐
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
@@ -172,7 +172,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest1.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
-            ⭐
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
@@ -229,7 +229,15 @@ const ConstraintManager: React.FC = () => {
             cellContent = <span className="text-white font-bold">X</span>;
           } else if (constraintValue === 'must') {
             bgColor = 'bg-green-500';
-            cellContent = <span className="text-white font-bold">&</span>;
+            cellContent = isAdjacent ? (
+              <div className="flex items-center justify-center space-x-1">
+                <span className="text-yellow-600 font-bold">⭐</span>
+                <span className="text-white font-bold">&</span>
+                <span className="text-yellow-600 font-bold">⭐</span>
+              </div>
+            ) : (
+              <span className="text-white font-bold">&</span>
+            );
           } else if (isAdjacent) {
             bgColor = 'bg-green-500';
             cellContent = (
