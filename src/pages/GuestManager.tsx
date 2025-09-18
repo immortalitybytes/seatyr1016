@@ -420,11 +420,11 @@ const GuestManager: React.FC = () => {
       <div id="rightArrow" className="absolute right-0 top-1/2 transform -translate-y-1/2 text-4xl animate-pulseAndColor"></div>
       
       {/* Video Section with Collapse/Expand - Full width at top */}
-      <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="w-full bg-[#DDE1E3] rounded-lg shadow-md overflow-hidden">
         {videoVisible ? (
           <div className="relative">
-            {/* Hide Section button moved above video with spacing */}
-            <div className="p-2 flex justify-end">
+            {/* Hide Section button against Geyser color background */}
+            <div className="p-2 flex justify-end bg-[#DDE1E3]">
               <button 
                 onClick={toggleVideo}
                 className="danstyle1c-btn"
@@ -432,12 +432,12 @@ const GuestManager: React.FC = () => {
               >
                 <X className="w-4 h-4 mr-2" />
                 Hide Section
-          </button>
-        </div>
+              </button>
+            </div>
             {/* Video shifted down to accommodate button */}
             <div className="relative w-full pt-[37.5%] overflow-hidden">
-            <iframe
-              ref={videoRef}
+              <iframe
+                ref={videoRef}
                 src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!state.user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
                 allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
                 title="SeatyrBannerV1cVideo"
@@ -446,7 +446,7 @@ const GuestManager: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="p-4 flex justify-end items-center">
+          <div className="p-4 flex justify-end items-center bg-[#DDE1E3]">
             <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
             <button 
               onClick={toggleVideo}
@@ -464,15 +464,15 @@ const GuestManager: React.FC = () => {
         <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
           <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
             <div className="flex-1 flex items-center">
-              <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-                <p>1.) Click "Load Test Guest List" button.</p>
-                <p>2.) Click "Your Rules" at the top.</p>
+              <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8', marginLeft: '2rem' }}>
+                <p style={{ marginBottom: '1.6em' }}>1.) Click "Load Test Guest List" button.</p>
+                <p style={{ marginBottom: '1.6em' }}>2.) Click "Your Rules" at the top.</p>
                 <p>3.) Pair and Prevent as you like.</p>
               </div>
             </div>
             
-            {/* Pulsing Arrow Emoji - vertically aligned with Load Test Guest List button */}
-            <div className="flex justify-center items-end pb-4">
+            {/* Pulsing Arrow Emoji - moved down 2 lines to align with Load Test Guest List button */}
+            <div className="flex justify-center items-end pb-2" style={{ marginTop: '2rem' }}>
               <div
                 className="pulsing-arrow"
                 style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
@@ -485,13 +485,15 @@ const GuestManager: React.FC = () => {
         </Card>
 
         <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
-          <div className="space-y-2 mb-4">
-            <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.<br />Connect couples and parties with an ampersand ("&").</p>
-            {isPremium ? (
-              <p className="text-sm text-gray-700">Premium Plan: {totalGuests} guests used</p>
-            ) : (
-              <p className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</p>
-            )}
+          <div className="space-y-2 mb-2">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.<br />Connect couples and parties with an ampersand ("&").</p>
+              {isPremium ? (
+                <p className="text-sm text-gray-700 text-right">Premium Plan: {totalGuests} guests used</p>
+              ) : (
+                <p className="text-sm text-gray-700 text-right">Free Plan: {totalGuests}/80 guests used</p>
+              )}
+            </div>
           </div>
           <textarea
             value={guestInput}
@@ -501,12 +503,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex gap-2 w-full">
+          <div className="mt-4 flex gap-6 w-full" style={{ paddingLeft: '1.5rem', paddingRight: '1.5rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
-                className="danstyle1c-btn inline-flex items-center justify-center flex-1"
-                style={{ height: '70.2px' }}
+                className="danstyle1c-btn inline-flex items-center justify-center"
+                style={{ height: '70.2px', width: '46%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -517,8 +519,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              className="flex-1"
-              style={{ height: '70.2px' }}
+              style={{ height: '70.2px', width: '46%' }}
             >
               Add Guests
             </Button>
@@ -534,8 +535,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn inline-flex items-center justify-center flex-1"
-                  style={{ height: '70.2px' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center"
+                  style={{ height: '70.2px', width: '46%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -683,7 +684,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                         Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
                       </span>
                     )}
-                    <span className="text-sm text-gray-600">Table: {label}</span>
+                    <span className={`text-sm ${label === 'Unassigned' ? 'text-gray-400' : 'text-gray-600'}`}>Table: {label}</span>
                   </div>
                   
                   <button
