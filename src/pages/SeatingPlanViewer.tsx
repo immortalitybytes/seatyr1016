@@ -121,7 +121,8 @@ const SeatingPlanViewer: React.FC = () => {
         state.tables,
         state.constraints,
         state.adjacents,
-        state.assignments
+        state.assignments,
+        isPremium
       ).then(({ plans, errors }) => {
         if (!cancelled) dispatch({ type: 'SET_PLANS', payload: { plans, errors, planSig: planSigNow } });
       }).finally(() => {
