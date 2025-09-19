@@ -157,3 +157,145 @@ const testData = {
 ```
 
 **Expected Result**: Alice and Bob should be seated at the same table, Charlie can be seated anywhere.
+
+---
+
+## **🚨 ADDITIONAL UNRESOLVED ISSUES FROM CHAT THREAD REVIEW**
+
+### **📋 COMPREHENSIVE LIST OF UNRESOLVED ISSUES**
+
+#### **1. ADJACENT PAIRING FUNCTIONALITY**
+- **Status**: ❌ **NOT FULLY RESOLVED**
+- **Issue**: Adjacent pairings (double-clicking two guests) should create both MUST constraints AND adjacency constraints
+- **Current State**: Logic exists but may not be working correctly in practice
+- **Files Affected**: `src/pages/ConstraintManager.tsx` (lines 430-457)
+- **Expected Behavior**: 
+  - Double-clicking Guest A then Guest B should create MUST constraint AND adjacency
+  - Should display `⭐ & ⭐` in intersecting cells
+  - Should add star emoji to header row and first column
+  - Should be enforced in seating plans
+
+#### **2. CONSTRAINT CHAINING PROBLEMS**
+- **Status**: ❌ **NOT FULLY RESOLVED**
+- **Issue**: Complex constraint chains (A MUST B, B ADJACENT C) not working properly
+- **Current State**: DSU grouping logic exists but may not handle complex chains
+- **Files Affected**: `src/utils/seatingAlgorithm.engine.ts` (lines 175-180)
+- **Expected Behavior**: 
+  - GuestUnit A (4 seats) MUST GuestUnit B (3 seats) ADJACENT GuestUnit C (2 seats) = 9 seats total
+  - Should detect conflicts if no table can accommodate 9 seats
+  - Should show error message for impossible constraints
+
+#### **3. ASSIGNMENTMANAGER CONSTRAINT MANAGEMENT**
+- **Status**: ❌ **PARTIALLY RESOLVED**
+- **Issue**: Constraint input fields not properly removing constraints when cleared
+- **Current State**: Fixed add/remove logic but may have edge cases
+- **Files Affected**: `src/pages/AssignmentManager.tsx` (lines 56-140)
+- **Expected Behavior**:
+  - Clearing "Must sit with" field should remove all MUST constraints
+  - Clearing "Cannot sit with" field should remove all CANNOT constraints
+  - Should show clear error messages for invalid inputs
+
+#### **4. GUESTMANAGER UI/UX ISSUES**
+- **Status**: ❌ **PARTIALLY RESOLVED**
+- **Issue**: Multiple UI layout and styling issues
+- **Current State**: Some fixes applied but may not be complete
+- **Files Affected**: `src/pages/GuestManager.tsx`
+- **Specific Issues**:
+  - "Add Guest Names" box layout and button spacing
+  - "Instructions" box margin and spacing
+  - "Guest List" section font colors for unassigned guests
+  - Video section white rectangle removal
+  - Button hover overlap issues
+
+#### **5. CONSTRAINTMANAGER ADJACENT PAIRING LOGIC**
+- **Status**: ❌ **PARTIALLY RESOLVED**
+- **Issue**: Adjacent pairing creation and display not working correctly
+- **Current State**: Logic exists but may have bugs
+- **Files Affected**: `src/pages/ConstraintManager.tsx`
+- **Expected Behavior**:
+  - Double-click should create both MUST and ADJACENT constraints
+  - Should display correct symbols in constraint grid
+  - Should show star emojis in headers for adjacent guests
+  - Should be enforced in seating algorithm
+
+#### **6. SEATING PLAN DISPLAY ISSUES**
+- **Status**: ❌ **NOT INVESTIGATED**
+- **Issue**: Generated seating plans may not be displaying correctly
+- **Current State**: Unknown - needs investigation
+- **Files Affected**: `src/pages/SeatingPlanViewer.tsx`
+- **Potential Issues**:
+  - Plans generated but not displayed
+  - Plans displayed but constraints not enforced
+  - UI not updating when plans change
+  - Error messages not shown to user
+
+#### **7. PREMIUM FEATURE FUNCTIONALITY**
+- **Status**: ❌ **NOT VERIFIED**
+- **Issue**: Premium features may not be working correctly
+- **Current State**: Unknown - needs verification
+- **Files Affected**: Multiple files using `isPremiumSubscription()`
+- **Potential Issues**:
+  - Premium status not detected correctly
+  - Premium features not enabled for premium users
+  - Free users accessing premium features
+  - Subscription status not updating
+
+#### **8. ERROR HANDLING AND USER FEEDBACK**
+- **Status**: ❌ **NOT ADDRESSED**
+- **Issue**: Poor error handling and user feedback
+- **Current State**: Errors may be logged to console but not shown to users
+- **Files Affected**: Multiple files
+- **Specific Issues**:
+  - Constraint conflicts not shown to users
+  - Algorithm failures not reported
+  - Invalid inputs not validated
+  - Loading states not shown
+  - Success/failure feedback missing
+
+#### **9. STATE MANAGEMENT ISSUES**
+- **Status**: ❌ **NOT INVESTIGATED**
+- **Issue**: App state may not be properly synchronized
+- **Current State**: Unknown - needs investigation
+- **Files Affected**: `src/context/AppContext.tsx`
+- **Potential Issues**:
+  - State updates not triggering re-renders
+  - State corruption during updates
+  - Race conditions in state updates
+  - State not persisting correctly
+
+#### **10. PERFORMANCE ISSUES**
+- **Status**: ❌ **NOT INVESTIGATED**
+- **Issue**: App may have performance problems
+- **Current State**: Unknown - needs investigation
+- **Potential Issues**:
+  - Slow seating plan generation
+  - UI freezing during operations
+  - Memory leaks
+  - Inefficient re-renders
+
+### **🎯 PRIORITY RANKING FOR RESOLUTION**
+
+1. **HIGH PRIORITY**: MUST Constraints, Adjacent Pairing, Constraint Chaining
+2. **MEDIUM PRIORITY**: AssignmentManager, GuestManager UI, Seating Plan Display
+3. **LOW PRIORITY**: Premium Features, Error Handling, State Management, Performance
+
+### **🔧 RECOMMENDED INVESTIGATION APPROACH**
+
+1. **Start with MUST Constraints** - This is the core functionality
+2. **Test Adjacent Pairing** - Verify the double-click logic works
+3. **Check Constraint Chaining** - Test complex constraint scenarios
+4. **Verify UI/UX Fixes** - Ensure all layout changes work correctly
+5. **Test Premium Features** - Verify subscription status detection
+6. **Improve Error Handling** - Add user-facing error messages
+7. **Performance Testing** - Check for bottlenecks and memory issues
+
+### **📊 SUCCESS CRITERIA**
+
+- ✅ MUST constraints enforced in seating plans
+- ✅ Adjacent pairings create both MUST and ADJACENT constraints
+- ✅ Complex constraint chains work correctly
+- ✅ UI/UX improvements are complete and functional
+- ✅ Error messages are clear and helpful
+- ✅ Premium features work for premium users
+- ✅ App performance is acceptable
+- ✅ State management is reliable
