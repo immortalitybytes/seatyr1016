@@ -431,6 +431,7 @@ const ConstraintManager: React.FC = () => {
     if (selectedGuest === null) {
       setSelectedGuest(guestId);
     } else if (selectedGuest !== guestId) {
+      // Create both MUST constraint AND adjacent pairing
       dispatch({
         type: 'SET_CONSTRAINT',
         payload: { guest1: selectedGuest, guest2: guestId, value: 'must' }
