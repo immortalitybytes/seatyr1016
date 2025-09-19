@@ -56,9 +56,30 @@ const AssignmentManager: React.FC = () => {
   const handleUpdateMustConstraints = (guestId: string, mustNames: string) => {
     setErrorMessage(null);
     try {
-      const mustGuests = mustNames.split(',').map(name => name.trim()).filter(Boolean);
-      // Logic to dispatch SET_CONSTRAINT for each must guest
-      mustGuests.forEach(name => {
+      // Get current must constraints for this guest
+      const currentMusts = Object.entries(state.constraints[guestId] ?? {})
+        .filter(([otherGuestId, value]) => value === 'must')
+        .map(([otherGuestId]) => state.guests.find(g => g.id === otherGuestId)?.name ?? '')
+        .filter(Boolean);
+      
+      // Parse new list of must guests
+      const newMusts = mustNames.split(',').map(name => name.trim()).filter(Boolean);
+      
+      // Remove constraints that are no longer in the list
+      currentMusts.forEach(mustGuestName => {
+        if (!newMusts.includes(mustGuestName)) {
+          const otherGuest = state.guests.find(g => g.name === mustGuestName);
+          if (otherGuest) {
+            dispatch({
+              type: 'SET_CONSTRAINT',
+              payload: { guest1: guestId, guest2: otherGuest.id, value: '' }
+            });
+          }
+        }
+      });
+      
+      // Add new constraints
+      newMusts.forEach(name => {
         const otherGuest = state.guests.find(g => g.name === name);
         if (otherGuest) {
           dispatch({
@@ -67,6 +88,7 @@ const AssignmentManager: React.FC = () => {
           });
         }
       });
+      
       purgeSeatingPlans();
     } catch (error) {
       console.error('Error updating must constraints:', error);
@@ -77,9 +99,30 @@ const AssignmentManager: React.FC = () => {
   const handleUpdateCannotConstraints = (guestId: string, cannotNames: string) => {
     setErrorMessage(null);
     try {
-      const cannotGuests = cannotNames.split(',').map(name => name.trim()).filter(Boolean);
-      // Logic to dispatch SET_CONSTRAINT for each cannot guest
-      cannotGuests.forEach(name => {
+      // Get current cannot constraints for this guest
+      const currentCannots = Object.entries(state.constraints[guestId] ?? {})
+        .filter(([otherGuestId, value]) => value === 'cannot')
+        .map(([otherGuestId]) => state.guests.find(g => g.id === otherGuestId)?.name ?? '')
+        .filter(Boolean);
+      
+      // Parse new list of cannot guests
+      const newCannots = cannotNames.split(',').map(name => name.trim()).filter(Boolean);
+      
+      // Remove constraints that are no longer in the list
+      currentCannots.forEach(cannotGuestName => {
+        if (!newCannots.includes(cannotGuestName)) {
+          const otherGuest = state.guests.find(g => g.name === cannotGuestName);
+          if (otherGuest) {
+            dispatch({
+              type: 'SET_CONSTRAINT',
+              payload: { guest1: guestId, guest2: otherGuest.id, value: '' }
+            });
+          }
+        }
+      });
+      
+      // Add new constraints
+      newCannots.forEach(name => {
         const otherGuest = state.guests.find(g => g.name === name);
         if (otherGuest) {
           dispatch({
@@ -88,6 +131,7 @@ const AssignmentManager: React.FC = () => {
           });
         }
       });
+      
       purgeSeatingPlans();
     } catch (error) {
       console.error('Error updating cannot constraints:', error);
@@ -170,8 +214,16 @@ const AssignmentManager: React.FC = () => {
       )}
       
       {state.warnings && state.warnings.length > 0 && (
-        <div className="text-red-50 mt-2">
-          {state.warnings.map(w => <p key={w}>{w}</p>)}
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
+          <AlertCircle className="text-red-500 mr-2 mt-1 flex-shrink-0" />
+          <div>
+            <p className="text-red-700 font-medium">Assignment Warnings</p>
+            <ul className="list-disc pl-5 text-red-600 text-sm">
+              {state.warnings.map((warn, index) => (
+                <li key={index}>{warn}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
       

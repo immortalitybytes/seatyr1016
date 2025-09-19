@@ -174,7 +174,10 @@ function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: Cons
   const adjMap = buildUndirectedMap(adj.pairs);
   const dsu = new DSU();
   for (const g of guests) dsu.find(g.id);
+  // Group must constraints together
   for (const [a,b] of constr.mustPairs) dsu.union(a, b);
+  // Group adjacent pairings together (they must sit at the same table)
+  for (const [a,b] of adj.pairs) dsu.union(a, b);
   const byRoot = new Map<ID, GroupInfo>();
   for (const g of guests) {
     const r = dsu.find(g.id);
