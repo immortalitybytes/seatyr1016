@@ -507,12 +507,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
           Saved Settings
         </h2>
         <div className="flex items-center space-x-2">
-          {isPremium && state.user && (
-            <span className="flex items-center danstyle1c-btn danstyle1c-premium">
-              <Crown className="w-4 h-4 mr-1" />
-              Premium
-            </span>
-          )}
+          
           {isOpen ? <ChevronUp className="h-5 w-5 text-[#586D78]" /> : <ChevronDown className="h-5 w-5 text-[#586D78]" />}
         </div>
       </div>
@@ -548,14 +543,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                       : ` Premium users can save up to 50 configurations.`}
                   </p>
                   
-                  {isPremium && state.user && (
-                    <div className="bg-green-50 border border-green-300 rounded-md p-2 flex-none">
-                      <p className="text-sm text-green-700 flex items-center whitespace-nowrap">
-                        <Crown className="w-4 h-4 mr-1 text-yellow-500" />
-                        Premium users: Your Current Settings are preserved between sessions.
-                      </p>
-                    </div>
-                  )}
+
                 </div>
 
                 <button

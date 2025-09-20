@@ -98,12 +98,12 @@ function sanitizeAndMigrateAppState(state: AppState): AppState {
     }
   });
 
-  const normalizedAssignments: Assignments = {};
+  // Store raw assignments (like old system) - normalization happens in seating algorithm
+  const rawAssignments: Assignments = {};
   Object.entries(state.assignments ?? {}).forEach(([key, raw]) => {
     const guestId = guestNameToId.get(key.toLowerCase()) || key;
     if (!guestIdToName.has(guestId)) return;
-    const { idsCsv } = normalizeAssignmentInputToIdsWithWarnings(raw, state.tables);
-    normalizedAssignments[guestId] = idsCsv;
+    rawAssignments[guestId] = raw; // Store raw assignment as-is
   });
 
   return {
@@ -111,14 +111,17 @@ function sanitizeAndMigrateAppState(state: AppState): AppState {
     guests,
     constraints: migratedConstraints,
     adjacents: migratedAdjacents,
-    assignments: normalizedAssignments
+    assignments: rawAssignments
   };
 }
 
 const reducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
     case "SET_GUESTS":
-      return { ...state, guests: action.payload, duplicateGuests: action.payload.duplicateGuests ?? [] };
+      const payload = action.payload;
+      const guests = Array.isArray(payload) ? payload : payload.guests || [];
+      const duplicateGuests = Array.isArray(payload) ? [] : payload.duplicateGuests ?? [];
+      return { ...state, guests, duplicateGuests };
     case "ADD_GUEST": {
       const guests = [...state.guests, action.payload];
       return {
@@ -160,21 +163,15 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "UPDATE_ASSIGNMENT": {
       const { payload } = action;
       const { guestId, raw } = payload;
-      const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(raw, state.tables);
-      const newAssignments = { ...state.assignments, [guestId]: idCsv };
+      // Store raw assignment (like old system) - normalization happens in seating algorithm
+      const newAssignments = { ...state.assignments, [guestId]: raw };
       const signature = JSON.stringify(Object.entries(newAssignments).sort((a, b) => a[0].localeCompare(b[0])));
-      const conflictWarnings = detectConflicts(newAssignments, state.constraints);
-      const ids = parseAssignmentIds(idCsv);
-      const allValid = ids.every(id => state.tables.some(t => t.id === id));
-      if (state.userSetTables && idCsv && !allValid) {
-        return { ...state, warnings: [...new Set([...state.warnings, `Invalid table assignment for guest ${guestId}`])] };
-      }
       return {
         ...state,
         assignments: newAssignments,
         assignmentSignature: signature,
         seatingPlans: [],
-        warnings: [...new Set([...state.warnings, ...warnings, ...conflictWarnings])]
+        currentPlanIndex: 0
       };
     }
     case "SET_CONSTRAINT": {
@@ -254,23 +251,34 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { payload } = action;
       const { constraints, adjacents } = migrateState(payload);
       const idKeyed = migrateAssignmentsToIdKeys(payload.assignments || {}, payload.guests || []);
-      const normAssignments = Object.fromEntries(
-        Object.entries(idKeyed).map(([k, v]) => [
-          k,
-          normalizeAssignmentInputToIdsWithWarnings(v, payload.tables || []).idCsv
-        ])
-      );
+      // Keep assignments raw (like old system) - normalization happens in seating algorithm
       const assignmentSignature = JSON.stringify(
-        Object.entries(normAssignments).sort((a, b) => a[0].localeCompare(b[0]))
+        Object.entries(idKeyed).sort((a, b) => a[0].localeCompare(b[0]))
       );
       return {
         ...state,
         ...payload,
         constraints,
         adjacents,
-        assignments: normAssignments,
+        assignments: idKeyed, // Store raw assignments
         assignmentSignature,
         seatingPlans: [],
+        lastGeneratedPlanSig: null,
+        warnings: []
+      };
+    }
+    case "IMPORT_STATE": {
+      const importedState = action.payload;
+      
+      // Simple state replacement without complex migration (for SavedSettings compatibility)
+      return {
+        ...state,
+        ...importedState,
+        subscription: state.subscription, // Keep current subscription
+        user: state.user, // Keep current user
+        // Reset plan-related state for fresh generation
+        seatingPlans: [],
+        currentPlanIndex: 0,
         lastGeneratedPlanSig: null,
         warnings: []
       };

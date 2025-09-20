@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Save, FolderOpen, Edit2, Copy, Trash2, AlertCircle, Crown, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
-import { useApp } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
+import { useApp } from '../components/AppContext';
+import { getSupabase } from '../lib/supabase';
 import { isPremiumSubscription, getMaxSavedSettingsLimit, isSettingLoadable } from '../utils/premium';
 import AuthModal from './AuthModal';
 import { useNavigate } from 'react-router-dom';
@@ -65,6 +65,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
           setSessionLoading(true);
           setSessionError(null);
           
+          const supabase = getSupabase();
           const { data, error } = await supabase.auth.getSession();
           
           if (error) {
@@ -147,6 +148,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setLoading(true);
       setError(null);
       
+      const supabase = getSupabase();
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
@@ -215,6 +217,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
       
       // Update the setting's last_accessed timestamp
+      const supabase = getSupabase();
       await supabase
         .from('saved_settings')
         .update({ updated_at: new Date().toISOString() })
@@ -272,6 +275,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         userSetTables: state.userSetTables
       };
 
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .insert({
@@ -335,6 +339,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         return;
       }
       
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .insert({
@@ -370,6 +375,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     if (!window.confirm('Are you sure you want to delete these settings?')) return;
 
     try {
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .delete()
@@ -436,6 +442,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     setNameError(null);
     
     try {
+      const supabase = getSupabase();
       const { error } = await supabase
         .from('saved_settings')
         .update({ name: trimmedName })

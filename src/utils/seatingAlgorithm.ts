@@ -52,43 +52,67 @@ export async function generateSeatingPlans(
 
     // Name-to-ID map for constraints/adjacents
     const nameToIdMap = new Map<string, GuestID>();
-    guests.forEach((guest: Guest) => nameToIdMap.set(guest.name, guest.id));
-
-    // Constraints: Already keyed by guest IDs, just copy them
-    const engineConstraints: Engine.ConstraintsMap = {};
-    Object.entries(constraints ?? {}).forEach(([guestId, cons]) => {
-      if (cons) {
-        engineConstraints[guestId] = {};
-        Object.entries(cons ?? {}).forEach(([otherId, value]) => {
-          if (otherId !== guestId) engineConstraints[guestId][otherId] = value as 'must' | 'cannot' | '';
-        });
-      }
+    const idToNameMap = new Map<GuestID, string>();
+    guests.forEach((guest: Guest) => {
+      nameToIdMap.set(guest.name, guest.id);
+      idToNameMap.set(guest.id, guest.name);
     });
 
-    // Adjacents: Already keyed by guest IDs, just copy them
+    // Helper function to normalize key (name or ID) to ID
+    const normalizeKeyToId = (key: string): GuestID | null => {
+      // First try as ID
+      if (idToNameMap.has(key as GuestID)) return key as GuestID;
+      // Then try as name
+      return nameToIdMap.get(key) || null;
+    };
+
+    // Constraints: Normalize keys from names to IDs
+    const engineConstraints: Engine.ConstraintsMap = {};
+    Object.entries(constraints ?? {}).forEach(([key1, cons]) => {
+      const guestId1 = normalizeKeyToId(key1);
+      if (!guestId1 || !cons) return;
+      
+      engineConstraints[guestId1] = {};
+      Object.entries(cons ?? {}).forEach(([key2, value]) => {
+        const guestId2 = normalizeKeyToId(key2);
+        if (guestId2 && guestId2 !== guestId1) {
+          engineConstraints[guestId1][guestId2] = value as 'must' | 'cannot' | '';
+        }
+      });
+    });
+
+    // Adjacents: Normalize keys from names to IDs
     const engineAdjacents: Engine.AdjRecord = {};
-    Object.entries(adjacents ?? {}).forEach(([guestId, adjIds]) => {
-      if (adjIds) {
-        engineAdjacents[guestId] = (adjIds as string[]).filter(id => id !== guestId);
+    Object.entries(adjacents ?? {}).forEach(([key1, adjIds]) => {
+      const guestId1 = normalizeKeyToId(key1);
+      if (!guestId1 || !adjIds) return;
+      
+      const normalizedAdjIds = (adjIds as string[])
+        .map(key2 => normalizeKeyToId(key2))
+        .filter(id => id !== null && id !== guestId1) as GuestID[];
+      
+      if (normalizedAdjIds.length > 0) {
+        engineAdjacents[guestId1] = normalizedAdjIds;
       }
     });
 
     // Normalize assignments via SSoT, surface unknown tokens
     const engineAssignments: Engine.AssignmentsIn = {};
     const unknownErrors: ValidationError[] = [];
-    Object.entries(assignments ?? {}).forEach(([guestId, raw]) => {
-      if (raw) {
-        const norm = normalizeAssignmentInputToIdsWithWarnings(raw, tables);
-        engineAssignments[guestId] = norm.idCsv;
-        if (norm.warnings.length > 0) {
-          const guestName = guests.find(g => g.id === guestId)?.name || guestId;
-          unknownErrors.push({
-            type: 'warn',
-            message: `Unknown tables for ${guestName}: ${norm.warnings.join(', ')}`,
-          });
-          if (import.meta?.env?.DEV) {
-            console.warn(`Unknown assignment tokens for ${guestName}: ${norm.warnings.join(', ')}`);
-          }
+    Object.entries(assignments ?? {}).forEach(([key, raw]) => {
+      const guestId = normalizeKeyToId(key);
+      if (!guestId || !raw) return;
+      
+      const norm = normalizeAssignmentInputToIdsWithWarnings(String(raw), tables);
+      engineAssignments[guestId] = norm.idCsv;
+      if (norm.warnings.length > 0) {
+        const guestName = idToNameMap.get(guestId) || guestId;
+        unknownErrors.push({
+          type: 'warn',
+          message: `Unknown tables for ${guestName}: ${norm.warnings.join(', ')}`,
+        });
+        if (import.meta?.env?.DEV) {
+          console.warn(`Unknown assignment tokens for ${guestName}: ${norm.warnings.join(', ')}`);
         }
       }
     });
@@ -96,13 +120,13 @@ export async function generateSeatingPlans(
     // Allowed tables hint
     const allowedTablesByGuest: Record<string, number[]> = {};
     Object.entries(engineAssignments ?? {}).forEach(([guestId, csv]) => {
-      allowedTablesByGuest[guestId] = parseAssignmentIds(csv);
+      allowedTablesByGuest[guestId] = parseAssignmentIds(String(csv));
     });
 
     // Call engine
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
       guests,
-      tables.map(t => ({ id: t.id, name: t.name ?? undefined, seats: t.seats, capacity: t.seats })),
+      tables.map((t: Table) => ({ id: t.id, name: t.name ?? undefined, seats: t.seats, capacity: t.seats })),
       engineConstraints,
       engineAdjacents,
       engineAssignments,
@@ -148,7 +172,7 @@ export function detectConstraintConflicts(
   guests: Guest[] | null,
   tables: Table[] | null,
   constraints: Constraints | null,
-  checkAdjacency: boolean = false,
+  _checkAdjacency: boolean = false,
   adjacents: Adjacents | null = {}
 ): ValidationError[] {
   const engineGuests = guests ?? [];
