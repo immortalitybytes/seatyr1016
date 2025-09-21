@@ -129,7 +129,11 @@ const ConstraintManager: React.FC = () => {
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
+          <span
+            className="text-[#b3b508] font-bold ml-1"
+            title={`Adjacent to: ${(state.adjacents[guest.id] || []).map(id => state.guests.find(g => g.id === id)?.name || id).join(', ')}`}
+            style={{ fontSize: '0.7em' }}
+          >
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
@@ -153,7 +157,7 @@ const ConstraintManager: React.FC = () => {
           data-name={guest.name}
         >
           <div className="max-w-[100px] leading-tight" style={{ minHeight: '3rem', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            {guest.name}
+            <FormatGuestName name={guest.name} />
             {adjacentIndicator}
           </div>
         </th>
@@ -171,7 +175,11 @@ const ConstraintManager: React.FC = () => {
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${state.adjacents[guest1.id].map(id => state.guests.find(g => g.id === id)?.name).join(', ')}`}>
+          <span
+            className="text-[#b3b508] font-bold ml-1"
+            title={`Adjacent to: ${(state.adjacents[guest1.id] || []).map(id => state.guests.find(g => g.id === id)?.name || id).join(', ')}`}
+            style={{ fontSize: '0.7em' }}
+          >
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
@@ -192,7 +200,7 @@ const ConstraintManager: React.FC = () => {
         >
           <div>
             <div className="truncate max-w-[140px]">
-              {guest1.name}
+              <FormatGuestName name={guest1.name} />
               {adjacentIndicator}
             </div>
             {guest1.count > 1 && (
@@ -226,26 +234,30 @@ const ConstraintManager: React.FC = () => {
           );
         } else {
           const constraintValue = state.constraints[guest1.id]?.[guest2.id] || '';
-          const isAdjacent = state.adjacents[guest1.id]?.includes(guest2.id) || state.adjacents[guest2.id]?.includes(guest1.id);
-          
-          let cellContent = null;
+          const isAdjacent =
+            (state.adjacents[guest1.id] || []).includes(guest2.id) ||
+            (state.adjacents[guest2.id] || []).includes(guest1.id);
+
+          // Precedence: cannot > adjacency > must > empty
+          let cellContent: React.ReactNode = null;
           let bgColor = '';
-          
+
           if (constraintValue === 'cannot') {
-            bgColor = 'bg-red-500';
-            cellContent = <span className="text-black font-bold">X</span>;
-          } else if (constraintValue === 'must') {
-            bgColor = 'bg-green-500';
-            cellContent = <span className="text-black font-bold">&</span>;
+            bgColor = 'bg-[#e6130b]';
+            cellContent = <span className="text-black font-bold">X</span>; // keep X black
           } else if (isAdjacent) {
-            bgColor = 'bg-green-500';
+            bgColor = 'bg-[#22cf04]';
+            // ⭐ on both sides to distinguish adjacency from plain MUST "&"
             cellContent = (
               <div className="flex items-center justify-center space-x-1">
-                <span className="text-yellow-600 font-bold">⭐</span>
+                <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>⭐</span>
                 <span className="text-black font-bold">&</span>
-                <span className="text-yellow-600 font-bold">⭐</span>
+                <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>⭐</span>
               </div>
             );
+          } else if (constraintValue === 'must') {
+            bgColor = 'bg-[#22cf04]';
+            cellContent = <span className="text-black font-bold">&</span>; // keep & black
           }
           
           const isCellHighlighted = highlightedPair && 
