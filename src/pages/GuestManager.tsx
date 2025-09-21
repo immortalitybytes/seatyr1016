@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import AuthModal from '../components/AuthModal';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+import FormatGuestName from '../components/FormatGuestName';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
 import { redirectToCheckout } from '../lib/stripe';
@@ -206,11 +207,6 @@ const GuestManager: React.FC = () => {
     }
   }, [state.user, isPremium, totalGuests, maxGuests, dispatch, state.guests]);
   useEffect(() => {
-    if (state.user) {
-      // Fetch if needed, but accordion handles
-    }
-  }, [state.user]);
-  useEffect(() => {
     if (!state.user) return;
     if (realtimeSubscriptionRef.current) {
       realtimeSubscriptionRef.current.unsubscribe();
@@ -269,6 +265,7 @@ const GuestManager: React.FC = () => {
       }
     };
   }, [showDuplicateWarning]);
+
   const toggleVideo = () => {
     const newVisible = !videoVisible;
     setVideoVisible(newVisible);
@@ -284,7 +281,6 @@ const GuestManager: React.FC = () => {
     }
   };
   const handleAddGuests = () => {
-    // Split on both line breaks and commas to handle bulk input
     const lines = guestInput.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
     const seen = new Set(state.guests.map((g) => normalizeName(g.name)));
     const duplicates = [];
@@ -321,7 +317,6 @@ const GuestManager: React.FC = () => {
         const content = e.target?.result as string;
         const lines = content.split('\n').filter(line => line.trim());
         
-        // Parse CSV format
         const guests = [];
         for (const line of lines) {
           const parsed = parseGuestLine(line.trim());
@@ -335,7 +330,6 @@ const GuestManager: React.FC = () => {
         }
 
         if (guests.length > 0) {
-          // Add guests one by one to respect limits
           guests.forEach(guest => {
             dispatch({ type: 'ADD_GUEST', payload: guest });
           });
@@ -349,7 +343,6 @@ const GuestManager: React.FC = () => {
         setImportError('Invalid file format. Please ensure it\'s a CSV file with the correct format.');
       }
 
-      // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -460,31 +453,9 @@ const GuestManager: React.FC = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
-          <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
-            <div className="flex-1 flex items-center">
-              <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8', marginLeft: '8rem' }}>
-                <p style={{ marginBottom: '3.2em' }}>1.) Click "Load Test Guest List" button.</p>
-                <p style={{ marginBottom: '3.2em' }}>2.) Click "Your Rules" at the top.</p>
-                <p>3.) Pair and Prevent as you like.</p>
-              </div>
-            </div>
-            
-            {/* Pulsing Arrow Emoji - moved down 3 lines to align with Load Test Guest List button */}
-            <div className="flex justify-center items-end pb-2" style={{ marginTop: '3rem' }}>
-              <div
-                className="pulsing-arrow"
-                style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
-                aria-hidden
-              >
-                ➡️
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
+      {state.user ? (
+        // Signed-in users: Only show Add Guest Names box at full width
+        <Card title="Add Guest Names" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
             <table className="w-full invisible">
@@ -508,12 +479,119 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full" style={{ paddingLeft: '4.5rem', paddingRight: '4.5rem', gap: '2rem' }}>
+          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
+            <Button 
+              onClick={handleAddGuests} 
+              disabled={!guestInput.trim()}
+              style={{ height: '70.2px', width: '48.3%' }}
+            >
+              Add Guests
+            </Button>
+            {state.user && (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.txt"
+                  className="hidden"
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="danstyle1c-btn inline-flex items-center justify-center"
+                  style={{ height: '70.2px', width: '48.3%' }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Guests & Settings
+                </button>
+              </>
+            )}
+          </div>
+          
+          {/* Add spacing below buttons for alignment */}
+          <div className="mt-6"></div>
+          
+          {showDuplicateWarning && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start">
+           
+            <AlertCircle className="text-yellow-600 mr-2 mt-1 flex-shrink-0" />
+              <div>
+                <p className="text-yellow-700">
+                  Duplicates skipped: {localDuplicates.join(', ')}
+                </p>
+              </div>
+          
+            </div>
+          )}
+          
+          {importError && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md flex items-start">
+              <AlertCircle className="text-red-600 mr-2 mt-1 flex-shrink-0" />
+              <div>
+                <p className="text-red-700">
+                  {importError}
+                </p>
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : (
+        // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1fr 1.7fr' }}>
+          <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
+            <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
+              <div className="flex-1 flex items-center">
+                <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8', marginLeft: '2rem' }}>
+                  <p style={{ marginBottom: '1.6em' }}>1.) Click "Load Test Guest List" button.</p>
+                  <p style={{ marginBottom: '1.6em' }}>2.) Click "Your Rules" at the top.</p>
+                  <p>3.) Pair and Prevent as you like.</p>
+                </div>
+              </div>
+              
+              {/* Pulsing Arrow Emoji - moved down 3 lines to align with Load Test Guest List button */}
+              <div className="flex justify-center items-end pb-2" style={{ marginTop: '3rem' }}>
+                <div
+                  className="pulsing-arrow"
+                  style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
+                  aria-hidden
+                >
+                  ➡️
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
+          <div className="space-y-2 mb-2">
+            <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
+            <table className="w-full invisible">
+              <tr>
+                <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
+                <td className="text-right">
+                  {isPremium ? (
+                    <p className="text-sm text-gray-700">Premium Plan: {totalGuests} guests used</p>
+                  ) : (
+                    <p className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</p>
+                  )}
+                </td>
+              </tr>
+            </table>
+          </div>
+          <textarea
+            value={guestInput}
+            onChange={(e) => setGuestInput(e.target.value)}
+            placeholder=" e.g., Alice & Andrew Jones, Bob Smith+1
+Conseula & Cory & Cleon Lee, Darren Winnik+4"
+            className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
+            style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
+          />
+          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '38.64%' }}
+                style={{ height: '70.2px', width: '48.3%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -524,7 +602,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '38.64%' }}
+              style={{ height: '70.2px', width: '48.3%' }}
             >
               Add Guests
             </Button>
@@ -577,7 +655,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             </div>
           )}
         </Card>
-      </div>
+        </div>
+      )}
 
       {/* Saved Settings Accordion */}
       {state.user && <SavedSettingsAccordion />}
@@ -667,16 +746,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                     className="font-medium text-[#586D78] text-xl flex items-center cursor-pointer"
                     onDoubleClick={() => beginEdit(guest.id, guest.name)}
                   >
-                    {(() => {
-                      const displayName = getDisplayName(guest.name);
-                      return displayName.includes('%') ? (
-                        <>
-                          {displayName.split('%')[0]}
-                          <span style={{ color: '#959595' }}>%</span>
-                          {displayName.split('%')[1]}
-                        </>
-                      ) : displayName;
-                    })()}
+                    <FormatGuestName name={getDisplayName(guest.name)} />
                     <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 
                         onClick={() => beginEdit(guest.id, guest.name)} />
                   </span>
@@ -725,6 +795,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           </p>
         </div>
       </div>
+
+      {state.user && <SavedSettingsAccordion />}
 
       <div className="w-full mt-10 bg-[#fff4cd] border-2 border-[#586D78] rounded-xl p-6">
         <h2 className="text-lg font-bold text-[#586D78] mb-4">Seatyr's Favorite 
