@@ -455,7 +455,14 @@ const GuestManager: React.FC = () => {
 
       {state.user ? (
         // Signed-in users: Only show Add Guest Names box at full width
-        <Card title="Add Guest Names" style={{ minHeight: '280px' }}>
+        <Card title={
+          <div className="flex justify-between items-center w-full">
+            <span>Add Guest Names</span>
+            {!isPremium && (
+              <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
+            )}
+          </div>
+        } style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
             <table className="w-full invisible">
@@ -538,13 +545,13 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
         </Card>
       ) : (
         // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1fr 1.7fr' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1.2fr 1.445fr' }}>
           <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
             <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
               <div className="flex-1 flex items-center">
-                <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.8', marginLeft: '2rem' }}>
-                  <p style={{ marginBottom: '1.6em' }}>1.) Click "Load Test Guest List" button.</p>
-                  <p style={{ marginBottom: '1.6em' }}>2.) Click "Your Rules" at the top.</p>
+                <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.3', marginLeft: '1.25rem' }}>
+                  <p style={{ marginBottom: '1.3em' }}>1.) Click "Load Test Guest List" button.</p>
+                  <p style={{ marginBottom: '1.3em' }}>2.) Click "Your Rules" at the top.</p>
                   <p>3.) Pair and Prevent as you like.</p>
                 </div>
               </div>
@@ -562,9 +569,17 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             </div>
           </Card>
 
-          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
+          <Card title={
+            <div className="flex justify-between items-center w-full">
+              <span>Add Guest Names</span>
+              {!isPremium && (
+                <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
+              )}
+            </div>
+          } className="lg:col-span-2" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
+            <p className="text-sm text-gray-700">• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
             <table className="w-full invisible">
               <tr>
                 <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
@@ -591,7 +606,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '48.3%' }}
+                style={{ height: '70.2px', width: '60.375%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -602,7 +617,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '48.3%' }}
+              style={{ height: '70.2px', width: '32.361%' }}
             >
               Add Guests
             </Button>
@@ -746,7 +761,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                     className="font-medium text-[#586D78] text-xl flex items-center cursor-pointer"
                     onDoubleClick={() => beginEdit(guest.id, guest.name)}
                   >
-                    <FormatGuestName name={getDisplayName(guest.name)} />
+                    <FormatGuestName name={guest.name} />
                     <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 
                         onClick={() => beginEdit(guest.id, guest.name)} />
                   </span>
