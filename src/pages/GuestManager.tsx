@@ -570,11 +570,13 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           </Card>
 
           <Card title={
-            <div className="flex justify-between items-center w-full">
-              <span>Add Guest Names</span>
-              {!isPremium && (
-                <span className="text-sm text-gray-700" style={{ textAlign: 'right', flex: '1' }}>Free Plan: {totalGuests}/80 guests used</span>
-              )}
+            <div className="w-full">
+              <div className="flex justify-between items-center">
+                <span>Add Guest Names</span>
+                {!isPremium && (
+                  <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
+                )}
+              </div>
             </div>
           } className="lg:col-span-2" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2" style={{ paddingLeft: '0' }}>
@@ -601,12 +603,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full justify-between" style={{ paddingLeft: '0.5rem', paddingRight: '0.5rem' }}>
+          <div className="mt-4 flex w-full justify-center" style={{ paddingLeft: '1rem', paddingRight: '1rem', gap: '1rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '55%', marginRight: '0.5rem' }}
+                style={{ height: '70.2px', width: '65%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -617,7 +619,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '30%', marginLeft: '0.5rem' }}
+              style={{ height: '70.2px', width: '40%' }}
             >
               Add Guests
             </Button>
@@ -634,7 +636,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '55%', marginRight: '0.5rem' }}
+                  style={{ height: '70.2px', width: '65%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
