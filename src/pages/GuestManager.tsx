@@ -545,11 +545,11 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
         </Card>
       ) : (
         // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '0.33fr 0.03fr 0.6fr' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '0.4fr 0.05fr 0.55fr' }}>
           <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
             <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
               <div className="flex-1 flex items-center">
-                <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: '1.25em', lineHeight: '1.3', marginLeft: '1.25rem' }}>
+                <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: 'clamp(0.8em, 1.25em, 1.25em)', lineHeight: '1.3', marginLeft: '1.25rem' }}>
                   <p style={{ marginBottom: '1.3em' }}>1.) Click "Load Test Guest List" button.</p>
                   <p style={{ marginBottom: '1.3em' }}>2.) Click "Your Rules" at the top.</p>
                   <p>3.) Pair and Prevent as you like.</p>
@@ -577,9 +577,9 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               )}
             </div>
           } className="lg:col-span-2" style={{ minHeight: '280px' }}>
-          <div className="space-y-2 mb-2">
-            <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
-            <p className="text-sm text-gray-700">• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
+          <div className="space-y-2 mb-2" style={{ paddingLeft: '0' }}>
+            <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>Enter guest names separated by commas or line breaks.</p>
+            <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
             <table className="w-full invisible">
               <tr>
                 <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
@@ -601,12 +601,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '1rem' }}>
+          <div className="mt-4 flex w-full justify-between" style={{ paddingLeft: '0.5rem', paddingRight: '0.5rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '45%' }}
+                style={{ height: '70.2px', width: '55%', marginRight: '0.5rem' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -617,7 +617,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '45%' }}
+              style={{ height: '70.2px', width: '30%', marginLeft: '0.5rem' }}
             >
               Add Guests
             </Button>
@@ -634,7 +634,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '45%' }}
+                  style={{ height: '70.2px', width: '55%', marginRight: '0.5rem' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
