@@ -606,7 +606,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '60.375%' }}
+                style={{ height: '70.2px', width: '36%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -617,7 +617,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '32.361%' }}
+              style={{ height: '70.2px', width: '19.4%' }}
             >
               Add Guests
             </Button>
