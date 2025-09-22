@@ -60,7 +60,11 @@ const BoldedGuestName: React.FC<{ name: string; shouldBold: boolean }> = ({ name
     <>
       {prefix}
       {leadingSpace}
-      <span style={{ color: '#959595', fontStyle: 'italic' }}>
+      <span style={{ 
+        color: '#959595', 
+        fontStyle: 'italic',
+        fontWeight: shouldBold ? 'bold' : 'normal'
+      }}>
         {styledWord}
       </span>
       {suffixText}
