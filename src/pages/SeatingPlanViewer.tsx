@@ -8,6 +8,7 @@ import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { isPremiumSubscription } from '../utils/premium';
 import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/formatters';
 import { computePlanSignature } from '../utils/planSignature';
+import FormatGuestName from '../components/FormatGuestName';
 
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
@@ -258,7 +259,7 @@ const SeatingPlanViewer: React.FC = () => {
                   return (
                     <td key={`cell-guest-${table.id}-${rowIndex}`} className="p-2 border border-indigo-200 align-top">
                       <div className="font-medium text-[#586D78] text-sm">
-                        {formatGuestNameForSeat(safeName, safePartyIndex)}
+                        <FormatGuestName name={safeName} />
                       </div>
                     </td>
                   );
