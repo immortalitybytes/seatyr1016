@@ -180,12 +180,43 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       constraints[guest1] = { ...constraints[guest1], [guest2]: value };
       constraints[guest2] = { ...constraints[guest2], [guest1]: value };
       
+      // Update adjacents based on must constraints
+      const adjacents = { ...state.adjacents };
+      
+      if (value === 'must') {
+        // Add to adjacents
+        if (!adjacents[guest1]) adjacents[guest1] = [];
+        if (!adjacents[guest2]) adjacents[guest2] = [];
+        
+        if (!adjacents[guest1].includes(guest2)) {
+          adjacents[guest1] = [...adjacents[guest1], guest2];
+        }
+        if (!adjacents[guest2].includes(guest1)) {
+          adjacents[guest2] = [...adjacents[guest2], guest1];
+        }
+      } else {
+        // Remove from adjacents if not must
+        if (adjacents[guest1]) {
+          adjacents[guest1] = adjacents[guest1].filter(id => id !== guest2);
+          if (adjacents[guest1].length === 0) {
+            delete adjacents[guest1];
+          }
+        }
+        if (adjacents[guest2]) {
+          adjacents[guest2] = adjacents[guest2].filter(id => id !== guest1);
+          if (adjacents[guest2].length === 0) {
+            delete adjacents[guest2];
+          }
+        }
+      }
+      
       // P-4: Detect conflicts after constraint change
-      const conflicts = detectConstraintConflicts(state.guests, state.tables, constraints, true, state.adjacents);
+      const conflicts = detectConstraintConflicts(state.guests, state.tables, constraints, true, adjacents);
       const constraintErrors = conflicts.filter(c => c.type === 'error' && (c.message.toLowerCase().includes('must') || c.message.toLowerCase().includes('cannot')));
       return {
         ...state,
         constraints,
+        adjacents,
         seatingPlans: [],
         currentPlanIndex: 0,
         conflictWarnings: constraintErrors.length > 0 ? constraintErrors.map(e => e.message) : state.conflictWarnings
