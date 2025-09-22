@@ -545,7 +545,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
         </Card>
       ) : (
         // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1.2fr 1.445fr' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1.2fr 0.8fr' }}>
           <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
             <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
               <div className="flex-1 flex items-center">
