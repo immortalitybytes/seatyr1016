@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
-import { detectConflicts } from '../utils/conflicts';
+import { detectConflicts, detectUnsatisfiableMustGroups } from '../utils/conflicts';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 
@@ -473,7 +473,24 @@ const ConstraintManager: React.FC = () => {
     return true;
   }, []);
 
-  const conflictWarnings = detectConflicts(state.assignments, state.constraints);
+  const conflictWarnings = detectUnsatisfiableMustGroups({
+    guests: state.guests.reduce((acc, g) => {
+      acc[g.id] = { partySize: g.count, name: g.name };
+      return acc;
+    }, {} as Record<string, { partySize?: number; name?: string }>),
+    tables: state.tables.map(t => ({ id: t.id, capacity: (t as any).capacity ?? t.seats })),
+    assignments: state.assignments,
+    constraints: {
+      mustPairs: function* () {
+        for (const a of Object.keys(state.constraints || {})) {
+          const row = state.constraints[a] || {};
+          for (const b of Object.keys(row)) {
+            if (row[b] === 'must' && a !== b) yield [a, b] as [string, string];
+          }
+        }
+      }
+    }
+  });
 
   return (
     <div className="space-y-6">
