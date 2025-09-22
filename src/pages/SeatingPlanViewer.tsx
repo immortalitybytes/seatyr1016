@@ -27,18 +27,18 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       // This is one of the base name tokens - bold the specific name
       const tokenToBold = baseTokens[seatIndex];
       
-      // Build display with the specific name bolded
+      // Build display with the specific name bolded and % marker styling
       const parts = originalName.split(tokenToBold);
       if (parts.length > 1) {
         return (
           <span>
-            {parts[0]}
-            <strong>{tokenToBold}</strong>
-            {parts[1]}
+            <FormatGuestName name={parts[0]} />
+            <strong><FormatGuestName name={tokenToBold} /></strong>
+            <FormatGuestName name={parts[1]} />
           </span>
         );
       } else {
-        return <span><strong>{originalName}</strong></span>;
+        return <span><strong><FormatGuestName name={originalName} /></strong></span>;
       }
     } else {
       // This is an additional seat - show ordinal number
@@ -65,14 +65,14 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       const ordinalText = getOrdinalText(ordinalNumber);
       const totalAdditional = extraTokens.length;
       
-      // Build display with ordinal number bolded
+      // Build display with ordinal number bolded and % marker styling
       // Format: "BaseName + 1st (of X)"
       const baseName = baseTokens.join(' & ');
       const additionalPart = originalName.match(/[&+]|\b(?:and|plus)\b.*$/i)?.[0] || '';
       
       return (
         <span>
-          {baseName} {additionalPart.replace(/\d+/, '').trim()}
+          <FormatGuestName name={baseName} /> {additionalPart.replace(/\d+/, '').trim()}
           <strong> {ordinalText}</strong> (of {totalAdditional})
         </span>
       );
@@ -259,7 +259,7 @@ const SeatingPlanViewer: React.FC = () => {
                   return (
                     <td key={`cell-guest-${table.id}-${rowIndex}`} className="p-2 border border-indigo-200 align-top">
                       <div className="font-medium text-[#586D78] text-sm">
-                        <FormatGuestName name={safeName} />
+                        {formatGuestNameForSeat(safeName, safePartyIndex)}
                       </div>
                     </td>
                   );
