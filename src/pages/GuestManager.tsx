@@ -545,7 +545,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
         </Card>
       ) : (
         // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '1.2fr 0.8fr' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '0.33fr 0.03fr 0.6fr' }}>
           <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
             <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
               <div className="flex-1 flex items-center">
@@ -573,7 +573,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <div className="flex justify-between items-center w-full">
               <span>Add Guest Names</span>
               {!isPremium && (
-                <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
+                <span className="text-sm text-gray-700 text-right">Free Plan: {totalGuests}/80 guests used</span>
               )}
             </div>
           } className="lg:col-span-2" style={{ minHeight: '280px' }}>
@@ -601,12 +601,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
+          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '1rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
                 className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '36%' }}
+                style={{ height: '70.2px', width: '45%' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -617,7 +617,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '19.4%' }}
+              style={{ height: '70.2px', width: '45%' }}
             >
               Add Guests
             </Button>
@@ -634,7 +634,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '38.64%' }}
+                  style={{ height: '70.2px', width: '45%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
