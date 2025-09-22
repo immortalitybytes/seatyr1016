@@ -9,6 +9,67 @@ import { isPremiumSubscription } from '../utils/premium';
 import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/formatters';
 import { computePlanSignature } from '../utils/planSignature';
 import FormatGuestName from '../components/FormatGuestName';
+import { getDisplayName, extractPartySuffix } from '../utils/guestCount';
+
+// Helper component to handle both bolding and % marker styling
+const BoldedGuestName: React.FC<{ name: string; shouldBold: boolean }> = ({ name, shouldBold }) => {
+  const suffix = extractPartySuffix(name);
+  const display = getDisplayName(name);
+
+  // Early return for invalid or non-special names
+  if (!display || typeof display !== 'string' || !display.includes('%')) {
+    const content = (
+      <>
+        {display}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </>
+    );
+    return shouldBold ? <strong>{content}</strong> : <span>{content}</span>;
+  }
+
+  // Split on % and handle multiple % characters gracefully
+  const [prefix, ...restParts] = display.split('%');
+  const rest = restParts.join('%');
+
+  // Handle edge case where % is at the end
+  if (!rest.trim()) {
+    const content = (
+      <>
+        {prefix.replace('%', '')}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </>
+    );
+    return shouldBold ? <strong>{content}</strong> : <span>{content}</span>;
+  }
+
+  // Extract the first word after % for styling using robust regex
+  const match = rest.match(/(\s*)(\S+)(.*)/);
+  if (!match) {
+    const content = (
+      <>
+        {prefix}{rest}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </>
+    );
+    return shouldBold ? <strong>{content}</strong> : <span>{content}</span>;
+  }
+
+  const [, leadingSpace, styledWord, suffixText] = match;
+
+  const content = (
+    <>
+      {prefix}
+      {leadingSpace}
+      <span style={{ color: '#959595', fontStyle: 'italic' }}>
+        {styledWord}
+      </span>
+      {suffixText}
+      {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+    </>
+  );
+  
+  return shouldBold ? <strong>{content}</strong> : <span>{content}</span>;
+};
 
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
@@ -32,13 +93,13 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       if (parts.length > 1) {
         return (
           <span>
-            <FormatGuestName name={parts[0]} />
-            <strong><FormatGuestName name={tokenToBold} /></strong>
-            <FormatGuestName name={parts[1]} />
+            <BoldedGuestName name={parts[0]} shouldBold={false} />
+            <BoldedGuestName name={tokenToBold} shouldBold={true} />
+            <BoldedGuestName name={parts[1]} shouldBold={false} />
           </span>
         );
       } else {
-        return <span><strong><FormatGuestName name={originalName} /></strong></span>;
+        return <BoldedGuestName name={originalName} shouldBold={true} />;
       }
     } else {
       // This is an additional seat - show ordinal number
@@ -72,7 +133,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       
       return (
         <span>
-          <FormatGuestName name={baseName} /> {additionalPart.replace(/\d+/, '').trim()}
+          <BoldedGuestName name={baseName} shouldBold={false} /> {additionalPart.replace(/\d+/, '').trim()}
           <strong> {ordinalText}</strong> (of {totalAdditional})
         </span>
       );
