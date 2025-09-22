@@ -573,7 +573,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <div className="flex justify-between items-center w-full">
               <span>Add Guest Names</span>
               {!isPremium && (
-                <span className="text-sm text-gray-700 text-right">Free Plan: {totalGuests}/80 guests used</span>
+                <span className="text-sm text-gray-700" style={{ textAlign: 'right' }}>Free Plan: {totalGuests}/80 guests used</span>
               )}
             </div>
           } className="lg:col-span-2" style={{ minHeight: '280px' }}>
