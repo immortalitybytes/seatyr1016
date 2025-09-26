@@ -17,6 +17,7 @@ const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({
 }));
 
 const DEFAULT_TABLE_CAPACITY = 8;
+const ADJACENCY_MAX_DEGREE = 2;
 
 interface AppAction {
   type: string;
@@ -76,43 +77,61 @@ function sanitizeAndMigrateAppState(state: AppState): AppState {
   guests.forEach(g => guestIdToName.set(g.id, g.name));
 
   const migratedConstraints: Constraints = {};
-  Object.entries(state.constraints ?? {}).forEach(([key1, val1]) => {
-    const id1 = guestNameToId.get(key1.toLowerCase()) || key1;
-    if (!guestIdToName.has(id1)) return;
-    Object.entries(val1).forEach(([key2, val2]) => {
-      const id2 = guestNameToId.get(key2.toLowerCase()) || key2;
-      if (!guestIdToName.has(id2) || id1 === id2) return;
-      if (val2 === 'must' || val2 === 'cannot' || val2 === '') {
-        migratedConstraints[id1] = { ...migratedConstraints[id1], [id2]: val2 };
-      }
+  Object.entries(state.constraints || {}).forEach(([nameA, consB]) => {
+    const idA = guestNameToId.get(nameA.toLowerCase());
+    if (!idA) return;
+    migratedConstraints[idA] = {};
+    Object.entries(consB || {}).forEach(([nameB, value]) => {
+      const idB = guestNameToId.get(nameB.toLowerCase());
+      if (idB) migratedConstraints[idA][idB] = value as 'must' | 'cannot' | '';
     });
   });
 
   const migratedAdjacents: Adjacents = {};
-  Object.entries(state.adjacents ?? {}).forEach(([key1, val1]) => {
-    const id1 = guestNameToId.get(key1.toLowerCase()) || key1;
-    if (!guestIdToName.has(id1)) return;
-    const partners = (val1 as GuestID[]).map(key2 => guestNameToId.get(key2.toLowerCase()) || key2).filter(id2 => id2 !== id1 && guestIdToName.has(id2));
-    if (partners.length > 0) {
-      migratedAdjacents[id1] = partners.slice(0, 2);
-    }
+  Object.entries(state.adjacents || {}).forEach(([idA, list]) => {
+    if (!guestIdToName.has(idA as GuestID)) return;
+    migratedAdjacents[idA] = (list || []).filter(idB => guestIdToName.has(idB as GuestID));
   });
 
-  // Store raw assignments (like old system) - normalization happens in seating algorithm
-  const rawAssignments: Assignments = {};
-  Object.entries(state.assignments ?? {}).forEach(([key, raw]) => {
-    const guestId = guestNameToId.get(key.toLowerCase()) || key;
-    if (!guestIdToName.has(guestId)) return;
-    rawAssignments[guestId] = raw; // Store raw assignment as-is
-  });
+  const migratedAssignments = migrateAssignmentsToIdKeys(state.assignments, guests);
 
   return {
     ...state,
     guests,
     constraints: migratedConstraints,
     adjacents: migratedAdjacents,
-    assignments: rawAssignments
+    assignments: migratedAssignments,
+    timestamp: new Date().toISOString(),
   };
+}
+
+// Symmetric adjacency helpers with degree cap
+function addAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): Adjacents {
+  if (a === b) return adjacents;
+  const degreeA = (adjacents[a] || []).length;
+  const degreeB = (adjacents[b] || []).length;
+  if (degreeA >= ADJACENCY_MAX_DEGREE || degreeB >= ADJACENCY_MAX_DEGREE) {
+    console.warn(`Adjacency degree cap exceeded for ${a} or ${b}`);
+    return adjacents;
+  }
+  const next = { ...adjacents };
+  next[a] = [...(next[a] || []), b].filter((id, idx, self) => self.indexOf(id) === idx);
+  next[b] = [...(next[b] || []), a].filter((id, idx, self) => self.indexOf(id) === idx);
+  return next;
+}
+
+function removeAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): Adjacents {
+  if (a === b) return adjacents;
+  const next = { ...adjacents };
+  if (next[a]) {
+    next[a] = next[a].filter(id => id !== b);
+    if (next[a].length === 0) delete next[a];
+  }
+  if (next[b]) {
+    next[b] = next[b].filter(id => id !== a);
+    if (next[b].length === 0) delete next[b];
+  }
+  return next;
 }
 
 const reducer = (state: AppState, action: AppAction): AppState => {
@@ -140,7 +159,10 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       delete constraints[id];
       delete adjacents[id];
       Object.keys(constraints).forEach(key => delete constraints[key][id]);
-      Object.keys(adjacents).forEach(key => adjacents[key] = adjacents[key].filter(aid => aid !== id));
+      Object.keys(adjacents).forEach(key => {
+        adjacents[key] = adjacents[key].filter(aid => aid !== id);
+        if (adjacents[key].length === 0) delete adjacents[key];
+      });
       return { ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "RENAME_GUEST": {
@@ -163,7 +185,6 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "UPDATE_ASSIGNMENT": {
       const { payload } = action;
       const { guestId, raw } = payload;
-      // Store raw assignment (like old system) - normalization happens in seating algorithm
       const newAssignments = { ...state.assignments, [guestId]: raw };
       const signature = JSON.stringify(Object.entries(newAssignments).sort((a, b) => a[0].localeCompare(b[0])));
       return {
@@ -179,47 +200,29 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const constraints = { ...state.constraints };
       constraints[guest1] = { ...constraints[guest1], [guest2]: value };
       constraints[guest2] = { ...constraints[guest2], [guest1]: value };
-      
-      // Update adjacents based on must constraints
-      const adjacents = { ...state.adjacents };
-      
-      if (value === 'must') {
-        // Add to adjacents
-        if (!adjacents[guest1]) adjacents[guest1] = [];
-        if (!adjacents[guest2]) adjacents[guest2] = [];
-        
-        if (!adjacents[guest1].includes(guest2)) {
-          adjacents[guest1] = [...adjacents[guest1], guest2];
-        }
-        if (!adjacents[guest2].includes(guest1)) {
-          adjacents[guest2] = [...adjacents[guest2], guest1];
-        }
-      } else {
-        // Remove from adjacents if not must
-        if (adjacents[guest1]) {
-          adjacents[guest1] = adjacents[guest1].filter(id => id !== guest2);
-          if (adjacents[guest1].length === 0) {
-            delete adjacents[guest1];
-          }
-        }
-        if (adjacents[guest2]) {
-          adjacents[guest2] = adjacents[guest2].filter(id => id !== guest1);
-          if (adjacents[guest2].length === 0) {
-            delete adjacents[guest2];
-          }
-        }
-      }
-      
-      // P-4: Detect conflicts after constraint change
-      const conflicts = detectConstraintConflicts(state.guests, state.tables, constraints, true, adjacents);
-      const constraintErrors = conflicts.filter(c => c.type === 'error' && (c.message.toLowerCase().includes('must') || c.message.toLowerCase().includes('cannot')));
       return {
         ...state,
         constraints,
-        adjacents,
         seatingPlans: [],
-        currentPlanIndex: 0,
-        conflictWarnings: constraintErrors.length > 0 ? constraintErrors.map(e => e.message) : state.conflictWarnings
+        currentPlanIndex: 0
+      };
+    }
+    case "SET_ADJACENT": {
+      const { guest1, guest2 } = action.payload;
+      return {
+        ...state,
+        adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2),
+        seatingPlans: [],
+        currentPlanIndex: 0
+      };
+    }
+    case "REMOVE_ADJACENT": {
+      const { guest1, guest2 } = action.payload;
+      return {
+        ...state,
+        adjacents: removeAdjacentSymmetric(state.adjacents, guest1, guest2),
+        seatingPlans: [],
+        currentPlanIndex: 0
       };
     }
     case "SET_TABLES":
@@ -282,7 +285,6 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { payload } = action;
       const { constraints, adjacents } = migrateState(payload);
       const idKeyed = migrateAssignmentsToIdKeys(payload.assignments || {}, payload.guests || []);
-      // Keep assignments raw (like old system) - normalization happens in seating algorithm
       const assignmentSignature = JSON.stringify(
         Object.entries(idKeyed).sort((a, b) => a[0].localeCompare(b[0]))
       );
@@ -291,7 +293,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         ...payload,
         constraints,
         adjacents,
-        assignments: idKeyed, // Store raw assignments
+        assignments: idKeyed,
         assignmentSignature,
         seatingPlans: [],
         lastGeneratedPlanSig: null,
@@ -300,14 +302,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case "IMPORT_STATE": {
       const importedState = action.payload;
-      
-      // Simple state replacement without complex migration (for SavedSettings compatibility)
       return {
         ...state,
         ...importedState,
-        subscription: state.subscription, // Keep current subscription
-        user: state.user, // Keep current user
-        // Reset plan-related state for fresh generation
+        subscription: state.subscription,
+        user: state.user,
         seatingPlans: [],
         currentPlanIndex: 0,
         lastGeneratedPlanSig: null,
@@ -327,109 +326,88 @@ const reducer = (state: AppState, action: AppAction): AppState => {
   }
 };
 
+const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction> } | undefined>(undefined);
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [showRecentModal, setShowRecentModal] = useState(false);
   const [mostRecentState, setMostRecentState] = useState<AppState | null>(null);
-  const [recentFetched, setRecentFetched] = useState(false);
+  const [showRecentModal, setShowRecentModal] = useState(false);
   const [recentError, setRecentError] = useState<string | null>(null);
+  const [recentFetched, setRecentFetched] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [authChanged, setAuthChanged] = useState(false);
-  
-  // P-0: Init effect
-  useEffect(() => {
-    const init = async () => {
-      setSessionLoading(true);
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (data.session?.user) {
-          dispatch({ type: "SET_USER", payload: data.session.user });
-          const recent = await getMostRecentState(data.session.user.id);
-          if (recent) {
-            setMostRecentState(recent);
-            setShowRecentModal(true);
-          }
-        }
-      } catch (err) {
-        console.error("Init error:", err);
-        setRecentError("Failed to load recent state.");
-      } finally {
-        setSessionLoading(false);
-        setRecentFetched(true);
-      }
-    };
-    init();
-  }, []);
 
-  // P-0: Subscription effect
+  // Sanitize on mount
   useEffect(() => {
-    if (!state.user || !authChanged) return;
-    supabase.from("subscriptions").select("*").eq("user_id", state.user.id).single().then(({ data, error }) => {
-      if (error) console.error("Subscription error:", error);
-      else dispatch({ type: "SET_SUBSCRIPTION", payload: data });
-    });
-  }, [state.user, authChanged]);
-
-  // P-3: Auto-reconcile tables
-  useEffect(() => {
-    if (!state.userSetTables) {
-      dispatch({ type: "AUTO_RECONCILE_TABLES" });
+    const sanitized = sanitizeAndMigrateAppState(state);
+    if (JSON.stringify(sanitized) !== JSON.stringify(state)) {
+      dispatch({ type: 'LOAD_MOST_RECENT', payload: sanitized });
     }
-  }, [state.guests, state.tables, state.assignments, state.userSetTables, dispatch]);
-
-  // P-5: Debounced save
-  const saveDebounced = useMemo(() => {
-    return (stateToSave: AppState) => {
-      if (stateToSave.user) {
-        saveMostRecentState(stateToSave.user.id, { ...stateToSave, loadedSavedSetting: false }, isPremiumSubscription(stateToSave.subscription)).catch(console.error);
-      }
-    };
   }, []);
-  
+
+  // Reconcile tables on guest/assignment change
   useEffect(() => {
-    saveDebounced(state);
-  }, [state, saveDebounced]);
+    const reconciled = reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables);
+    if (reconciled.length !== state.tables.length) {
+      dispatch({ type: 'SET_TABLES', payload: reconciled });
+    }
+  }, [state.guests, state.assignments, state.userSetTables]);
 
-  // P-5: Debounced plan generation
+  // Debounced plan generation
   const debouncedGeneratePlans = useMemo(() => {
-    return async () => {
-      console.time("SeatingGeneration");
-      dispatch({ type: "CLEAR_WARNINGS" });
-      const { plans, errors: validationErrors } = await generateSeatingPlans(
-        state.guests,
-        state.tables,
-        state.constraints,
-        state.adjacents,
-        state.assignments,
-        isPremiumSubscription(state.subscription)
-      );
-      if (validationErrors.length > 0) {
-        dispatch({ type: "SET_WARNING", payload: validationErrors.map(e => e.message) });
-      }
-      if (plans.length > 0) {
-        dispatch({ type: "SET_SEATING_PLANS", payload: plans });
-      } else {
-        dispatch({ type: "SET_SEATING_PLANS", payload: [] });
-      }
-      console.timeEnd("SeatingGeneration");
+    let timeout: NodeJS.Timeout;
+    return () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(async () => {
+        console.time("SeatingGeneration");
+        const { plans, errors } = await generateSeatingPlans(
+          state.guests,
+          state.tables,
+          state.constraints,
+          state.adjacents,
+          state.assignments,
+          isPremiumSubscription(state.subscription)
+        );
+        if (errors && errors.length > 0) {
+          dispatch({ type: "SET_WARNING", payload: errors.map(e => e.message) });
+        }
+        if (plans && plans.length > 0) {
+          dispatch({ type: "SET_SEATING_PLANS", payload: plans });
+        } else {
+          dispatch({ type: "SET_SEATING_PLANS", payload: [] });
+        }
+        console.timeEnd("SeatingGeneration");
+      }, 500);
     };
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription, dispatch]);
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription]);
 
-  // P-5: Trigger generation effect
   useEffect(() => {
     if (state.guests.length > 0 && state.tables.length > 0 && !state.loadedSavedSetting) {
       debouncedGeneratePlans();
     }
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.loadedSavedSetting, debouncedGeneratePlans]);
 
-  // P-0: Auth change listener
+  // Auth change listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") setAuthChanged(true);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Most recent state handling
+  useEffect(() => {
+    if (authChanged && state.user && isPremiumSubscription(state.subscription)) {
+      getMostRecentState(state.user.id).then(setMostRecentState).catch(setRecentError).finally(() => {
+        setRecentFetched(true);
+        setSessionLoading(false);
+      });
+    }
+  }, [authChanged, state.user, state.subscription]);
+
+  useEffect(() => {
+    if (mostRecentState) setShowRecentModal(true);
+  }, [mostRecentState]);
 
   const handleKeepCurrent = async () => {
     setShowRecentModal(false);
@@ -487,8 +465,6 @@ export const useApp = (): { state: AppState, dispatch: React.Dispatch<AppAction>
   return context;
 };
 
-const AppContext = createContext<{ state: AppState, dispatch: React.Dispatch<AppAction> } | undefined>(undefined);
-
 const initialState: AppState = {
   guests: [],
   tables: defaultTables,
@@ -507,6 +483,7 @@ const initialState: AppState = {
   duplicateGuests: [],
   assignmentSignature: "",
   conflictWarnings: [],
+  warnings: [],
   lastGeneratedSignature: null,
   lastGeneratedPlanSig: null,
 };
