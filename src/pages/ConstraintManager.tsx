@@ -447,6 +447,9 @@ const ConstraintManager: React.FC = () => {
       <Card title="Grid">
         {/* Sort controls — buttons, not a dropdown */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-[#586D78] flex items-center gap-1">
+            <ArrowDownAZ className="w-4 h-4" /> Sort
+          </span>
           <button
             className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'opacity-100' : 'opacity-80'}`}
             onClick={() => setSortOption('as-entered')}
@@ -473,11 +476,6 @@ const ConstraintManager: React.FC = () => {
           >
             Current Table
           </button>
-
-          {/* spacer */}
-          <span className="ml-auto text-[#586D78] flex items-center gap-1">
-            <ArrowDownAZ className="w-4 h-4" /> Sort
-          </span>
         </div>
 
         {/* Grid container with sticky headers */}
