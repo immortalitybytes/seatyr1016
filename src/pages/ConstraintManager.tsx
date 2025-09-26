@@ -379,14 +379,14 @@ const ConstraintManager: React.FC = () => {
 
           if (constraint === 'cannot') {
             bg = 'bg-red-200';
-            content = <span className="text-black">X</span>;
+            content = <span className="text-black font-bold">X</span>;
           } else if (adj && isPremium) {
             // ⭐&⭐ for premium-adjacent pairs (distinct from plain MUST)
             bg = 'bg-green-200';
-            content = <span className="text-black">⭐&⭐</span>;
+            content = <span className="text-black font-bold">⭐&⭐</span>;
           } else if (constraint === 'must') {
             bg = 'bg-green-200';
-            content = <span className="text-black">&</span>;
+            content = <span className="text-black font-bold">&</span>;
           } else if (adj && !isPremium) {
             // Non-premium adjacency shows as read-only 'adj'
             bg = '';
