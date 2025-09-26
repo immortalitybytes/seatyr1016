@@ -341,11 +341,11 @@ const ConstraintManager: React.FC = () => {
         {displayGuests.map(g => (
           <th key={`col-${g.id}`} className="sticky top-0 z-10 bg-white border border-[#586D78] p-2 text-center">
             <div className="flex items-center justify-between gap-2">
-              <span className="truncate"><FormatGuestName name={g.name} /></span>
+              <span className="truncate font-normal"><FormatGuestName name={g.name} /></span>
               {getAdj(g.id).length === 1 && <span className="text-yellow-600">⭐</span>}
               {getAdj(g.id).length === 2 && <span className="text-yellow-600">⭐⭐</span>}
             </div>
-            <div className="text-xs text-[#586D78] mt-1">{formatTableAssignment(state.assignments, state.tables, g.id)}</div>
+            <div className="text-xs text-[#586D78] mt-1 font-normal">{formatTableAssignment(state.assignments, state.tables, g.id)}</div>
           </th>
         ))}
       </tr>
@@ -361,11 +361,11 @@ const ConstraintManager: React.FC = () => {
           onTouchEnd={isPremium ? () => handleTouchEnd() : undefined}
         >
           <div className={`flex items-center justify-between gap-2 ${selectedGuestId === g1.id ? 'ring-2 ring-indigo-400 rounded' : ''}`}>
-            <span className="truncate"><FormatGuestName name={g1.name} /></span>
+            <span className="truncate font-normal"><FormatGuestName name={g1.name} /></span>
             {getAdj(g1.id).length === 1 && <span className="text-yellow-600">⭐</span>}
             {getAdj(g1.id).length === 2 && <span className="text-yellow-600">⭐⭐</span>}
           </div>
-          <div className="text-xs text-[#586D78] mt-1">{formatTableAssignment(state.assignments, state.tables, g1.id)}</div>
+          <div className="text-xs text-[#586D78] mt-1 font-normal">{formatTableAssignment(state.assignments, state.tables, g1.id)}</div>
         </th>
 
         {displayGuests.map(g2 => {
