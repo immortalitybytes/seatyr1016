@@ -342,7 +342,8 @@ const ConstraintManager: React.FC = () => {
           <th key={`col-${g.id}`} className="sticky top-0 z-10 bg-white border border-[#586D78] p-2 text-center">
             <div className="flex items-center justify-between gap-2">
               <span className="truncate"><FormatGuestName name={g.name} /></span>
-              {isPremium && getAdj(g.id).length > 0 && <span className="text-yellow-600">⭐</span>}
+              {getAdj(g.id).length === 1 && <span className="text-yellow-600">⭐</span>}
+              {getAdj(g.id).length === 2 && <span className="text-yellow-600">⭐⭐</span>}
             </div>
             <div className="text-xs text-[#586D78] mt-1">{formatTableAssignment(state.assignments, state.tables, g.id)}</div>
           </th>
@@ -361,7 +362,8 @@ const ConstraintManager: React.FC = () => {
         >
           <div className={`flex items-center justify-between gap-2 ${selectedGuestId === g1.id ? 'ring-2 ring-indigo-400 rounded' : ''}`}>
             <span className="truncate"><FormatGuestName name={g1.name} /></span>
-            {isPremium && getAdj(g1.id).length > 0 && <span className="text-yellow-600">⭐</span>}
+            {getAdj(g1.id).length === 1 && <span className="text-yellow-600">⭐</span>}
+            {getAdj(g1.id).length === 2 && <span className="text-yellow-600">⭐⭐</span>}
           </div>
           <div className="text-xs text-[#586D78] mt-1">{formatTableAssignment(state.assignments, state.tables, g1.id)}</div>
         </th>
@@ -377,14 +379,18 @@ const ConstraintManager: React.FC = () => {
 
           if (constraint === 'cannot') {
             bg = 'bg-red-200';
-            content = <span className="text-black font-bold">X</span>;
+            content = <span className="text-black">X</span>;
           } else if (adj && isPremium) {
             // ⭐&⭐ for premium-adjacent pairs (distinct from plain MUST)
             bg = 'bg-green-200';
-            content = <span className="text-black font-bold">⭐&⭐</span>;
-          } else if (constraint === 'must' || adj) {
+            content = <span className="text-black">⭐&⭐</span>;
+          } else if (constraint === 'must') {
             bg = 'bg-green-200';
-            content = <span className="text-black font-bold">&</span>;
+            content = <span className="text-black">&</span>;
+          } else if (adj && !isPremium) {
+            // Non-premium adjacency shows as read-only 'adj'
+            bg = '';
+            content = <span className="text-gray-500 text-xs">adj</span>;
           }
 
           const handleClick = () => {
