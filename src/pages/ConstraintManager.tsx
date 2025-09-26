@@ -7,6 +7,7 @@ import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectUnsatisfiableMustGroups, detectConflicts } from '../utils/conflicts';
+import { Guest, Table } from '../types';
 
 /**
  * ConstraintManager — Path B synthesis (buttons, not dropdowns; ⭐&⭐ for adjacent pairs in cells — premium gated)
@@ -18,9 +19,6 @@ import { detectUnsatisfiableMustGroups, detectConflicts } from '../utils/conflic
  * - Touch parity: long-press gesture for adjacency (premium)
  * - Minimal, surgical code; preserves existing state/actions (no refactors)
  */
-
-type Guest = { id: string; name: string; count?: number };
-type Table = { id: string; name?: string; seats?: number; capacity?: number };
 
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
@@ -71,7 +69,7 @@ const ConstraintManager: React.FC = () => {
       if (state.seatingPlans?.length) {
         const plan = state.seatingPlans[state.currentPlanIndex] || state.seatingPlans[0];
         if (plan?.tables) {
-          for (const t of plan.tables as Table[]) {
+          for (const t of plan.tables) {
             for (const s of (t.seats || []) as any[]) {
               if (s?.id) tableBySeatId.set(String(s.id), String(t.id));
             }
@@ -114,7 +112,24 @@ const ConstraintManager: React.FC = () => {
 
   // ------- warnings (merged & deduped) -------
   const warnings = useMemo(() => {
-    const mustIssues = Array.from(detectUnsatisfiableMustGroups(state.guests, state.constraints) || []).map((group: any) => {
+    const mustIssues = detectUnsatisfiableMustGroups({
+      guests: state.guests.reduce((acc, g) => {
+        acc[g.id] = { partySize: g.count, name: g.name };
+        return acc;
+      }, {} as Record<string, { partySize?: number; name?: string }>),
+      tables: state.tables.map(t => ({ id: t.id, capacity: t.seats })),
+      assignments: state.assignments,
+      constraints: {
+        mustPairs: function* () {
+          for (const a of Object.keys(state.constraints || {})) {
+            const row = state.constraints[a] || {};
+            for (const b of Object.keys(row)) {
+              if (row[b] === 'must' && a !== b) yield [a, b] as [string, string];
+            }
+          }
+        }
+      }
+    }).map((group: any) => {
       try {
         const names = Array.isArray(group) ? group.map((g: Guest) => g.name).join(', ') : String(group);
         return `Must-group may be unsatisfiable: ${names}`;
@@ -123,7 +138,7 @@ const ConstraintManager: React.FC = () => {
       }
     });
 
-    const conflictIssues = (detectConflicts(state.guests, state.constraints, state.adjacents) || [])
+    const conflictIssues = detectConflicts(state.assignments, state.constraints)
       .map((c: any) => (typeof c === 'string' ? c : c?.message ?? JSON.stringify(c)));
 
     const all = [...mustIssues, ...conflictIssues];
@@ -198,7 +213,7 @@ const ConstraintManager: React.FC = () => {
       if (g) heads += countHeads(g);
     }
 
-    const capacities = (state.tables || []).map((t: Table) => (typeof t.capacity === 'number' ? t.capacity : (typeof t.seats === 'number' ? t.seats : 0)));
+    const capacities = (state.tables || []).map((t: Table) => t.seats);
     return capacities.some(c => c === heads);
   };
 
