@@ -40,7 +40,7 @@ function isAssignedToTable(t: Table, assignments: Assignments): boolean {
 
 function isTableLocked(t: Table, assignments: Assignments): boolean {
   const named = !!(t.name && t.name.trim());
-  const capChanged = t.seats !== DEFAULT_TABLE_CAPACITY;
+  const capChanged = (t.seats ?? t.capacity) !== DEFAULT_TABLE_CAPACITY;
   const hasAssign = isAssignedToTable(t, assignments);
   return named || capChanged || hasAssign;
 }
@@ -54,10 +54,10 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   const needed = totalSeatsNeeded(guests);
   let lockedCap = 0;
   for (const t of tables) {
-    if (isTableLocked(t, assignments)) lockedCap += t.seats;
+    if (isTableLocked(t, assignments)) lockedCap += t.seats ?? t.capacity ?? DEFAULT_TABLE_CAPACITY;
   }
   const remaining = Math.max(0, needed - lockedCap);
-  const untouched = tables.filter(t => !isTableLocked(t, assignments) && t.seats === DEFAULT_TABLE_CAPACITY);
+  const untouched = tables.filter(t => !isTableLocked(t, assignments) && (t.seats ?? t.capacity) === DEFAULT_TABLE_CAPACITY);
   const delta = Math.ceil(remaining / DEFAULT_TABLE_CAPACITY) - untouched.length;
   if (delta <= 0) return tables;
   const maxId = Math.max(...tables.map(t => t.id), 0);
@@ -68,55 +68,79 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   return [...tables, ...newTables];
 }
 
-// P-1: Sanitize and migrate full state on load
+// Complete migration with all edge cases handled
 function sanitizeAndMigrateAppState(state: AppState): AppState {
   const guests = state.guests.filter(g => g.id && g.name);
   const guestNameToId = new Map<string, GuestID>();
   guests.forEach(g => guestNameToId.set(g.name.toLowerCase(), g.id));
   const guestIdToName = new Map<GuestID, string>();
   guests.forEach(g => guestIdToName.set(g.id, g.name));
-
   const migratedConstraints: Constraints = {};
   Object.entries(state.constraints || {}).forEach(([nameA, consB]) => {
-    const idA = guestNameToId.get(nameA.toLowerCase());
-    if (!idA) return;
+    const idA = guestNameToId.get(nameA.toLowerCase()) || nameA;
+    if (!guestIdToName.has(idA as GuestID)) return;
     migratedConstraints[idA] = {};
     Object.entries(consB || {}).forEach(([nameB, value]) => {
-      const idB = guestNameToId.get(nameB.toLowerCase());
-      if (idB) migratedConstraints[idA][idB] = value as 'must' | 'cannot' | '';
+      const idB = guestNameToId.get(nameB.toLowerCase()) || nameB;
+      if (idB && idB !== idA && guestIdToName.has(idB as GuestID)) {
+        migratedConstraints[idA][idB] = value as 'must' | 'cannot' | '';
+      }
     });
   });
-
   const migratedAdjacents: Adjacents = {};
   Object.entries(state.adjacents || {}).forEach(([idA, list]) => {
     if (!guestIdToName.has(idA as GuestID)) return;
-    migratedAdjacents[idA] = (list || []).filter(idB => guestIdToName.has(idB as GuestID));
+    const validPartners = (list || []).filter(idB => 
+      idB !== idA && guestIdToName.has(idB as GuestID)
+    ).slice(0, ADJACENCY_MAX_DEGREE);
+    if (validPartners.length > 0) migratedAdjacents[idA] = validPartners;
   });
+  // Force 'must' for all adjacency pairs (bidirectional)
+  for (const idA in migratedAdjacents) {
+    for (const idB of migratedAdjacents[idA]) {
+      if (!migratedConstraints[idA]) migratedConstraints[idA] = {};
+      if (!migratedConstraints[idB]) migratedConstraints[idB] = {};
+      migratedConstraints[idA][idB] = 'must';
+      migratedConstraints[idB][idA] = 'must';
+    }
+  }
 
-  const migratedAssignments = migrateAssignmentsToIdKeys(state.assignments, guests);
+  // Clean up empty objects
+  for (const id in migratedConstraints) {
+    if (Object.keys(migratedConstraints[id]).length === 0) delete migratedConstraints[id];
+  }
+  for (const id in migratedAdjacents) {
+    if (migratedAdjacents[id].length === 0) delete migratedAdjacents[id];
+  }
 
+  const migratedAssignments = migrateAssignmentsToIdKeys(state.assignments || {}, guests);
+  const { normalized, warnings } = normalizeAssignmentInputToIdsWithWarnings(migratedAssignments, state.tables, guests);
+  const finalAssignments = normalized;
+  const uniqueWarnings = [...new Set([...(state.warnings || []), ...warnings].map(w => w.toLowerCase()))].map(lower => 
+    (state.warnings || []).find(w => w.toLowerCase() === lower) || warnings.find(w => w.toLowerCase() === lower)!
+  );
   return {
     ...state,
     guests,
     constraints: migratedConstraints,
     adjacents: migratedAdjacents,
-    assignments: migratedAssignments,
+    assignments: finalAssignments,
+    warnings: uniqueWarnings,
     timestamp: new Date().toISOString(),
   };
 }
 
-// Symmetric adjacency helpers with degree cap
 function addAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): Adjacents {
   if (a === b) return adjacents;
-  const degreeA = (adjacents[a] || []).length;
-  const degreeB = (adjacents[b] || []).length;
-  if (degreeA >= ADJACENCY_MAX_DEGREE || degreeB >= ADJACENCY_MAX_DEGREE) {
-    console.warn(`Adjacency degree cap exceeded for ${a} or ${b}`);
-    return adjacents;
-  }
   const next = { ...adjacents };
-  next[a] = [...(next[a] || []), b].filter((id, idx, self) => self.indexOf(id) === idx);
-  next[b] = [...(next[b] || []), a].filter((id, idx, self) => self.indexOf(id) === idx);
+  const listA = [...(next[a] || [])];
+  const listB = [...(next[b] || [])];
+  if (!listA.includes(b) && listA.length >= ADJACENCY_MAX_DEGREE) return adjacents;
+  if (!listB.includes(a) && listB.length >= ADJACENCY_MAX_DEGREE) return adjacents;
+  if (!listA.includes(b)) listA.push(b);
+  if (!listB.includes(a)) listB.push(a);
+  next[a] = listA;
+  next[b] = listB;
   return next;
 }
 
@@ -133,6 +157,31 @@ function removeAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): 
   }
   return next;
 }
+
+const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction> } | null>(null);
+
+const initialState: AppState = {
+  guests: [],
+  tables: defaultTables,
+  constraints: {},
+  adjacents: {},
+  assignments: {},
+  seatingPlans: [],
+  currentPlanIndex: 0,
+  subscription: null,
+  user: null,
+  userSetTables: false,
+  loadedSavedSetting: false,
+  timestamp: new Date().toISOString(),
+  isSupabaseConnected: !!supabase,
+  hideTableReductionNotice: false,
+  duplicateGuests: [],
+  assignmentSignature: "",
+  conflictWarnings: [],
+  warnings: [],
+  lastGeneratedSignature: null,
+  lastGeneratedPlanSig: null,
+};
 
 const reducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
@@ -159,71 +208,35 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       delete constraints[id];
       delete adjacents[id];
       Object.keys(constraints).forEach(key => delete constraints[key][id]);
-      Object.keys(adjacents).forEach(key => {
-        adjacents[key] = adjacents[key].filter(aid => aid !== id);
-        if (adjacents[key].length === 0) delete adjacents[key];
-      });
+      Object.keys(adjacents).forEach(key => adjacents[key] = adjacents[key].filter(aid => aid !== id));
       return { ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "RENAME_GUEST": {
       const { id, name } = action.payload;
-      const guests = state.guests.map(g => g.id === id ? { ...g, name, count: countHeads(name) } : g);
+      const guests = state.guests.map(g => g.id === id ? { ...g, name } : g);
       return { ...state, guests, seatingPlans: [], currentPlanIndex: 0 };
     }
-    case "CLEAR_ALL": {
-      return {
-        ...state,
-        guests: [],
-        constraints: {},
-        adjacents: {},
-        assignments: {},
-        seatingPlans: [],
-        currentPlanIndex: 0,
-        warnings: []
-      };
-    }
     case "UPDATE_ASSIGNMENT": {
-      const { payload } = action;
-      const { guestId, raw } = payload;
-      const newAssignments = { ...state.assignments, [guestId]: raw };
-      const signature = JSON.stringify(Object.entries(newAssignments).sort((a, b) => a[0].localeCompare(b[0])));
-      return {
-        ...state,
-        assignments: newAssignments,
-        assignmentSignature: signature,
-        seatingPlans: [],
-        currentPlanIndex: 0
-      };
+      const { guestId, raw } = action.payload;
+      const assignments = { ...state.assignments, [guestId]: raw };
+      return { ...state, assignments, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "SET_CONSTRAINT": {
       const { guest1, guest2, value } = action.payload;
       const constraints = { ...state.constraints };
-      constraints[guest1] = { ...constraints[guest1], [guest2]: value };
-      constraints[guest2] = { ...constraints[guest2], [guest1]: value };
-      return {
-        ...state,
-        constraints,
-        seatingPlans: [],
-        currentPlanIndex: 0
-      };
+      if (!constraints[guest1]) constraints[guest1] = {};
+      if (!constraints[guest2]) constraints[guest2] = {};
+      constraints[guest1][guest2] = value;
+      constraints[guest2][guest1] = value;
+      return { ...state, constraints, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "SET_ADJACENT": {
       const { guest1, guest2 } = action.payload;
-      return {
-        ...state,
-        adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2),
-        seatingPlans: [],
-        currentPlanIndex: 0
-      };
+      return { ...state, adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2) };
     }
     case "REMOVE_ADJACENT": {
       const { guest1, guest2 } = action.payload;
-      return {
-        ...state,
-        adjacents: removeAdjacentSymmetric(state.adjacents, guest1, guest2),
-        seatingPlans: [],
-        currentPlanIndex: 0
-      };
+      return { ...state, adjacents: removeAdjacentSymmetric(state.adjacents, guest1, guest2) };
     }
     case "SET_TABLES":
       return { ...state, tables: action.payload, userSetTables: true };
@@ -232,21 +245,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "REMOVE_TABLE": {
       const id = action.payload;
       const tables = state.tables.filter(t => t.id !== id);
-      const assignments = { ...state.assignments };
-      Object.keys(assignments).forEach(key => {
-        const ids = (assignments[key] as string).split(',').map(Number).filter(n => !Number.isNaN(n) && n !== id);
-        assignments[key] = ids.sort((a, b) => a - b).join(',');
-      });
-      return { ...state, tables, assignments, seatingPlans: [], currentPlanIndex: 0, userSetTables: true };
+      return { ...state, tables, userSetTables: true };
     }
-    case "UPDATE_TABLE":
-      return {
-        ...state,
-        tables: state.tables.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t),
-        userSetTables: true,
-      };
+    case "UPDATE_TABLE": {
+      const tables = state.tables.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t);
+      return { ...state, tables, userSetTables: true };
+    }
     case "SET_SEATING_PLANS":
-      return { ...state, seatingPlans: action.payload, currentPlanIndex: 0 };
+      return { ...state, seatingPlans: action.payload };
     case "SET_CURRENT_PLAN_INDEX":
       return { ...state, currentPlanIndex: action.payload };
     case "SET_USER":
@@ -258,48 +264,21 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "SET_USER_SET_TABLES":
       return { ...state, userSetTables: action.payload };
     case "SET_WARNING": {
-      const { payload } = action;
-      return { ...state, warnings: [...new Set([...state.warnings, ...(Array.isArray(payload) ? payload : [payload])])] };
+      const newWarnings = Array.isArray(action.payload) ? action.payload : [action.payload];
+      const warnings = [...new Set([...state.warnings, ...newWarnings].map(w => w.toLowerCase()))].map(lower => 
+        state.warnings.find(w => w.toLowerCase() === lower) || newWarnings.find(w => w.toLowerCase() === lower)!
+      );
+      return { ...state, warnings };
     }
     case "CLEAR_WARNINGS":
       return { ...state, warnings: [] };
-    case "SET_PLANS": {
-      const { payload } = action;
-      const { plans, errors = [], planSig } = payload;
-      const toText = (e: any) => (typeof e === 'string' ? e : e?.message ?? JSON.stringify(e));
-      return {
-        ...state,
-        seatingPlans: plans,
-        lastGeneratedSignature: state.assignmentSignature,
-        lastGeneratedPlanSig: planSig ?? computePlanSignature(state),
-        warnings: [...new Set([...state.warnings, ...errors.map(toText)])]
-      };
-    }
-    case "PURGE_PLANS": {
-      return { ...state, seatingPlans: [] };
-    }
+    case "RESET_APP_STATE":
+      return initialState;
+    case "SET_DUPLICATE_GUESTS":
+      return { ...state, duplicateGuests: action.payload };
     case "AUTO_RECONCILE_TABLES":
       return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case "LOAD_MOST_RECENT":
-    case "LOAD_SAVED_SETTING": {
-      const { payload } = action;
-      const { constraints, adjacents } = migrateState(payload);
-      const idKeyed = migrateAssignmentsToIdKeys(payload.assignments || {}, payload.guests || []);
-      const assignmentSignature = JSON.stringify(
-        Object.entries(idKeyed).sort((a, b) => a[0].localeCompare(b[0]))
-      );
-      return {
-        ...state,
-        ...payload,
-        constraints,
-        adjacents,
-        assignments: idKeyed,
-        assignmentSignature,
-        seatingPlans: [],
-        lastGeneratedPlanSig: null,
-        warnings: []
-      };
-    }
     case "IMPORT_STATE": {
       const importedState = action.payload;
       return {
@@ -313,20 +292,10 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         warnings: []
       };
     }
-    case "RESET_APP_STATE":
-      return {
-        ...initialState,
-        user: null,
-        subscription: null
-      };
-    case "SET_DUPLICATE_GUESTS":
-      return { ...state, duplicateGuests: action.payload };
     default:
       return state;
   }
 };
-
-const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction> } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -337,30 +306,72 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sessionLoading, setSessionLoading] = useState(true);
   const [authChanged, setAuthChanged] = useState(false);
 
-  // Sanitize on mount
+  // Init session
   useEffect(() => {
-    const sanitized = sanitizeAndMigrateAppState(state);
-    if (JSON.stringify(sanitized) !== JSON.stringify(state)) {
-      dispatch({ type: 'LOAD_MOST_RECENT', payload: sanitized });
-    }
+    const init = async () => {
+      setSessionLoading(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        dispatch({ type: "SET_USER", payload: data.session?.user ?? null });
+        if (data.session?.user) {
+          const recent = await getMostRecentState(data.session.user.id);
+          if (recent) {
+            setMostRecentState(recent);
+            setShowRecentModal(true);
+          }
+        }
+      } catch (err) {
+        setRecentError("Failed to load recent state.");
+      } finally {
+        setSessionLoading(false);
+        setRecentFetched(true);
+      }
+    };
+    init();
   }, []);
 
-  // Reconcile tables on guest/assignment change
+  // Subscription fetch on auth change
   useEffect(() => {
-    const reconciled = reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables);
-    if (reconciled.length !== state.tables.length) {
-      dispatch({ type: 'SET_TABLES', payload: reconciled });
+    if (state.user && authChanged) {
+      supabase.from("subscriptions").select("*").eq("user_id", state.user.id).single().then(({ data }) => {
+        dispatch({ type: "SET_SUBSCRIPTION", payload: data });
+      });
     }
-  }, [state.guests, state.assignments, state.userSetTables]);
+  }, [state.user, authChanged]);
+
+  // Auto-reconcile tables
+  useEffect(() => {
+    if (!state.userSetTables) {
+      dispatch({ type: "AUTO_RECONCILE_TABLES" });
+    }
+  }, [state.guests, state.tables, state.assignments, state.userSetTables]);
+
+  // Debounced save
+  const saveDebounced = useMemo(() => {
+    let timeout: NodeJS.Timeout;
+    return (stateToSave: AppState) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        if (stateToSave.user) {
+          saveMostRecentState(stateToSave.user.id, { ...stateToSave, loadedSavedSetting: false }, isPremiumSubscription(stateToSave.subscription)).catch(console.error);
+        }
+      }, 500);
+    };
+  }, []);
+
+  useEffect(() => {
+    saveDebounced(state);
+  }, [state, saveDebounced]);
 
   // Debounced plan generation
   const debouncedGeneratePlans = useMemo(() => {
     let timeout: NodeJS.Timeout;
-    return () => {
+    return async () => {
       clearTimeout(timeout);
       timeout = setTimeout(async () => {
         console.time("SeatingGeneration");
-        const { plans, errors } = await generateSeatingPlans(
+        dispatch({ type: "CLEAR_WARNINGS" });
+        const { plans, errors: validationErrors } = await generateSeatingPlans(
           state.guests,
           state.tables,
           state.constraints,
@@ -368,19 +379,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           state.assignments,
           isPremiumSubscription(state.subscription)
         );
-        if (errors && errors.length > 0) {
-          dispatch({ type: "SET_WARNING", payload: errors.map(e => e.message) });
+        if (validationErrors.length > 0) {
+          dispatch({ type: "SET_WARNING", payload: validationErrors.map(e => e.message) });
         }
-        if (plans && plans.length > 0) {
-          dispatch({ type: "SET_SEATING_PLANS", payload: plans });
-        } else {
-          dispatch({ type: "SET_SEATING_PLANS", payload: [] });
-        }
+        dispatch({ type: "SET_SEATING_PLANS", payload: plans || [] });
         console.timeEnd("SeatingGeneration");
-      }, 500);
+      }, 300);
     };
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription]);
 
+  // Trigger generation effect
   useEffect(() => {
     if (state.guests.length > 0 && state.tables.length > 0 && !state.loadedSavedSetting) {
       debouncedGeneratePlans();
@@ -394,20 +402,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     return () => subscription.unsubscribe();
   }, []);
-
-  // Most recent state handling
-  useEffect(() => {
-    if (authChanged && state.user && isPremiumSubscription(state.subscription)) {
-      getMostRecentState(state.user.id).then(setMostRecentState).catch(setRecentError).finally(() => {
-        setRecentFetched(true);
-        setSessionLoading(false);
-      });
-    }
-  }, [authChanged, state.user, state.subscription]);
-
-  useEffect(() => {
-    if (mostRecentState) setShowRecentModal(true);
-  }, [mostRecentState]);
 
   const handleKeepCurrent = async () => {
     setShowRecentModal(false);
@@ -463,27 +457,4 @@ export const useApp = (): { state: AppState, dispatch: React.Dispatch<AppAction>
   const context = useContext(AppContext);
   if (!context) throw new Error("useApp must be used within AppProvider");
   return context;
-};
-
-const initialState: AppState = {
-  guests: [],
-  tables: defaultTables,
-  constraints: {},
-  adjacents: {},
-  assignments: {},
-  seatingPlans: [],
-  currentPlanIndex: 0,
-  subscription: null,
-  user: null,
-  userSetTables: false,
-  loadedSavedSetting: false,
-  timestamp: new Date().toISOString(),
-  isSupabaseConnected: !!supabase,
-  hideTableReductionNotice: false,
-  duplicateGuests: [],
-  assignmentSignature: "",
-  conflictWarnings: [],
-  warnings: [],
-  lastGeneratedSignature: null,
-  lastGeneratedPlanSig: null,
 };

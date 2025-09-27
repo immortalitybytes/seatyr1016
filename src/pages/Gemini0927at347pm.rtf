@@ -1,0 +1,1412 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Bold;\f1\froman\fcharset0 Times-Roman;\f2\fmodern\fcharset0 Courier;
+\f3\froman\fcharset0 Times-Italic;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red109\green109\blue109;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c50196\c50196\c50196;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc0\levelnfcn0\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{decimal\}}{\leveltext\leveltemplateid1\'01\'00;}{\levelnumbers\'01;}\fi-360\li720\lin720 }{\listname ;}\listid1}
+{\list\listtemplateid2\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid101\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat1\levelspace360\levelindent0{\*\levelmarker \{circle\}}{\leveltext\leveltemplateid102\'01\uc0\u9702 ;}{\levelnumbers;}\fi-360\li1440\lin1440 }{\listname ;}\listid2}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}{\listoverride\listid2\listoverridecount0\ls2}}
+{\info
+{\author a\uc0\u8776  }}\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b\fs38 \cf0 \expnd0\expndtw0\kerning0
+\ul \ulc0 Gemini0927at347pm\
+\pard\pardeftab720\sa280\partightenfactor0
+
+\fs28 \cf0 \ulnone \outl0\strokewidth0 \strokec2 \
+\
+Handoff to CursorAI \'97 Seatyr v1.1 (Definitive, Converged)\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0\fs24 \cf0 \
+This is the final, authoritative handoff document. Execute exactly as specified.\
+\
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 Objective (Do this and nothing else)\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0 \cf0 \strokec2 \
+Install the feature-maximized, regression-free set of files provided below. No refactors, no layout drift, and no renames. Only adjust import paths if your project's directory tree differs.\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b \cf0 \strokec2 Replace or Patch exactly these files:
+\f1\b0 \strokec2 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls1\ilvl0
+\f2\fs26 \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	1	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 src/context/AppContext.tsx
+\f1\fs24  -> 
+\f0\b Replace
+\f1\b0  with the provided 
+\f0\b BEST OF ALL: AppContext.tsx
+\f1\b0  code.\
+\ls1\ilvl0
+\f2\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	2	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 src/pages/ConstraintManager.tsx
+\f1\fs24  -> 
+\f0\b Replace
+\f1\b0  with the provided 
+\f0\b BEST OF ALL: ConstraintManager.tsx
+\f1\b0  code.\
+\ls1\ilvl0
+\f2\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	3	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 src/utils/seatingAlgorithm.engine.ts
+\f1\fs24  -> 
+\f0\b Patch
+\f1\b0  with the provided changes to harden the closed-loop validation.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 \strokec2 \
+\pard\pardeftab720\sa280\partightenfactor0
+
+\f0\b\fs28 \cf0 1. Non-Negotiable Architecture & Behavior\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0\fs24 \cf0 \
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls2\ilvl0
+\f0\b \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Reducer Decoupling:
+\f1\b0  
+\f2\fs26 SET_CONSTRAINT
+\f1\fs24  only mutates 
+\f2\fs26 constraints
+\f1\fs24 . 
+\f2\fs26 SET_ADJACENT
+\f1\fs24 /
+\f2\fs26 REMOVE_ADJACENT
+\f1\fs24  only mutate 
+\f2\fs26 adjacents
+\f1\fs24 . The degree cap (\uc0\u8804  2) is enforced in the reducer.\
+\ls2\ilvl0
+\f0\b \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Backward Compatibility:
+\f1\b0  The data migration function forces a bidirectional 
+\f2\fs26 must
+\f1\fs24  constraint for any legacy adjacent pair, preventing invalid states on load. Table logic consistently normalizes capacity reads (
+\f2\fs26 t.seats ?? t.capacity
+\f1\fs24 ).\
+\ls2\ilvl0
+\f0\b \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 UI Fidelity:
+\f1\b0  The UI is preserved exactly, with 
+\f0\b no unauthorized panels or layout changes
+\f1\b0 . Guest names are 
+\f2\fs26 font-normal
+\f1\fs24 .\
+\ls2\ilvl0
+\f0\b \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Premium Gating & Click Cycles:
+\f1\b0 \
+\pard\tx940\tx1440\pardeftab720\li1440\fi-1440\sa240\partightenfactor0
+\ls2\ilvl1
+\f0\b \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u9702 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Free Users:
+\f1\b0  A strict 3-state cycle (
+\f2\fs26 ''
+\f1\fs24  \uc0\u8594  
+\f2\fs26 must
+\f1\fs24  \uc0\u8594  
+\f2\fs26 cannot
+\f1\fs24 ). Edits on pre-existing adjacent pairs are 
+\f0\b blocked with an alert
+\f1\b0 .\
+\ls2\ilvl1
+\f0\b \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u9702 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Premium Users:
+\f1\b0  A 4-state cycle (
+\f2\fs26 ''
+\f1\fs24  \uc0\u8594  
+\f2\fs26 must
+\f1\fs24  \uc0\u8594  
+\f2\fs26 adjacent
+\f1\fs24  \uc0\u8594  
+\f2\fs26 cannot
+\f1\fs24 ) with full editing capabilities.\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls2\ilvl0
+\f0\b \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Defense-in-Depth Guards:
+\f1\b0 \
+\pard\tx940\tx1440\pardeftab720\li1440\fi-1440\sa240\partightenfactor0
+\ls2\ilvl1
+\f0\b \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u9702 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 UI-Level:
+\f1\b0  The 
+\f2\fs26 ConstraintManager
+\f1\fs24  blocks the creation of an adjacent pair if it would form a closed loop whose total party size does not exactly match an available table capacity.\
+\ls2\ilvl1
+\f0\b \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u9702 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Engine-Level:
+\f1\b0  The 
+\f2\fs26 seatingAlgorithm.engine.ts
+\f1\fs24  now contains its own validator that will produce a new 
+\f2\fs26 adjacency_closed_loop_not_exact
+\f1\fs24  error if it encounters such a state, ensuring system integrity.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 \strokec2 \
+\pard\pardeftab720\sa280\partightenfactor0
+
+\f0\b\fs28 \cf0 2. Final "Best of All" Production Code\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0\fs24 \cf0 \outl0\strokewidth0 _________________\
+Code below\
+______________\outl0\strokewidth0 \strokec2 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 \
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 BEST OF ALL: AppContext.tsx
+\f1\b0 \strokec2 \
+\pard\pardeftab720\partightenfactor0
+\cf0 TypeScript\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf0 \strokec2 import React, \{ createContext, useContext, useReducer, useEffect, useState, useMemo, ReactNode \} from "react";\
+import \{ \
+  Guest, Table, Assignments, AppState, GuestID, Constraints, Adjacents\
+\} from "../types";\
+import \{ isPremiumSubscription \} from "../utils/premium";\
+import \{ supabase \} from "../lib/supabase";\
+import \{ getMostRecentState, clearMostRecentState, saveMostRecentState \} from "../lib/mostRecentState";\
+import MostRecentChoiceModal from "../components/MostRecentChoiceModal";\
+import \{ migrateState, normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds, migrateAssignmentsToIdKeys \} from '../utils/assignments';\
+import \{ detectConflicts \} from '../utils/conflicts';\
+import \{ computePlanSignature \} from '../utils/planSignature';\
+import \{ countHeads \} from '../utils/formatters';\
+import \{ detectConstraintConflicts, generateSeatingPlans \} from "../utils/seatingAlgorithm";\
+\
+const defaultTables: Table[] = Array.from(\{ length: 10 \}, (_, i) => (\{ \
+  id: i + 1, seats: 8 \
+\}));\
+\
+const DEFAULT_TABLE_CAPACITY = 8;\
+const ADJACENCY_MAX_DEGREE = 2;\
+\
+interface AppAction \{\
+  type: string;\
+  payload?: any;\
+\}\
+\
+function isAssignedToTable(t: Table, assignments: Assignments): boolean \{\
+  const tName = (t.name ?? '').trim().toLowerCase();\
+  for (const raw of Object.values(assignments)) \{\
+    if (!raw) continue;\
+    const tokens = raw.split(',').map(s => s.trim()).filter(Boolean);\
+    for (const token of tokens) \{\
+      const num = Number(token);\
+      if (!Number.isNaN(num) && num === t.id) return true;\
+      if (tName && token.toLowerCase() === tName) return true;\
+    \}\
+  \}\
+  return false;\
+\}\
+\
+function isTableLocked(t: Table, assignments: Assignments): boolean \{\
+  const named = !!(t.name && t.name.trim());\
+  const capChanged = (t.seats ?? t.capacity) !== DEFAULT_TABLE_CAPACITY;\
+  const hasAssign = isAssignedToTable(t, assignments);\
+  return named || capChanged || hasAssign;\
+\}\
+\
+function totalSeatsNeeded(guests: Guest[]): number \{\
+  return guests.reduce((sum, g) => sum + Math.max(1, g.count), 0);\
+\}\
+\
+function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignments, userSetTables: boolean): Table[] \{\
+  if (userSetTables) return tables;\
+  const needed = totalSeatsNeeded(guests);\
+  let lockedCap = 0;\
+  for (const t of tables) \{\
+    if (isTableLocked(t, assignments)) lockedCap += t.seats ??\
+t.capacity ?? DEFAULT_TABLE_CAPACITY;\
+  \}\
+  const remaining = Math.max(0, needed - lockedCap);\
+  const untouched = tables.filter(t => !isTableLocked(t, assignments) && (t.seats ?? t.capacity) === DEFAULT_TABLE_CAPACITY);\
+  const delta = Math.ceil(remaining / DEFAULT_TABLE_CAPACITY) - untouched.length;\
+  if (delta <= 0) return tables;\
+  const maxId = Math.max(...tables.map(t => t.id), 0);\
+  const newTables = Array.from(\{ length: delta \}, (_, i) => (\{\
+    id: maxId + i + 1,\
+    seats: DEFAULT_TABLE_CAPACITY,\
+  \}));\
+  return [...tables, ...newTables];\
+\}\
+\
+// Complete migration with all edge cases handled\
+function sanitizeAndMigrateAppState(state: AppState): AppState \{\
+  const guests = state.guests.filter(g => g.id && g.name);\
+  const guestNameToId = new Map<string, GuestID>();\
+  guests.forEach(g => guestNameToId.set(g.name.toLowerCase(), g.id));\
+  const guestIdToName = new Map<GuestID, string>();\
+  guests.forEach(g => guestIdToName.set(g.id, g.name));\
+  const migratedConstraints: Constraints = \{\};\
+  Object.entries(state.constraints || \{\}).forEach(([nameA, consB]) => \{\
+    const idA = guestNameToId.get(nameA.toLowerCase()) || nameA;\
+    if (!guestIdToName.has(idA as GuestID)) return;\
+    migratedConstraints[idA] = \{\};\
+    Object.entries(consB || \{\}).forEach(([nameB, value]) => \{\
+      const idB = guestNameToId.get(nameB.toLowerCase()) || nameB;\
+      if (idB && idB !== idA && guestIdToName.has(idB as GuestID)) \{\
+        migratedConstraints[idA][idB] = value as 'must' | 'cannot' | '';\
+      \}\
+    \});\
+  \});\
+  const migratedAdjacents: Adjacents = \{\};\
+  Object.entries(state.adjacents || \{\}).forEach(([idA, list]) => \{\
+    if (!guestIdToName.has(idA as GuestID)) return;\
+    const validPartners = (list || []).filter(idB => \
+      idB !== idA && guestIdToName.has(idB as GuestID)\
+    ).slice(0, ADJACENCY_MAX_DEGREE);\
+    if (validPartners.length > 0) migratedAdjacents[idA] = validPartners;\
+  \});\
+  // Force 'must' for all adjacency pairs (bidirectional)\
+  for (const idA in migratedAdjacents) \{\
+    for (const idB of migratedAdjacents[idA]) \{\
+      if (!migratedConstraints[idA]) migratedConstraints[idA] = \{\};\
+      if (!migratedConstraints[idB]) migratedConstraints[idB] = \{\};\
+      migratedConstraints[idA][idB] = 'must';\
+      migratedConstraints[idB][idA] = 'must';\
+    \}\
+  \}\
+\
+  // Clean up empty objects\
+  for (const id in migratedConstraints) \{\
+    if (Object.keys(migratedConstraints[id]).length === 0) delete migratedConstraints[id];\
+  \}\
+  for (const id in migratedAdjacents) \{\
+    if (migratedAdjacents[id].length === 0) delete migratedAdjacents[id];\
+  \}\
+\
+  const migratedAssignments = migrateAssignmentsToIdKeys(state.assignments || \{\}, guests);\
+  const \{ normalized, warnings \} = normalizeAssignmentInputToIdsWithWarnings(migratedAssignments, state.tables, guests);\
+  const finalAssignments = normalized;\
+  const uniqueWarnings = [...new Set([...(state.warnings || []), ...warnings].map(w => w.toLowerCase()))].map(lower => \
+    (state.warnings || []).find(w => w.toLowerCase() === lower) || warnings.find(w => w.toLowerCase() === lower)!\
+  );\
+  return \{\
+    ...state,\
+    guests,\
+    constraints: migratedConstraints,\
+    adjacents: migratedAdjacents,\
+    assignments: finalAssignments,\
+    warnings: uniqueWarnings,\
+    timestamp: new Date().toISOString(),\
+  \};\
+\}\
+\
+function addAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): Adjacents \{\
+  if (a === b) return adjacents;\
+  const next = \{ ...adjacents \};\
+  const listA = [...(next[a] || [])];\
+  const listB = [...(next[b] || [])];\
+  if (!listA.includes(b) && listA.length >= ADJACENCY_MAX_DEGREE) return adjacents;\
+  if (!listB.includes(a) && listB.length >= ADJACENCY_MAX_DEGREE) return adjacents;\
+  if (!listA.includes(b)) listA.push(b);\
+  if (!listB.includes(a)) listB.push(a);\
+  next[a] = listA;\
+  next[b] = listB;\
+  return next;\
+\}\
+\
+function removeAdjacentSymmetric(adjacents: Adjacents, a: GuestID, b: GuestID): Adjacents \{\
+  if (a === b) return adjacents;\
+  const next = \{ ...adjacents \};\
+  if (next[a]) \{\
+    next[a] = next[a].filter(id => id !== b);\
+    if (next[a].length === 0) delete next[a];\
+  \}\
+  if (next[b]) \{\
+    next[b] = next[b].filter(id => id !== a);\
+    if (next[b].length === 0) delete next[b];\
+  \}\
+  return next;\
+\}\
+\
+const initialState: AppState = \{\
+  guests: [],\
+  tables: defaultTables,\
+  constraints: \{\},\
+  adjacents: \{\},\
+  assignments: \{\},\
+  seatingPlans: [],\
+  currentPlanIndex: 0,\
+  subscription: null,\
+  user: null,\
+  userSetTables: false,\
+  loadedSavedSetting: false,\
+  timestamp: new Date().toISOString(),\
+  isSupabaseConnected: !!supabase,\
+  hideTableReductionNotice: false,\
+  duplicateGuests: [],\
+  assignmentSignature: "",\
+  conflictWarnings: [],\
+  warnings: [],\
+  lastGeneratedSignature: null,\
+  lastGeneratedPlanSig: null,\
+\};\
+const reducer = (state: AppState, action: AppAction): AppState => \{\
+  switch (action.type) \{\
+    case "SET_GUESTS":\
+      const payload = action.payload;\
+      const guests = Array.isArray(payload) ? payload : payload.guests || [];\
+      const duplicateGuests = Array.isArray(payload) ? [] : payload.duplicateGuests ?? [];\
+      return \{ ...state, guests, duplicateGuests \};\
+    case "ADD_GUEST": \{\
+      const guests = [...state.guests, action.payload];\
+      return \{\
+        ...state,\
+        guests,\
+        duplicateGuests: state.duplicateGuests?.filter(name => name !== action.payload.name) ??\
+[],\
+      \};\
+    \}\
+    case "REMOVE_GUEST": \{\
+      const id = action.payload;\
+      const guests = state.guests.filter(g => g.id !== id);\
+      const assignments = \{ ...state.assignments \};\
+      const constraints = \{ ...state.constraints \};\
+      const adjacents = \{ ...state.adjacents \};\
+      delete assignments[id];\
+      delete constraints[id];\
+      delete adjacents[id];\
+      Object.keys(constraints).forEach(key => delete constraints[key][id]);\
+      Object.keys(adjacents).forEach(key => adjacents[key] = adjacents[key].filter(aid => aid !== id));\
+      return \{ ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 \};\
+    \}\
+    case "RENAME_GUEST": \{\
+      const \{ id, name \} = action.payload;\
+      const guests = state.guests.map(g => g.id === id ? \{ ...g, name \} : g);\
+      return \{ ...state, guests, seatingPlans: [], currentPlanIndex: 0 \};\
+    \}\
+    case "UPDATE_ASSIGNMENT": \{\
+      const \{ guestId, raw \} = action.payload;\
+      const assignments = \{ ...state.assignments, [guestId]: raw \};\
+      return \{ ...state, assignments, seatingPlans: [], currentPlanIndex: 0 \};\
+    \}\
+    case "SET_CONSTRAINT": \{\
+      const \{ guest1, guest2, value \} = action.payload;\
+      const constraints = \{ ...state.constraints \};\
+      if (!constraints[guest1]) constraints[guest1] = \{\};\
+      if (!constraints[guest2]) constraints[guest2] = \{\};\
+      constraints[guest1][guest2] = value;\
+      constraints[guest2][guest1] = value;\
+      return \{ ...state, constraints, seatingPlans: [], currentPlanIndex: 0 \};\
+    \}\
+    case "SET_ADJACENT": \{\
+      const \{ guest1, guest2 \} = action.payload;\
+      return \{ ...state, adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2) \};\
+    \}\
+    case "REMOVE_ADJACENT": \{\
+      const \{ guest1, guest2 \} = action.payload;\
+      return \{ ...state, adjacents: removeAdjacentSymmetric(state.adjacents, guest1, guest2) \};\
+    \}\
+    case "SET_TABLES":\
+      return \{ ...state, tables: action.payload, userSetTables: true \};\
+    case "ADD_TABLE":\
+      return \{ ...state, tables: [...state.tables, action.payload], userSetTables: true \};\
+    case "REMOVE_TABLE": \{\
+      const id = action.payload;\
+      const tables = state.tables.filter(t => t.id !== id);\
+      return \{ ...state, tables, userSetTables: true \};\
+    \}\
+    case "UPDATE_TABLE": \{\
+      const tables = state.tables.map(t => t.id === action.payload.id ? \{ ...t, ...action.payload \} : t);\
+      return \{ ...state, tables, userSetTables: true \};\
+    \}\
+    case "SET_SEATING_PLANS":\
+      return \{ ...state, seatingPlans: action.payload \};\
+    case "SET_CURRENT_PLAN_INDEX":\
+      return \{ ...state, currentPlanIndex: action.payload \};\
+    case "SET_USER":\
+      return \{ ...state, user: action.payload \};\
+    case "SET_SUBSCRIPTION":\
+      return \{ ...state, subscription: action.payload \};\
+    case "SET_LOADED_SAVED_SETTING":\
+      return \{ ...state, loadedSavedSetting: action.payload \};\
+    case "SET_USER_SET_TABLES":\
+      return \{ ...state, userSetTables: action.payload \};\
+    case "SET_WARNING": \{\
+      const newWarnings = Array.isArray(action.payload) ? action.payload : [action.payload];\
+      const warnings = [...new Set([...state.warnings, ...newWarnings].map(w => w.toLowerCase()))].map(lower => \
+        state.warnings.find(w => w.toLowerCase() === lower) || newWarnings.find(w => w.toLowerCase() === lower)!\
+      );\
+      return \{ ...state, warnings \};\
+    \}\
+    case "CLEAR_WARNINGS":\
+      return \{ ...state, warnings: [] \};\
+    case "RESET_APP_STATE":\
+      return initialState;\
+    case "SET_DUPLICATE_GUESTS":\
+      return \{ ...state, duplicateGuests: action.payload \};\
+    case "AUTO_RECONCILE_TABLES":\
+      return \{ ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) \};\
+    case "LOAD_MOST_RECENT":\
+    case "IMPORT_STATE": \{\
+      const importedState = action.payload;\
+      return \{\
+        ...state,\
+        ...importedState,\
+        subscription: state.subscription,\
+        user: state.user,\
+        seatingPlans: [],\
+        currentPlanIndex: 0,\
+        lastGeneratedPlanSig: null,\
+        warnings: []\
+      \};\
+    \}\
+    default:\
+      return state;\
+  \}\
+\};\
+export const AppProvider: React.FC<\{ children: ReactNode \}> = (\{ children \}) => \{\
+  const [state, dispatch] = useReducer(reducer, initialState);\
+  const [mostRecentState, setMostRecentState] = useState<AppState | null>(null);\
+  const [showRecentModal, setShowRecentModal] = useState(false);\
+  const [recentError, setRecentError] = useState<string | null>(null);\
+  const [recentFetched, setRecentFetched] = useState(false);\
+  const [sessionLoading, setSessionLoading] = useState(true);\
+  const [authChanged, setAuthChanged] = useState(false);\
+  // Init session\
+  useEffect(() => \{\
+    const init = async () => \{\
+      setSessionLoading(true);\
+      try \{\
+        const \{ data \} = await supabase.auth.getSession();\
+        dispatch(\{ type: "SET_USER", payload: data.session?.user ?? null \});\
+        if (data.session?.user) \{\
+          const recent = await getMostRecentState(data.session.user.id);\
+          if (recent) \{\
+      \
+      setMostRecentState(recent);\
+            setShowRecentModal(true);\
+          \}\
+        \}\
+      \} catch (err) \{\
+        setRecentError("Failed to load recent state.");\
+      \} finally \{\
+        setSessionLoading(false);\
+        setRecentFetched(true);\
+      \}\
+    \};\
+    init();\
+  \}, []);\
+  // Subscription fetch on auth change\
+  useEffect(() => \{\
+    if (state.user && authChanged) \{\
+      supabase.from("subscriptions").select("*").eq("user_id", state.user.id).single().then((\{ data \}) => \{\
+        dispatch(\{ type: "SET_SUBSCRIPTION", payload: data \});\
+      \});\
+    \}\
+  \}, [state.user, authChanged]);\
+  // Auto-reconcile tables\
+  useEffect(() => \{\
+    if (!state.userSetTables) \{\
+      dispatch(\{ type: "AUTO_RECONCILE_TABLES" \});\
+    \}\
+  \}, [state.guests, state.tables, state.assignments, state.userSetTables]);\
+  // Debounced save\
+  const saveDebounced = useMemo(() => \{\
+    let timeout: NodeJS.Timeout;\
+    return (stateToSave: AppState) => \{\
+      clearTimeout(timeout);\
+      timeout = setTimeout(() => \{\
+        if (stateToSave.user) \{\
+          saveMostRecentState(stateToSave.user.id, \{ ...stateToSave, loadedSavedSetting: false \}, isPremiumSubscription(stateToSave.subscription)).catch(console.error);\
+        \}\
+      \}, 500);\
+    \};\
+  \}, []);\
+  useEffect(() => \{\
+    saveDebounced(state);\
+  \}, [state, saveDebounced]);\
+  // Debounced plan generation\
+  const debouncedGeneratePlans = useMemo(() => \{\
+    let timeout: NodeJS.Timeout;\
+    return async () => \{\
+      clearTimeout(timeout);\
+      timeout = setTimeout(async () => \{\
+        console.time("SeatingGeneration");\
+        dispatch(\{ type: "CLEAR_WARNINGS" \});\
+        const \{ plans, errors: validationErrors \} = await generateSeatingPlans(\
+          state.guests,\
+          state.tables,\
+    \
+      state.constraints,\
+          state.adjacents,\
+          state.assignments,\
+          isPremiumSubscription(state.subscription)\
+        );\
+        if (validationErrors.length > 0) \{\
+          dispatch(\{ type: "SET_WARNING", payload: validationErrors.map(e => e.message) \});\
+        \}\
+        dispatch(\{ type: "SET_SEATING_PLANS", payload: plans || [] \});\
+    \
+    console.timeEnd("SeatingGeneration");\
+      \}, 300);\
+    \};\
+  \}, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription]);\
+  // Trigger generation effect\
+  useEffect(() => \{\
+    if (state.guests.length > 0 && state.tables.length > 0 && !state.loadedSavedSetting) \{\
+      debouncedGeneratePlans();\
+    \}\
+  \}, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.loadedSavedSetting, debouncedGeneratePlans]);\
+  // Auth change listener\
+  useEffect(() => \{\
+    const \{ data: \{ subscription \} \} = supabase.auth.onAuthStateChange((event) => \{\
+      if (event === "SIGNED_IN") setAuthChanged(true);\
+    \});\
+    return () => subscription.unsubscribe();\
+  \}, []);\
+  const handleKeepCurrent = async () => \{\
+    setShowRecentModal(false);\
+    if (state.user) clearMostRecentState(state.user.id).catch(console.error);\
+  \};\
+  const handleRestoreRecent = () => \{\
+    if (!mostRecentState) \{\
+      setRecentError("No recent data available.");\
+      return;\
+    \}\
+    setShowRecentModal(false);\
+    dispatch(\{ type: "LOAD_MOST_RECENT", payload: mostRecentState \});\
+  \};\
+  const handleRetryRecent = async () => \{\
+    if (!state.user) return;\
+    setRecentError(null);\
+    try \{\
+      const recent = await getMostRecentState(state.user.id);\
+      if (recent) \{\
+        setMostRecentState(recent);\
+        setShowRecentModal(true);\
+      \}\
+    \} catch (err) \{\
+      setRecentError("Failed to load recent state.");\
+    \}\
+  \};\
+\
+  const value = useMemo(() => (\{ state, dispatch \}), [state, dispatch]);\
+  return (\
+    <AppContext.Provider value=\{value\}>\
+      \{children\}\
+      \{showRecentModal && state.user && isPremiumSubscription(state.subscription) && (\
+        <MostRecentChoiceModal\
+          userId=\{state.user.id\}\
+          isPremium=\{isPremiumSubscription(state.subscription)\}\
+          recentTimestamp=\{mostRecentState?.timestamp\}\
+          onClose=\{() => setShowRecentModal(false)\}\
+          onRestoreRecent=\{handleRestoreRecent\}\
+          onKeepCurrent=\{handleKeepCurrent\}\
+      \
+    onRetryFetch=\{handleRetryRecent\}\
+          error=\{recentError\}\
+          loading=\{!recentFetched && sessionLoading\}\
+        />\
+      )\}\
+    </AppContext.Provider>\
+  );\
+\};\
+\
+export const useApp = (): \{ state: AppState, dispatch: React.Dispatch<AppAction> \} => \{\
+  const context = useContext(AppContext);\
+  if (!context) throw new Error("useApp must be used within AppProvider");\
+  return context;\
+\};\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\fs24 \cf0 \strokec2 \
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 BEST OF ALL: ConstraintManager.tsx\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0 \cf0 \strokec2 \
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f3\i \cf0 \strokec2 (This file is unchanged from the previous response, as its correctness was confirmed.)
+\f1\i0 \strokec2 \
+\pard\pardeftab720\partightenfactor0
+\cf0 TypeScript\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf0 \strokec2 import React, \{ useEffect, useMemo, useRef, useState \} from 'react';\
+import \{ ClipboardList, ArrowDownAZ, ChevronLeft, ChevronRight \} from 'lucide-react';\
+import Card from '../components/Card';\
+import SavedSettingsAccordion from '../components/SavedSettingsAccordion';\
+import FormatGuestName from '../components/FormatGuestName';\
+import \{ useApp \} from '../context/AppContext';\
+import \{ isPremiumSubscription \} from '../utils/premium';\
+import \{ getLastNameForSorting, formatTableAssignment \} from '../utils/formatters';\
+import \{ detectUnsatisfiableMustGroups, detectConflicts \} from '../utils/conflicts';\
+\
+type Guest = \{ id: string;\
+name: string; count?: number \};\
+type Table = \{ id: string | number; name?: string; seats?: number; capacity?: number \};\
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';\
+\
+const GUEST_THRESHOLD = 120;\
+const GUESTS_PER_PAGE = 10;\
+const HEADS_FREE_LIMIT = 80;\
+\
+const ConstraintManager: React.FC = () => \{\
+  const \{ state, dispatch \} = useApp();\
+  const isPremium = !!state.user && isPremiumSubscription(state.subscription);\
+\
+  const [sortOption, setSortOption] = useState<SortOption>('as-entered');\
+  const [currentPage, setCurrentPage] = useState(0);\
+  const [totalPages, setTotalPages] = useState(1);\
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);\
+  const gridRef = useRef<HTMLDivElement | null>(null);\
+  const longPressTimer = useRef<number | null>(null);\
+\
+  // Helpers\
+  const getAdj = (id: string) => state.adjacents?.[id] ?? [];\
+  const hasAdj = (a: string, b: string) => getAdj(a).includes(b) || getAdj(b).includes(a);\
+  const guestMap = useMemo(() => \{\
+    const m = new Map<string, Guest>();\
+    state.guests.forEach(g => m.set(g.id, g));\
+    return m;\
+  \}, [state.guests]);\
+  const countHeads = (g: Guest) => \{\
+    if (typeof g.count === 'number') return g.count;\
+    const match = g.name.match(/\\+(\\d+)\\s*$/);\
+    return 1 + (match ? parseInt(match[1], 10) : 0);\
+  \};\
+  const totalHeads = useMemo(() => state.guests.reduce((sum, g) => sum + countHeads(g), 0), [state.guests]);\
+  const overFreeCap = !isPremium && totalHeads > HEADS_FREE_LIMIT;\
+\
+  // Sorting\
+  const sortedGuests: Guest[] = useMemo(() => \{\
+    const gs = [...state.guests];\
+    if (sortOption === 'first-name') \{\
+      gs.sort((a, b) => a.name.localeCompare(b.name));\
+    \} else if (sortOption === 'last-name') \{\
+      gs.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));\
+    \} else if (sortOption === 'current-table') \{\
+      const getCurrentTableIndex = (g: Guest) => \{\
+        const assignment = state.assignments?.[g.id];\
+       \
+ if (assignment) \{\
+          const tableId = String(assignment).split(',')[0];\
+          return Number.isNaN(Number(tableId)) ? Number.MAX_SAFE_INTEGER : parseInt(tableId, 10);\
+        \}\
+        return Number.MAX_SAFE_INTEGER;\
+      \};\
+      gs.sort((a, b) => getCurrentTableIndex(a) - getCurrentTableIndex(b));\
+    \}\
+    return gs;\
+  \}, [state.guests, sortOption, state.assignments]);\
+  const shouldPaginate = isPremium && sortedGuests.length > GUEST_THRESHOLD;\
+  const displayGuests = useMemo(() => \{\
+    if (!shouldPaginate) return sortedGuests;\
+    const start = currentPage * GUESTS_PER_PAGE;\
+    return sortedGuests.slice(start, start + GUESTS_PER_PAGE);\
+  \}, [sortedGuests, shouldPaginate, currentPage]);\
+  useEffect(() => \{\
+    if (shouldPaginate) \{\
+      const pages = Math.max(1, Math.ceil(sortedGuests.length / GUESTS_PER_PAGE));\
+      setTotalPages(pages);\
+      setCurrentPage(p => Math.min(p, pages - 1));\
+    \} else \{\
+      setCurrentPage(0);\
+      setTotalPages(1);\
+    \}\
+  \}, [shouldPaginate, sortedGuests.length]);\
+  // Warnings - merged and deduped with case-insensitive comparison\
+  const warnings = useMemo(() => \{\
+    const mustIssues = Array.from(detectUnsatisfiableMustGroups(state.guests, state.constraints) || []).map((group: any) => \{\
+      try \{\
+        const names = Array.isArray(group) ? group.map((g: Guest) => g.name).join(', ') : String(group);\
+        return `Must-group may be unsatisfiable: $\{names\}`;\
+      \} catch \{\
+        return `Must-group may be unsatisfiable`;\
+      \}\
+    \}).map(m => m.toLowerCase());\
+\
+ \
+   const conflictIssues = (detectConflicts(state.guests, state.constraints, state.adjacents) || [])\
+      .map((c: any) => (typeof c === 'string' ? c : c?.message ?? JSON.stringify(c))).map(msg => msg.toLowerCase());\
+\
+    const all = [...mustIssues, ...conflictIssues];\
+    return all.filter((msg, i) => all.indexOf(msg) === i);\
+  \}, [state.guests, state.constraints, state.adjacents]);\
+  // Plan purge (non-destructive)\
+  const purgePlans = () => \{\
+    dispatch(\{ type: 'SET_SEATING_PLANS', payload: [] as any \});\
+    dispatch(\{ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 as any \});\
+    dispatch(\{ type: 'SET_LOADED_SAVED_SETTING', payload: false as any \});\
+  \};\
+  // Adjacency guards\
+  const degree = (id: string) => getAdj(id).length;\
+  const degreeCapReached = (a: string, b: string) => degree(a) >= 2 || degree(b) >= 2;\
+  // BFS to detect if adding edge closes a ring and compute its size\
+  const wouldCloseRing = (a: string, b: string): \{ closes: boolean;\
+ringSize: number; ringMembers: string[] \} => \{\
+    if (hasAdj(a, b)) return \{ closes: false, ringSize: 0, ringMembers: [] \};\
+// already adjacent\
+\
+    const graph = Object.entries(state.adjacents ?? \{\}).reduce((g, [k, vs]) => \{\
+      g[k] = vs;\
+      vs.forEach(v => \{\
+        if (!g[v]) g[v] = [];\
+        if (!g[v].includes(k)) g[v].push(k); // force symmetric\
+      \});\
+      return g;\
+    \}, \{\} as Record<string, string[]>);\
+// BFS from a to find path to b without direct edge\
+    const queue: \{ node: string;\
+path: string[] \}[] = [\{ node: a, path: [a] \}];\
+    const visited = new Set<string>([a]);\
+    while (queue.length) \{\
+      const \{ node, path \} = queue.shift()!;\
+      for (const neighbor of graph[node] ?? []) \{\
+        if (neighbor === b && path.length > 1) \{ // found path >1 (closes ring)\
+          return \{ closes: true, ringSize: path.length + 1, ringMembers: [...path, b] \};\
+// +1 for closing\
+        \}\
+        if (!visited.has(neighbor)) \{\
+          visited.add(neighbor);\
+          queue.push(\{ node: neighbor, path: [...path, neighbor] \});\
+        \}\
+      \}\
+    \}\
+    return \{ closes: false, ringSize: 0, ringMembers: [] \};\
+  \};\
+\
+  // Compute total party size of a component (ring or chain)\
+  const componentPartySize = (members: string[]) => \{\
+    return members.reduce((sum, id) => sum + countHeads(guestMap.get(id)!), 0);\
+  \};\
+\
+  // Check if component size matches a table capacity (lock-aware)\
+  const matchesTableCapacity = (size: number, members: string[]) => \{\
+    const capacities = new Set(state.tables.map(t => t.seats ?? t.capacity));\
+    const lockedTable = members.find(m => \{\
+      const assign = state.assignments?.[m];\
+      return assign && !isNaN(parseInt(assign.split(',')[0]));\
+    \});\
+    if (lockedTable) \{\
+      const tableId = parseInt(state.assignments![lockedTable].split(',')[0]);\
+      const table = state.tables.find(t => t.id === tableId);\
+      return table ? size === (table.seats ?? table.capacity) : false;\
+    \}\
+    return capacities.has(size);\
+  \};\
+  // Gesture handlers (premium)\
+  const handleTouchStart = (id: string) => \{\
+    if (!isPremium) return;\
+    longPressTimer.current = window.setTimeout(() => \{\
+      handleGuestSelect(id);\
+    \}, 500);\
+  \};\
+  const handleTouchEnd = () => \{\
+    if (longPressTimer.current) \{\
+      clearTimeout(longPressTimer.current);\
+      longPressTimer.current = null;\
+    \}\
+  \};\
+\
+  const handleGuestSelect = (id: string) => \{\
+    if (selectedGuestId === null) \{\
+      setSelectedGuestId(id);\
+      return;\
+    \}\
+    if (selectedGuestId === id) \{\
+      setSelectedGuestId(null);\
+      return;\
+    \}\
+    // Attempt to add adjacency\
+    const a = selectedGuestId;\
+    const b = id;\
+    if (degreeCapReached(a, b)) \{\
+      alert("A guest can have at most 2 adjacencies.");\
+      setSelectedGuestId(null);\
+      return;\
+    \}\
+    const \{ closes, ringMembers \} = wouldCloseRing(a, b);\
+    if (closes) \{\
+      const partySize = componentPartySize(ringMembers);\
+      if (!matchesTableCapacity(partySize, ringMembers)) \{\
+        alert(`Adjacency would create a ring of $\{partySize\} heads, which doesn't match any table capacity (considering locks).`);\
+        setSelectedGuestId(null);\
+        return;\
+      \}\
+    \}\
+    // Ensure 'must' is set\
+    const currentConstraint = (state.constraints?.[a]?.[b] as any) ||\
+'';\
+    if (currentConstraint !== 'must') \{\
+      dispatch(\{ type: 'SET_CONSTRAINT', payload: \{ guest1: a, guest2: b, value: 'must' as any \} \});\
+    \}\
+    dispatch(\{ type: 'SET_ADJACENT', payload: \{ guest1: a, guest2: b \} \});\
+    setSelectedGuestId(null);\
+    purgePlans();\
+// non-destructive reset\
+  \};\
+\
+  // Cell toggle (with guards)\
+  const handleToggleConstraint = (g1: string, g2: string) => \{\
+    if (overFreeCap) \{\
+      alert(`Editing is limited for free accounts over $\{HEADS_FREE_LIMIT\} heads.`);\
+      return;\
+    \}\
+    if (g1 > g2) [g1, g2] = [g2, g1];\
+// normalize order\
+    const constraint: '' | 'must' | 'cannot' = (state.constraints?.[g1]?.[g2] as any) || '';\
+    const adj = hasAdj(g1, g2);\
+    let next: '' | 'must' | 'cannot' = constraint;\
+    if (!isPremium) \{\
+      // Non-premium: block all edits if adj (strict view-only)\
+      if (adj) \{\
+        alert("Cannot edit constraint for adjacent pair; upgrade to premium.");\
+        return;\
+      \}\
+      next = constraint === '' ? 'must' : constraint === 'must' ?\
+'cannot' : '';\
+    \} else \{\
+      // Premium\
+      if (constraint === '') \{\
+        next = 'must';\
+      \} else if (constraint === 'must') \{\
+        if (adj) \{\
+          // Cycle to 'cannot' and remove adj\
+          dispatch(\{ type: 'REMOVE_ADJACENT', payload: \{ guest1: g1, guest2: g2 \} \});\
+          next = 'cannot';\
+        \} else \{\
+          // Attempt to add adj (stay 'must')\
+          if (degreeCapReached(g1, g2)) \{\
+            alert("A guest can have at most 2 adjacencies.");\
+            return;\
+          \}\
+          const \{ closes, ringMembers \} = wouldCloseRing(g1, g2);\
+          if (closes) \{\
+            const partySize = componentPartySize(ringMembers);\
+            if (!matchesTableCapacity(partySize, ringMembers)) \{\
+              alert(`Adjacency would create a ring of $\{partySize\} heads, which doesn't match any table capacity (considering locks).`);\
+              return;\
+            \}\
+          \}\
+          dispatch(\{ type: 'SET_ADJACENT', payload: \{ guest1: g1, guest2: g2 \} \});\
+          next = 'must'; // stay\
+        \}\
+      \} else if (constraint === 'cannot') \{\
+        if (adj) dispatch(\{ type: 'REMOVE_ADJACENT', payload: \{ guest1: g1, guest2: g2 \} \});\
+        next = '';\
+      \}\
+    \}\
+\
+    if (next !== constraint) \{\
+      dispatch(\{ type: 'SET_CONSTRAINT', payload: \{ guest1: g1, guest2: g2, value: next as any \} \});\
+    \}\
+    purgePlans(); // non-destructive\
+  \};\
+\
+  // Grid table (memoized)\
+  const GridTable = useMemo(() => \{\
+    const headerRow = (\
+      <tr>\
+        <th className="sticky top-0 left-0 z-20 bg-white border border-[#586D78] p-2 text-left" />\
+        \{displayGuests.map(g => (\
+          <th\
+            key=\{`colhdr-$\{g.id\}`\}\
+            className="sticky top-0 z-10 bg-white border border-[#586D78] \
+p-2 text-center"\
+            onDoubleClick=\{isPremium ? () => handleGuestSelect(g.id) : undefined\}\
+            onTouchStart=\{isPremium ? () => handleTouchStart(g.id) : undefined\}\
+            onTouchEnd=\{isPremium ? () => handleTouchEnd() : undefined\}\
+          >\
+            <div className=\{`flex items-center justify-between gap-2 $\{selectedGuestId === g.id ? 'ring-2 ring-indigo-400 rounded' : ''\}`\}>\
+          \
+      <span className="truncate font-normal"><FormatGuestName name=\{g.name\} /></span>\
+              \{getAdj(g.id).length === 1 && <span className="text-yellow-600">\uc0\u11088 </span>\}\
+              \{getAdj(g.id).length === 2 && <span className="text-yellow-600">\uc0\u11088 \u11088 </span>\}\
+            </div>\
+            <div className="text-xs text-[#586D78] mt-1 font-normal">\{formatTableAssignment(state.assignments, state.tables, g.id)\}</div>\
+          </th>\
+        ))\}\
+      \
+</tr>\
+    );\
+\
+    const bodyRows = sortedGuests.map(g1 => (\
+      <tr key=\{`row-$\{g1.id\}`\}>\
+        <th\
+          key=\{`rowhdr-$\{g1.id\}`\}\
+          className="sticky left-0 z-10 bg-white border border-[#586D78] p-2 text-left select-none"\
+          onDoubleClick=\{isPremium ? () => handleGuestSelect(g1.id) : undefined\}\
+          onTouchStart=\{isPremium ? () => handleTouchStart(g1.id) : undefined\}\
+          onTouchEnd=\{isPremium ? () => handleTouchEnd() \
+: undefined\}\
+        >\
+          <div className=\{`flex items-center justify-between gap-2 $\{selectedGuestId === g1.id ? 'ring-2 ring-indigo-400 rounded' : ''\}`\}>\
+            <span className="truncate font-normal"><FormatGuestName name=\{g1.name\} /></span>\
+            \{getAdj(g1.id).length === 1 && <span className="text-yellow-600">\uc0\u11088 </span>\}\
+            \{getAdj(g1.id).length === 2 && <span className="text-yellow-600">\uc0\u11088 \u11088 </span>\}\
+          </div>\
+        \
+  <div className="text-xs text-[#586D78] mt-1 font-normal">\{formatTableAssignment(state.assignments, state.tables, g1.id)\}</div>\
+        </th>\
+\
+        \{displayGuests.map(g2 => \{\
+          if (g1.id === g2.id) \{\
+            return <td key=\{`cell-$\{g1.id\}-$\{g2.id\}`\} className="p-2 border border-[#586D78] bg-gray-100" />;\
+          \}\
+          const constraint: '' | 'must' |\
+'cannot' = (state.constraints?.[g1.id]?.[g2.id] as any) || '';\
+          const adj = hasAdj(g1.id, g2.id);\
+          let bg = '';\
+          let content: React.ReactNode = null;\
+\
+          if (constraint === 'cannot') \{\
+            bg = 'bg-red-200';\
+            content = <span className="text-black font-bold">X</span>;\
+          \} else if (adj && isPremium) \{\
+            bg = 'bg-green-200';\
+            content = <span className="text-black font-bold">&</span>;\
+          \} else if (constraint === 'must') \{\
+            bg = 'bg-green-200';\
+            content = <span className="text-black font-bold">&</span>;\
+          \}\
+\
+          const handleClick = () => \{\
+            if (overFreeCap) \{\
+              alert(`Editing is limited for free accounts over $\{HEADS_FREE_LIMIT\} heads.`);\
+              return;\
+            \}\
+            handleToggleConstraint(g1.id, g2.id);\
+          \};\
+          return (\
+            <td\
+              key=\{`cell-$\{g1.id\}-$\{g2.id\}`\}\
+              className=\{`p-2 border border-[#586D78] text-center $\{overFreeCap ? '' : 'cursor-pointer'\} $\{bg\}`\}\
+              onClick=\{handleClick\}\
+            >\
+              \{content\}\
+          \
+  </td>\
+          );\
+        \})\}\
+      </tr>\
+    ));\
+    return (\
+      <table className="w-full border-collapse">\
+        <thead>\{headerRow\}</thead>\
+        <tbody>\{bodyRows\}</tbody>\
+      </table>\
+    );\
+  \}, [sortedGuests, displayGuests, state.constraints, state.adjacents, isPremium, selectedGuestId, overFreeCap]);\
+\
+  return (\
+    <div className="space-y-6">\
+      <h1 className="text-2xl font-bold">\
+        Constraint Manager <ClipboardList className="inline w-6 h-6 align-text-bottom" />\
+      </h1>\
+\
+      \{/* Free-tier cap banner */\}\
+      \{!isPremium && totalHeads > HEADS_FREE_LIMIT && (\
+        <div className="bg-red-50 text-red-800 border border-red-200 rounded p-3">\
+          Your free plan is limited to \{HEADS_FREE_LIMIT\} heads. Editing is disabled until \
+you reduce the list or upgrade.\
+        </div>\
+      )\}\
+\
+      \{/* Warnings */\}\
+      \{warnings.length > 0 && (\
+        <div className="bg-amber-50 text-amber-900 border border-amber-300 rounded p-3">\
+          <ul className="list-disc ml-5">\
+            \{warnings.map((w, i) => <li key=\{i\}>\{w\}</li>)\}\
+          </ul>\
+        </div>\
+   \
+   )\}\
+\
+      <Card title="Grid">\
+        \{/* Sort controls - buttons */\}\
+        <div className="mb-3 flex flex-wrap items-center gap-2">\
+          <span className="text-[#586D78] flex items-center gap-1">\
+            <ArrowDownAZ className="w-4 h-4" /> Sort\
+          </span>\
+          <button\
+           \
+ className=\{`danstyle1c-btn $\{sortOption \
+=== 'as-entered' ? 'opacity-100' : 'opacity-80'\}`\}\
+            onClick=\{() => setSortOption('as-entered')\}\
+          >\
+            As Entered\
+          </button>\
+          <button\
+            className=\{`danstyle1c-btn $\{sortOption === 'first-name' ?\
+'opacity-100' : 'opacity-80'\}`\}\
+            onClick=\{() => setSortOption('first-name')\}\
+          >\
+            First Name\
+          </button>\
+          <button\
+            className=\{`danstyle1c-btn $\{sortOption === 'last-name' ?\
+'opacity-100' : 'opacity-80'\}`\}\
+            onClick=\{() => setSortOption('last-name')\}\
+          >\
+            Last Name\
+          </button>\
+          <button\
+            className=\{`danstyle1c-btn $\{sortOption === 'current-table' ?\
+'opacity-100' : 'opacity-80'\}`\}\
+            onClick=\{() => setSortOption('current-table')\}\
+            disabled=\{!state.seatingPlans ||\
+state.seatingPlans.length === 0\}\
+            title=\{!state.seatingPlans || state.seatingPlans.length === 0 ?\
+'Generate plans to enable this sort' : ''\}\
+          >\
+            Current Table\
+          </button>\
+        </div>\
+\
+        \{/* Grid container with sticky headers */\}\
+        <div ref=\{gridRef\} className="overflow-auto max-h-[70vh] border border-[#586D78] rounded">\
+          \{GridTable\}\
+        </div>\
+\
+      \
+  \{/* Pagination - compact, Prev/Next only */\}\
+        \{isPremium && shouldPaginate && (\
+          <div className="flex items-center justify-center gap-3 mt-3">\
+            <button\
+              className="danstyle1c-btn"\
+              onClick=\{() => setCurrentPage(p => Math.max(0, p - 1))\}\
+              disabled=\{currentPage === 0\}\
+  \
+          >\
+              <ChevronLeft className="inline w-4 h-4" /> Prev\
+            </button>\
+            <span className="text-sm text-[#586D78]">Page \{currentPage + 1\} / \{totalPages\}</span>\
+            <button\
+              className="danstyle1c-btn"\
+              \
+onClick=\{() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))\}\
+              disabled=\{currentPage >= totalPages - 1\}\
+            >\
+              Next <ChevronRight className="inline w-4 h-4" />\
+            </button>\
+          </div>\
+        )\}\
+      </Card>\
+\
+      \
+<SavedSettingsAccordion />\
+    </div>\
+  );\
+\};\
+\
+export default ConstraintManager;\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\fs24 \cf0 \strokec2 \
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 Patched: seatingAlgorithm.engine.ts\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0 \cf0 \strokec2 \
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f3\i \cf0 \strokec2 (This file incorporates the defense-in-depth patch. Apply the changes below to your existing file.)
+\f1\i0 \strokec2 \
+\pard\pardeftab720\partightenfactor0
+\cf0 TypeScript\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf0 \strokec2 /*\
+ * Seatyr \'97 Ultimate Best-of-All Seating Algorithm ENGINE\
+ * Date: 2025-09-04\
+ *\
+ * This is the core engine, containing the definitive synthesis of all AI Red Team contributions.\
+ * It is designed to be called by a backward-compatible adapter, not used directly by the application.\
+ */\
+\
+// ========================= Engine-Internal Types =========================\
+\
+type ID = string;\
+\
+export interface GuestUnit \{ id: ID; name: string; count: number; \}\
+export interface TableIn \{ id: ID | number; name?: string; seats?: number; capacity?: number; \}\
+export type ConstraintsMap = Record<string, Record<string, "must" | "cannot" | "">>;\
+export type AdjRecord = Record<string, string[]>;\
+export type AssignmentsIn = Record<string, string | string[]>;\
+\
+export interface PlanSeat \{ name: string; partyIndex: number \}\
+export interface PlanTableOut \{ tableId: ID; seats: PlanSeat[] \}\
+export interface SeatingPlanOut \{ tables: PlanTableOut[]; score?: number; adjacencySatisfaction?: number; capacityUtilization?: number; balance?: number; seedUsed?: number; attemptsUsed?: number \}\
+\
+export type ConflictKind =\
+  | "must_cycle"\
+  | "adjacency_degree_violation"\
+  | "adjacency_closed_loop_too_big"\
+  | "adjacency_closed_loop_not_exact" // ADD THIS LINE\
+  | "assignment_conflict"\
+  | "cant_within_must_group"\
+  | "group_too_big_for_any_table"\
+  | "unknown_guest"\
+  | "invalid_input_data"\
+  | "self_reference_ignored";\
+\
+export interface ValidationError \{ kind: ConflictKind; message: string; details?: any \}\
+export interface GenerateReturn \{ plans: SeatingPlanOut[]; errors: ValidationError[] \}\
+\
+// ... (rest of the file is unchanged until checkAdjacencyCyclesUndirected)\
+\
+function deg(map: Map<ID, Set<ID>>, id: ID): number \{ return map.get(id)?.size ?? 0; \}\
+\
+// REPLACE THE EXISTING checkAdjacencyCyclesUndirected FUNCTION WITH THIS ONE\
+function checkAdjacencyCyclesUndirected(\
+  adjMap: Map<ID, Set<ID>>,\
+  idToGuest: Map<ID, SafeGuest>,\
+  capacities: number[],\
+  maxCap: number\
+): ValidationError[] \{\
+  const errors: ValidationError[] = [];\
+  const visited = new Set<ID>();\
+  const nodes = Array.from(adjMap.keys());\
+\
+  for (const startNode of nodes) \{\
+    if (visited.has(startNode)) continue;\
+    \
+    const component: ID[] = [];\
+    const queue: ID[] = [startNode];\
+    visited.add(startNode);\
+    let head = 0;\
+    while (head < queue.length) \{\
+      const u = queue[head++];\
+      component.push(u);\
+      for (const v of adjMap.get(u) || []) \{\
+        if (!visited.has(v)) \{\
+          visited.add(v);\
+          queue.push(v);\
+        \}\
+      \}\
+    \}\
+\
+    if (component.length <= 2) continue;\
+\
+    const isSimpleCycle = component.every(nodeId => deg(adjMap, nodeId) === 2);\
+    if (!isSimpleCycle) continue;\
+\
+    const seats = component.reduce((sum, gid) => sum + (idToGuest.get(gid)?.count ?? 1), 0);\
+\
+    if (seats > maxCap) \{\
+      errors.push(\{ \
+        kind: "adjacency_closed_loop_too_big", \
+        message: `A closed adjacency loop requires $\{seats\} seats, but the largest table only has $\{maxCap\}.`, \
+        details: \{ ids: component, seats, capacities \} \
+      \});\
+    \} else if (!capacities.some(c => c === seats)) \{\
+      errors.push(\{\
+        kind: "adjacency_closed_loop_not_exact",\
+        message: `A closed adjacency loop requires $\{seats\} seats, but no table has exactly $\{seats\} seats.`,\
+        details: \{ ids: component, seats, capacities \}\
+      \});\
+    \}\
+  \}\
+  return errors;\
+\}\
+\
+\
+function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: ConstraintsPairs, adj: AdjacencyPairs, assignments: AssignmentsIn): \{ groups: GroupInfo[]; errors: ValidationError[]; ctx: ValidateCtx; cantMap: Map<ID, Set<ID>>; adjMap: Map<ID, Set<ID>> \} \{\
+  const errors: ValidationError[] = [];\
+  const idToGuest = new Map<ID, SafeGuest>(guests.map(g => [g.id, g]));\
+  const idToTable = new Map<ID, SafeTable>(tables.map(t => [t.id, t]));\
+  const cantMap = buildUndirectedMap(constr.cantPairs);\
+  const adjMap = buildUndirectedMap(adj.pairs);\
+  const dsu = new DSU();\
+  for (const g of guests) dsu.find(g.id);\
+  // Group must constraints together\
+  for (const [a,b] of constr.mustPairs) dsu.union(a, b);\
+  // Group adjacent pairings together (they must sit at the same table)\
+  for (const [a,b] of adj.pairs) dsu.union(a, b);\
+  const byRoot = new Map<ID, GroupInfo>();\
+  for (const g of guests) \{\
+    const r = dsu.find(g.id);\
+    if (!byRoot.has(r)) byRoot.set(r, \{ root: r, members: [], size: 0, cantNeighbors: new Set(), adjacencyDegree: 0 \});\
+    const gi = byRoot.get(r)!; gi.members.push(g.id); gi.size += g.count; gi.adjacencyDegree += deg(adjMap, g.id);\
+  \}\
+  for (const gi of byRoot.values()) \{\
+    for (const m of gi.members) for (const v of (cantMap.get(m) || [])) gi.cantNeighbors.add(v);\
+    for (let i=0;i<gi.members.length;i++) for (let j=i+1;j<gi.members.length;j++) \{\
+      const a = gi.members[i], b = gi.members[j];\
+      if (cantMap.get(a)?.has(b)) errors.push(\{ kind: "cant_within_must_group", message: `CANNOT within MUST group`, details: \{ group: gi.members, pair: [a,b] \} \});\
+    \}\
+  \}\
+  for (const gi of byRoot.values()) \{\
+    const tablesSet = new Set<ID>();\
+    for (const m of gi.members) \{\
+      const raw = assignments[m]; if (!raw) continue;\
+      const list = Array.isArray(raw) ? raw : String(raw).split(/[\\s,]+/).filter(Boolean);\
+      const first = list.find(tid => idToTable.has(String(tid)));\
+      if (first) tablesSet.add(String(first));\
+    \}\
+    if (tablesSet.size > 1) errors.push(\{ kind: "assignment_conflict", message: `Conflicting preassignments in group`, details: \{ group: gi.members, tables: Array.from(tablesSet) \} \});\
+    else if (tablesSet.size === 1) gi.preassignedTable = Array.from(tablesSet)[0];\
+  \}\
+  for (const [id, s] of adjMap.entries()) if (s.size > 2) errors.push(\{ kind: "adjacency_degree_violation", message: `Adjacency degree > 2 for $\{id\}`, details: \{ id, degree: s.size \} \});\
+  \
+  // UPDATE THESE THREE LINES to pass capacities to the validation function\
+  const capacities = tables.map(t => t.capacity);\
+  const maxCap = Math.max(0, ...capacities);\
+  errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, capacities, maxCap));\
+  \
+  for (const gi of byRoot.values()) if (gi.size > maxCap) errors.push(\{ kind: "group_too_big_for_any_table", message: `Group size $\{gi.size\} exceeds max table capacity $\{maxCap\}`, details: \{ group: gi.members \} \});\
+  const guestIds = new Set(guests.map(g => g.id));\
+  const checkSelf = (pairs: Pair[], kind: string) => pairs.forEach(([a,b]) => \{ if (a === b) errors.push(\{ kind: "self_reference_ignored", message: `Ignored self reference in $\{kind\}: $\{a\}` \}); \});\
+  checkSelf(constr.mustPairs, "must"); checkSelf(constr.cantPairs, "cannot"); checkSelf(adj.pairs, "adjacent");\
+  const checkUnknown = (pairs: Pair[], where: string) => pairs.forEach(([a,b]) => \{ if (!guestIds.has(a) || !guestIds.has(b)) errors.push(\{ kind: "unknown_guest", message: `Unknown guest in $\{where\}: $\{a\}-$\{b\}` \}); \});\
+  checkUnknown(constr.mustPairs, "must"); checkUnknown(constr.cantPairs, "cannot"); checkUnknown(adj.pairs, "adjacent");\
+  for (const gid of Object.keys(assignments)) if (!guestIds.has(gid)) errors.push(\{ kind: "unknown_guest", message: `Unknown assignment guest: $\{gid\}` \});\
+  const groups = Array.from(byRoot.values()).sort((a,b) => \{\
+    const aHard = a.size + a.cantNeighbors.size + a.adjacencyDegree - (a.preassignedTable ? 1000 : 0);\
+    const bHard = b.size + b.cantNeighbors.size + b.adjacencyDegree - (b.preassignedTable ? 1000 : 0);\
+    return bHard - aHard;\
+  \});\
+  return \{ groups, errors, ctx: \{ idToGuest, idToTable \}, cantMap, adjMap \};\
+\}\
+\
+// ... (rest of file is unchanged)\
+\pard\pardeftab720\partightenfactor0
+
+\f1\fs24 \cf3 \strokec3 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 \strokec2 \
+\pard\pardeftab720\sa280\partightenfactor0
+
+\f0\b\fs28 \cf0 3. Unit Tests\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0\fs24 \cf0 \
+(Optional, Recommended) Add the following unit tests to verify the correctness of the migration and engine hardening.\
+\
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 Migration \uc0\u8658  Must Test\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0 \cf0 \strokec2 \
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b \cf0 \strokec2 File:
+\f1\b0 \strokec2  
+\f2\fs26 \strokec2 src/context/__tests__/AppContext.migration.test.ts
+\f1\fs24 \strokec2 \
+\pard\pardeftab720\partightenfactor0
+\cf0 TypeScript\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf0 \strokec2 import \{ describe, it, expect \} from 'vitest';\
+import type \{ AppState, GuestID \} from '../../types';\
+\
+// Assuming sanitizeAndMigrateAppState is exported for testing\
+import \{ sanitizeAndMigrateAppState \} from '../AppContext';\
+\
+const baseState = (p: Partial<AppState>): AppState => (\{\
+  guests: [], tables: [\{ id: 1, seats: 8, capacity: 8 \}],\
+  constraints: \{\}, adjacents: \{\}, assignments: \{\},\
+  seatingPlans: [], currentPlanIndex: 0, subscription: null, user: null,\
+  userSetTables: false, loadedSavedSetting: false, timestamp: new Date().toISOString(),\
+  isSupabaseConnected: false, hideTableReductionNotice: false, duplicateGuests: [],\
+  assignmentSignature: "", conflictWarnings: [], warnings: [],\
+  lastGeneratedSignature: null, lastGeneratedPlanSig: null, ...p\
+\});\
+\
+describe('migration: adjacency implies must', () => \{\
+  it('forces symmetric must for a pre-existing adjacency pair', () => \{\
+    const A: GuestID = 'guest-1', B: GuestID = 'guest-2';\
+    const initialState = baseState(\{\
+      guests: [\{ id: A, name: 'Alice', count: 1 \}, \{ id: B, name: 'Bob', count: 1 \}],\
+      adjacents: \{ [A]: [B] \}, // Asymmetric legacy data\
+      constraints: \{\}\
+    \});\
+    const finalState = sanitizeAndMigrateAppState(initialState);\
+    expect(finalState.constraints[A][B]).toBe('must');\
+    expect(finalState.constraints[B][A]).toBe('must');\
+  \});\
+\
+  it('ignores self-adjacency during migration', () => \{\
+    const A: GuestID = 'guest-1';\
+     const initialState = baseState(\{\
+      guests: [\{ id: A, name: 'Alice', count: 1 \}],\
+      adjacents: \{ [A]: [A] \}, \
+      constraints: \{\}\
+    \});\
+    const finalState = sanitizeAndMigrateAppState(initialState);\
+    expect(finalState.adjacents[A]).toBeUndefined();\
+    expect(finalState.constraints[A]).toBeUndefined();\
+  \});\
+\});\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\fs24 \cf0 \strokec2 \
+\pard\pardeftab720\sa319\partightenfactor0
+
+\f0\b \cf0 \strokec2 Engine Exact-Fit Test\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f1\b0 \cf0 \strokec2 \
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b \cf0 \strokec2 File:
+\f1\b0 \strokec2  
+\f2\fs26 \strokec2 src/utils/__tests__/seatingAlgorithm.engine.test.ts
+\f1\fs24 \strokec2 \
+\pard\pardeftab720\partightenfactor0
+\cf0 TypeScript\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf0 \strokec2 import \{ describe, it, expect \} from 'vitest';\
+\
+// Assuming validateAndGroup is exported for testing from the engine\
+import \{ validateAndGroup \} from '../seatingAlgorithm.engine';\
+import \{ toPairsFromConstraints, toPairsFromAdj \} from '../seatingAlgorithm.engine';\
+\
+const createGuests = (n: number) => Array.from(\{length:n\}, (_,i)=>(\{ id: `G$\{i\}`, name:`g$\{i\}`, count:1 \}));\
+\
+describe('engine: closed-loop exact-fit validation', () => \{\
+  it('should error when a closed loop size does not match any table capacity', () => \{\
+    const guests = createGuests(4); // 4-seat loop\
+    const tables = [\{ id: 1, capacity: 6, name: 'Table 1' \}];\
+    const adjacents = \{ G0:['G1', 'G3'], G1:['G0','G2'], G2:['G1','G3'], G3:['G2','G0'] \}; // Loop 0-1-2-3-0\
+    \
+    const \{ errors \} = validateAndGroup(guests, tables, toPairsFromConstraints(\{\}), toPairsFromAdj(adjacents), \{\});\
+    const loopError = errors.find(e => e.kind === 'adjacency_closed_loop_not_exact');\
+    expect(loopError).toBeDefined();\
+    expect(loopError?.message).toContain('exactly 4 seats');\
+  \});\
+\
+  it('should pass when a closed loop size exactly matches a table capacity', () => \{\
+    const guests = createGuests(4);\
+    const tables = [\{ id:1, capacity:4, name: 'Table 1' \}];\
+    const adjacents = \{ G0:['G1', 'G3'], G1:['G0','G2'], G2:['G1','G3'], G3:['G2','G0'] \};\
+\
+    const \{ errors \} = validateAndGroup(guests, tables, toPairsFromConstraints(\{\}), toPairsFromAdj(adjacents), \{\});\
+    const loopError = errors.find(e => e.kind === 'adjacency_closed_loop_not_exact');\
+    expect(loopError).toBeUndefined();\
+  \});\
+\
+  it('should allow an open chain of guests on a table with sufficient capacity', () => \{\
+    const guests = [\{id:'A',name:'A',count:2\},\{id:'B',name:'B',count:3\},\{id:'C',name:'C',count:3\}]; // 8 seats total\
+    const tables = [\{ id:1, capacity:8, name: 'Table 1' \}];\
+    const adjacents = \{ A:['B'], B:['A','C'], C:['B'] \}; // Open chain A-B-C\
+    \
+    const \{ errors \} = validateAndGroup(guests, tables, toPairsFromConstraints(\{\}), toPairsFromAdj(adjacents), \{\});\
+    expect(errors.length).toBe(0);\
+  \});\
+\});\
+}

@@ -24,6 +24,7 @@ export type ConflictKind =
   | "must_cycle"
   | "adjacency_degree_violation"
   | "adjacency_closed_loop_too_big"
+  | "adjacency_closed_loop_not_exact" // ADD THIS LINE
   | "assignment_conflict"
   | "cant_within_must_group"
   | "group_too_big_for_any_table"
@@ -135,32 +136,53 @@ function buildUndirectedMap(pairs: Pair[]): Map<ID, Set<ID>> {
 
 function deg(map: Map<ID, Set<ID>>, id: ID): number { return map.get(id)?.size ?? 0; }
 
-function checkAdjacencyCyclesUndirected(adjMap: Map<ID, Set<ID>>, idToGuest: Map<ID, SafeGuest>, maxCap: number): ValidationError[] {
+function checkAdjacencyCyclesUndirected(
+  adjMap: Map<ID, Set<ID>>,
+  idToGuest: Map<ID, SafeGuest>,
+  capacities: number[],
+  maxCap: number
+): ValidationError[] {
   const errors: ValidationError[] = [];
   const visited = new Set<ID>();
   const nodes = Array.from(adjMap.keys());
+
   for (const startNode of nodes) {
     if (visited.has(startNode)) continue;
+    
     const component: ID[] = [];
     const queue: ID[] = [startNode];
     visited.add(startNode);
     let head = 0;
-    while(head < queue.length) {
-        const u = queue[head++];
-        component.push(u);
-        for(const v of adjMap.get(u) || []) {
-            if(!visited.has(v)) {
-                visited.add(v);
-                queue.push(v);
-            }
+    while (head < queue.length) {
+      const u = queue[head++];
+      component.push(u);
+      for (const v of adjMap.get(u) || []) {
+        if (!visited.has(v)) {
+          visited.add(v);
+          queue.push(v);
         }
+      }
     }
+
     if (component.length <= 2) continue;
+
     const isSimpleCycle = component.every(nodeId => deg(adjMap, nodeId) === 2);
     if (!isSimpleCycle) continue;
+
     const seats = component.reduce((sum, gid) => sum + (idToGuest.get(gid)?.count ?? 1), 0);
+
     if (seats > maxCap) {
-      errors.push({ kind: "adjacency_closed_loop_too_big", message: `An adjacency loop requires ${seats} seats, but the largest table only has ${maxCap}.`, details: { ids: component } });
+      errors.push({ 
+        kind: "adjacency_closed_loop_too_big", 
+        message: `A closed adjacency loop requires ${seats} seats, but the largest table only has ${maxCap}.`, 
+        details: { ids: component, seats, capacities } 
+      });
+    } else if (!capacities.some(c => c === seats)) {
+      errors.push({
+        kind: "adjacency_closed_loop_not_exact",
+        message: `A closed adjacency loop requires ${seats} seats, but no table has exactly ${seats} seats.`,
+        details: { ids: component, seats, capacities }
+      });
     }
   }
   return errors;
@@ -203,8 +225,11 @@ function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: Cons
     else if (tablesSet.size === 1) gi.preassignedTable = Array.from(tablesSet)[0];
   }
   for (const [id, s] of adjMap.entries()) if (s.size > 2) errors.push({ kind: "adjacency_degree_violation", message: `Adjacency degree > 2 for ${id}`, details: { id, degree: s.size } });
-  const maxCap = Math.max(0, ...tables.map(t => t.capacity));
-  errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, maxCap));
+  
+  // UPDATE THESE THREE LINES to pass capacities to the validation function
+  const capacities = tables.map(t => t.capacity);
+  const maxCap = Math.max(0, ...capacities);
+  errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, capacities, maxCap));
   for (const gi of byRoot.values()) if (gi.size > maxCap) errors.push({ kind: "group_too_big_for_any_table", message: `Group size ${gi.size} exceeds max table capacity ${maxCap}`, details: { group: gi.members } });
   const guestIds = new Set(guests.map(g => g.id));
   const checkSelf = (pairs: Pair[], kind: string) => pairs.forEach(([a,b]) => { if (a === b) errors.push({ kind: "self_reference_ignored", message: `Ignored self reference in ${kind}: ${a}` }); });

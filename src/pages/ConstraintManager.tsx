@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ClipboardList, Info, ArrowDownAZ, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ClipboardList, ArrowDownAZ, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
@@ -7,28 +7,17 @@ import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectUnsatisfiableMustGroups, detectConflicts } from '../utils/conflicts';
-import { Guest, Table } from '../types';
 
-/**
- * ConstraintManager — Path B synthesis (buttons, not dropdowns; ⭐&⭐ for adjacent pairs in cells — premium gated)
- * - No layout drift: preserves button-based sorting and compact Prev/Next pagination
- * - Premium: 4-state cycle '' → must → adjacent(+must) → cannot → ''
- * - Free/unsigned: 3-state cycle '' → must → cannot → '' (adjacency view-only; edits blocked)
- * - Stars in the GRID cells only when a pair is adjacent and the user is premium (⭐&⭐); otherwise '&' or 'X'
- * - Full warnings: detectUnsatisfiableMustGroups + detectConflicts (deduped)
- * - Touch parity: long-press gesture for adjacency (premium)
- * - Minimal, surgical code; preserves existing state/actions (no refactors)
- */
-
+type Guest = { id: string; name: string; count?: number };
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
-const GUEST_THRESHOLD = 120; // paginate beyond this
-const GUESTS_PER_PAGE = 10;  // page size
-const HEADS_FREE_LIMIT = 80; // free-tier headcap
+const GUEST_THRESHOLD = 120;
+const GUESTS_PER_PAGE = 10;
+const HEADS_FREE_LIMIT = 80;
 
 const ConstraintManager: React.FC = () => {
   const { state, dispatch } = useApp();
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = !!state.user && isPremiumSubscription(state.subscription);
 
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
   const [currentPage, setCurrentPage] = useState(0);
@@ -37,27 +26,23 @@ const ConstraintManager: React.FC = () => {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const longPressTimer = useRef<number | null>(null);
 
-  // ------- helpers -------
+  // Helpers
   const getAdj = (id: string) => state.adjacents?.[id] ?? [];
-  const hasAdj = (a: string, b: string) => getAdj(a).includes(b);
-
+  const hasAdj = (a: string, b: string) => getAdj(a).includes(b) || getAdj(b).includes(a);
   const guestMap = useMemo(() => {
     const m = new Map<string, Guest>();
     state.guests.forEach(g => m.set(g.id, g));
     return m;
   }, [state.guests]);
-
-  const parsePlusN = (name: string) => {
-    // crude "+N" parser to avoid undercounting if count is missing
-    const m = name.match(/\+(\d+)\s*$/);
-    return m ? parseInt(m[1], 10) : 0;
+  const countHeads = (g: Guest) => {
+    if (typeof g.count === 'number') return g.count;
+    const match = g.name.match(/\+(\d+)\s*$/);
+    return 1 + (match ? parseInt(match[1], 10) : 0);
   };
-  const countHeads = (g: Guest) => (typeof g.count === 'number' ? g.count! : 1 + parsePlusN(g.name));
   const totalHeads = useMemo(() => state.guests.reduce((sum, g) => sum + countHeads(g), 0), [state.guests]);
-
   const overFreeCap = !isPremium && totalHeads > HEADS_FREE_LIMIT;
 
-  // ------- sorting -------
+  // Sorting
   const sortedGuests: Guest[] = useMemo(() => {
     const gs = [...state.guests];
     if (sortOption === 'first-name') {
@@ -65,33 +50,18 @@ const ConstraintManager: React.FC = () => {
     } else if (sortOption === 'last-name') {
       gs.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
     } else if (sortOption === 'current-table') {
-      const tableBySeatId = new Map<string, string>();
-      if (state.seatingPlans?.length) {
-        const plan = state.seatingPlans[state.currentPlanIndex] || state.seatingPlans[0];
-        if (plan?.tables) {
-          for (const t of plan.tables) {
-            for (const s of (t.seats || []) as any[]) {
-              if (s?.id) tableBySeatId.set(String(s.id), String(t.id));
-            }
-          }
-        }
-      }
       const getCurrentTableIndex = (g: Guest) => {
-        const assignment = state.assignments?.[g.id]; // often like "12,5"
+        const assignment = state.assignments?.[g.id];
         if (assignment) {
           const tableId = String(assignment).split(',')[0];
           return Number.isNaN(Number(tableId)) ? Number.MAX_SAFE_INTEGER : parseInt(tableId, 10);
-        }
-        // fallback to plan tables map if seats carry ids that match assignments ids
-        for (const [seatId, tId] of tableBySeatId) {
-          if (String(seatId) === String(state.assignments?.[g.id])) return parseInt(String(tId), 10) || Number.MAX_SAFE_INTEGER;
         }
         return Number.MAX_SAFE_INTEGER;
       };
       gs.sort((a, b) => getCurrentTableIndex(a) - getCurrentTableIndex(b));
     }
     return gs;
-  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments]);
+  }, [state.guests, sortOption, state.assignments]);
 
   const shouldPaginate = isPremium && sortedGuests.length > GUEST_THRESHOLD;
   const displayGuests = useMemo(() => {
@@ -102,17 +72,18 @@ const ConstraintManager: React.FC = () => {
 
   useEffect(() => {
     if (shouldPaginate) {
-      setTotalPages(Math.max(1, Math.ceil(sortedGuests.length / GUESTS_PER_PAGE)));
-      setCurrentPage(p => Math.min(p, Math.ceil(sortedGuests.length / GUESTS_PER_PAGE) - 1));
+      const pages = Math.max(1, Math.ceil(sortedGuests.length / GUESTS_PER_PAGE));
+      setTotalPages(pages);
+      setCurrentPage(p => Math.min(p, pages - 1));
     } else {
-      if (currentPage !== 0) setCurrentPage(0);
-      if (totalPages !== 1) setTotalPages(1);
+      setCurrentPage(0);
+      setTotalPages(1);
     }
   }, [shouldPaginate, sortedGuests.length]);
 
-  // ------- warnings (merged & deduped) -------
+  // Warnings - merged and deduped with case-insensitive comparison
   const warnings = useMemo(() => {
-    const mustIssues = detectUnsatisfiableMustGroups({
+    const mustIssues = Array.from(detectUnsatisfiableMustGroups({
       guests: state.guests.reduce((acc, g) => {
         acc[g.id] = { partySize: g.count, name: g.name };
         return acc;
@@ -129,218 +100,205 @@ const ConstraintManager: React.FC = () => {
           }
         }
       }
-    }).map((group: any) => {
+    }) || []).map((group: any) => {
       try {
         const names = Array.isArray(group) ? group.map((g: Guest) => g.name).join(', ') : String(group);
         return `Must-group may be unsatisfiable: ${names}`;
       } catch {
         return `Must-group may be unsatisfiable`;
       }
-    });
+    }).map(m => m.toLowerCase());
 
-    const conflictIssues = detectConflicts(state.assignments, state.constraints)
-      .map((c: any) => (typeof c === 'string' ? c : c?.message ?? JSON.stringify(c)));
+    const conflictIssues = (detectConflicts(state.assignments, state.constraints) || [])
+      .map((c: any) => (typeof c === 'string' ? c : c?.message ?? JSON.stringify(c))).map(msg => msg.toLowerCase());
 
     const all = [...mustIssues, ...conflictIssues];
     return all.filter((msg, i) => all.indexOf(msg) === i);
   }, [state.guests, state.constraints, state.adjacents]);
 
-  // ------- plan purge (keep your existing effect that regenerates) -------
+  // Plan purge (non-destructive)
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] as any });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 as any });
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false as any });
   };
 
-  // ------- adjacency guards -------
+  // Adjacency guards
   const degree = (id: string) => getAdj(id).length;
   const degreeCapReached = (a: string, b: string) => degree(a) >= 2 || degree(b) >= 2;
 
-  const closesLoopWithExactCapacity = (a: string, b: string) => {
-    // Simple BFS to detect a cycle formed by adding edge (a,b). If found, sum party size and require a table with exact capacity.
-    if (a === b) return false;
-    // Build adjacency including the proposed edge
-    const graph = new Map<string, Set<string>>();
-    const addEdge = (x: string, y: string) => {
-      if (!graph.has(x)) graph.set(x, new Set());
-      graph.get(x)!.add(y);
-    };
-    for (const [id, neighbors] of Object.entries(state.adjacents || {})) {
-      for (const nb of neighbors || []) addEdge(String(id), String(nb));
-    }
-    addEdge(a, b);
-    addEdge(b, a);
+  // BFS to detect if adding edge closes a ring and compute its size
+  const wouldCloseRing = (a: string, b: string): { closes: boolean; ringSize: number; ringMembers: string[] } => {
+    if (hasAdj(a, b)) return { closes: false, ringSize: 0, ringMembers: [] }; // already adjacent
 
-    // Detect a cycle that includes edge (a,b) using parent-aware DFS from a to b
-    const stack: { node: string; parent: string | null }[] = [{ node: a, parent: null }];
-    const visited = new Set<string>();
-    let cycleNodes: Set<string> | null = null;
+    const graph = Object.entries(state.adjacents ?? {}).reduce((g, [k, vs]) => {
+      g[k] = vs;
+      vs.forEach(v => {
+        if (!g[v]) g[v] = [];
+        if (!g[v].includes(k)) g[v].push(k); // force symmetric
+      });
+      return g;
+    }, {} as Record<string, string[]>);
 
-    while (stack.length) {
-      const { node, parent } = stack.pop()!;
-      if (visited.has(node)) continue;
-      visited.add(node);
-      for (const nb of graph.get(node) || []) {
-        if (nb === parent) continue;
-        if (!visited.has(nb)) {
-          stack.push({ node: nb, parent: node });
-        } else {
-          // found a back-edge → cycle. Build a rough set including node & nb.
-          cycleNodes = new Set([node, nb]);
+    // BFS from a to find path to b without direct edge
+    const queue: { node: string; path: string[] }[] = [{ node: a, path: [a] }];
+    const visited = new Set<string>([a]);
+    while (queue.length) {
+      const { node, path } = queue.shift()!;
+      for (const neighbor of graph[node] ?? []) {
+        if (neighbor === b && path.length > 1) { // found path >1 (closes ring)
+          return { closes: true, ringSize: path.length + 1, ringMembers: [...path, b] }; // +1 for closing
+        }
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push({ node: neighbor, path: [...path, neighbor] });
         }
       }
     }
-
-    if (!cycleNodes) return false;
-
-    // Expand cycle set by traversing neighbors (bounded)
-    const q = [...cycleNodes];
-    while (q.length) {
-      const x = q.pop()!;
-      for (const y of graph.get(x) || []) {
-        if (!cycleNodes.has(y)) {
-          cycleNodes.add(y);
-          q.push(y);
-        }
-      }
-      if (cycleNodes.size > 1000) break; // safety guard
-    }
-
-    // Compute party size of the cycle
-    let heads = 0;
-    for (const id of cycleNodes) {
-      const g = guestMap.get(id);
-      if (g) heads += countHeads(g);
-    }
-
-    const capacities = (state.tables || []).map((t: Table) => t.seats);
-    return capacities.some(c => c === heads);
+    return { closes: false, ringSize: 0, ringMembers: [] };
   };
 
-  const tryAddAdjacency = (a: string, b: string) => {
-    if (!isPremium) {
-      alert('Adjacency pairing is a premium feature.');
-      setSelectedGuestId(null);
-      return;
-    }
-    if (a === b) return;
-    if (hasAdj(a, b)) return; // already adjacent
-    if (degreeCapReached(a, b)) {
-      alert('Each guest can be adjacent to at most 2 partners.');
-      setSelectedGuestId(null);
-      return;
-    }
-    if (!closesLoopWithExactCapacity(a, b)) {
-      // it's okay to add adjacency even if it doesn't close a loop; the guard only blocks invalid closed rings
-      // fallthrough
-    }
-    // dispatch: adjacency + must constraint (symmetric); then purge plans
-    dispatch({ type: 'SET_ADJACENT', payload: { guest1: a, guest2: b } as any });
-    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: 'must' } as any });
-    purgePlans();
-    setSelectedGuestId(null);
+  // Compute total party size of a component (ring or chain)
+  const componentPartySize = (members: string[]) => {
+    return members.reduce((sum, id) => sum + countHeads(guestMap.get(id)!), 0);
   };
 
-  // ------- gestures on name cells (premium only) -------
-  const handleGuestSelect = (id: string) => {
-    if (!isPremium) {
-      alert('Adjacency pairing is a premium feature.');
-      setSelectedGuestId(null);
-      return;
-    }
-    setSelectedGuestId(prev => {
-      if (!prev) return id;
-      if (prev === id) return null;
-      tryAddAdjacency(prev, id);
-      return null;
+  // Check if component size matches a table capacity (lock-aware)
+  const matchesTableCapacity = (size: number, members: string[]) => {
+    const capacities = new Set(state.tables.map(t => t.seats));
+    const lockedTable = members.find(m => {
+      const assign = state.assignments?.[m];
+      return assign && !isNaN(parseInt(assign.split(',')[0]));
     });
+    if (lockedTable) {
+      const tableId = parseInt(state.assignments![lockedTable].split(',')[0]);
+      const table = state.tables.find(t => t.id === tableId);
+      return table ? size === table.seats : false;
+    }
+    return capacities.has(size);
   };
 
+  // Gesture handlers (premium)
   const handleTouchStart = (id: string) => {
     if (!isPremium) return;
-    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
-    longPressTimer.current = window.setTimeout(() => handleGuestSelect(id), 500);
+    longPressTimer.current = window.setTimeout(() => {
+      handleGuestSelect(id);
+    }, 500);
   };
+
   const handleTouchEnd = () => {
     if (longPressTimer.current) {
-      window.clearTimeout(longPressTimer.current);
+      clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
   };
 
-  // ------- click cycle on grid cells -------
-  const handleToggleConstraint = (a: string, b: string) => {
+  const handleGuestSelect = (id: string) => {
+    if (selectedGuestId === null) {
+      setSelectedGuestId(id);
+      return;
+    }
+    if (selectedGuestId === id) {
+      setSelectedGuestId(null);
+      return;
+    }
+    // Attempt to add adjacency
+    const a = selectedGuestId;
+    const b = id;
+    if (degreeCapReached(a, b)) {
+      alert("A guest can have at most 2 adjacencies.");
+      setSelectedGuestId(null);
+      return;
+    }
+    const { closes, ringMembers } = wouldCloseRing(a, b);
+    if (closes) {
+      const partySize = componentPartySize(ringMembers);
+      if (!matchesTableCapacity(partySize, ringMembers)) {
+        alert(`Adjacency would create a ring of ${partySize} heads, which doesn't match any table capacity (considering locks).`);
+        setSelectedGuestId(null);
+        return;
+      }
+    }
+    // Ensure 'must' is set
+    const currentConstraint = (state.constraints?.[a]?.[b] as any) || '';
+    if (currentConstraint !== 'must') {
+      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: 'must' as any } });
+    }
+    dispatch({ type: 'SET_ADJACENT', payload: { guest1: a, guest2: b } });
+    setSelectedGuestId(null);
+    purgePlans(); // non-destructive reset
+  };
+
+  // Cell toggle (with guards)
+  const handleToggleConstraint = (g1: string, g2: string) => {
     if (overFreeCap) {
       alert(`Editing is limited for free accounts over ${HEADS_FREE_LIMIT} heads.`);
       return;
     }
-    const current = state.constraints?.[a]?.[b] || '';
-    const adj = hasAdj(a, b);
+    if (g1 > g2) [g1, g2] = [g2, g1]; // normalize order
+    const constraint: '' | 'must' | 'cannot' = (state.constraints?.[g1]?.[g2] as any) || '';
+    const adj = hasAdj(g1, g2);
+    let next: '' | 'must' | 'cannot' = constraint;
 
     if (!isPremium) {
-      // Free: block destructive changes when an adjacency exists
+      // Non-premium: block all edits if adj (strict view-only)
       if (adj) {
-        alert('This pair is adjacent in your saved data. Editing adjacency or conflicting constraints requires premium.');
+        alert("Cannot edit constraint for adjacent pair; upgrade to premium.");
         return;
       }
-      const next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
-      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: next } as any });
-      purgePlans();
-      return;
-    }
-
-    // Premium 4-state cycle
-    if (current === '') {
-      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: 'must' } as any });
-      purgePlans();
-      return;
-    }
-
-    if (current === 'must' && !adj) {
-      // move to "adjacent (+must)"
-      if (degreeCapReached(a, b)) {
-        alert('Each guest can be adjacent to at most 2 partners.');
-        return;
+      next = constraint === '' ? 'must' : constraint === 'must' ? 'cannot' : '';
+    } else {
+      // Premium
+      if (constraint === '') {
+        next = 'must';
+      } else if (constraint === 'must') {
+        if (adj) {
+          // Cycle to 'cannot' and remove adj
+          dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: g1, guest2: g2 } });
+          next = 'cannot';
+        } else {
+          // Attempt to add adj (stay 'must')
+          if (degreeCapReached(g1, g2)) {
+            alert("A guest can have at most 2 adjacencies.");
+            return;
+          }
+          const { closes, ringMembers } = wouldCloseRing(g1, g2);
+          if (closes) {
+            const partySize = componentPartySize(ringMembers);
+            if (!matchesTableCapacity(partySize, ringMembers)) {
+              alert(`Adjacency would create a ring of ${partySize} heads, which doesn't match any table capacity (considering locks).`);
+              return;
+            }
+          }
+          dispatch({ type: 'SET_ADJACENT', payload: { guest1: g1, guest2: g2 } });
+          next = 'must'; // stay
+        }
+      } else if (constraint === 'cannot') {
+        if (adj) dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: g1, guest2: g2 } });
+        next = '';
       }
-      // closed-loop exact-capacity check
-      if (!closesLoopWithExactCapacity(a, b)) {
-        // allowed: only blocks when a ring closes without a matching table; here we may be opening or extending
-      }
-      dispatch({ type: 'SET_ADJACENT', payload: { guest1: a, guest2: b } as any });
-      // keep must set (already)
-      purgePlans();
-      return;
     }
 
-    if (current === 'must' && adj) {
-      // adjacent → cannot   (remove adjacency first)
-      dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: a, guest2: b } as any });
-      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: 'cannot' } as any });
-      purgePlans();
-      return;
+    if (next !== constraint) {
+      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: g1, guest2: g2, value: next as any } });
     }
-
-    if (current === 'cannot') {
-      // back to clear
-      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: '' } as any });
-      purgePlans();
-      return;
-    }
+    purgePlans(); // non-destructive
   };
 
-  // ------- grid -------
+  // Grid table (memoized)
   const GridTable = useMemo(() => {
     const headerRow = (
       <tr>
-        <th className="sticky top-0 left-0 z-20 bg-white border border-[#586D78] p-2 text-left">
-          <div className="flex items-center gap-2">
-            <span>Guests</span>
-            <Info className="w-4 h-4 text-[#586D78]" />
-          </div>
-        </th>
+        <th className="sticky top-0 left-0 z-20 bg-white border border-[#586D78] p-2 text-left" />
         {displayGuests.map(g => (
-          <th key={`col-${g.id}`} className="sticky top-0 z-10 bg-white border border-[#586D78] p-2 text-center">
-            <div className="flex items-center justify-between gap-2">
+          <th
+            key={`colhdr-${g.id}`}
+            className="sticky top-0 z-10 bg-white border border-[#586D78] p-2 text-center"
+            onDoubleClick={isPremium ? () => handleGuestSelect(g.id) : undefined}
+            onTouchStart={isPremium ? () => handleTouchStart(g.id) : undefined}
+            onTouchEnd={isPremium ? () => handleTouchEnd() : undefined}
+          >
+            <div className={`flex items-center justify-between gap-2 ${selectedGuestId === g.id ? 'ring-2 ring-indigo-400 rounded' : ''}`}>
               <span className="truncate font-normal"><FormatGuestName name={g.name} /></span>
               {getAdj(g.id).length === 1 && <span className="text-yellow-600">⭐</span>}
               {getAdj(g.id).length === 2 && <span className="text-yellow-600">⭐⭐</span>}
@@ -351,7 +309,7 @@ const ConstraintManager: React.FC = () => {
       </tr>
     );
 
-    const bodyRows = displayGuests.map(g1 => (
+    const bodyRows = sortedGuests.map(g1 => (
       <tr key={`row-${g1.id}`}>
         <th
           key={`rowhdr-${g1.id}`}
@@ -381,16 +339,11 @@ const ConstraintManager: React.FC = () => {
             bg = 'bg-red-200';
             content = <span className="text-black font-bold">X</span>;
           } else if (adj && isPremium) {
-            // ⭐&⭐ for premium-adjacent pairs (distinct from plain MUST)
             bg = 'bg-green-200';
-            content = <span className="text-black font-bold">⭐&⭐</span>;
+            content = <span className="text-black font-bold">&</span>;
           } else if (constraint === 'must') {
             bg = 'bg-green-200';
             content = <span className="text-black font-bold">&</span>;
-          } else if (adj && !isPremium) {
-            // Non-premium adjacency shows as read-only 'adj'
-            bg = '';
-            content = <span className="text-gray-500 text-xs">adj</span>;
           }
 
           const handleClick = () => {
@@ -420,7 +373,7 @@ const ConstraintManager: React.FC = () => {
         <tbody>{bodyRows}</tbody>
       </table>
     );
-  }, [displayGuests, state.constraints, state.adjacents, isPremium, selectedGuestId, overFreeCap]);
+  }, [sortedGuests, displayGuests, state.constraints, state.adjacents, isPremium, selectedGuestId, overFreeCap]);
 
   return (
     <div className="space-y-6">
@@ -445,7 +398,7 @@ const ConstraintManager: React.FC = () => {
       )}
 
       <Card title="Grid">
-        {/* Sort controls — buttons, not a dropdown */}
+        {/* Sort controls - buttons */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-[#586D78] flex items-center gap-1">
             <ArrowDownAZ className="w-4 h-4" /> Sort
@@ -483,7 +436,7 @@ const ConstraintManager: React.FC = () => {
           {GridTable}
         </div>
 
-        {/* Pagination — compact, Prev/Next only */}
+        {/* Pagination - compact, Prev/Next only */}
         {isPremium && shouldPaginate && (
           <div className="flex items-center justify-center gap-3 mt-3">
             <button
