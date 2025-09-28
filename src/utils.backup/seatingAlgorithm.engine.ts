@@ -24,7 +24,7 @@ export type ConflictKind =
   | "must_cycle"
   | "adjacency_degree_violation"
   | "adjacency_closed_loop_too_big"
-  | "adjacency_closed_loop_not_exact"
+  | "adjacency_closed_loop_not_exact" // ADD THIS LINE
   | "assignment_conflict"
   | "cant_within_must_group"
   | "group_too_big_for_any_table"
@@ -230,7 +230,6 @@ function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: Cons
   const capacities = tables.map(t => t.capacity);
   const maxCap = Math.max(0, ...capacities);
   errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, capacities, maxCap));
-  
   for (const gi of byRoot.values()) if (gi.size > maxCap) errors.push({ kind: "group_too_big_for_any_table", message: `Group size ${gi.size} exceeds max table capacity ${maxCap}`, details: { group: gi.members } });
   const guestIds = new Set(guests.map(g => g.id));
   const checkSelf = (pairs: Pair[], kind: string) => pairs.forEach(([a,b]) => { if (a === b) errors.push({ kind: "self_reference_ignored", message: `Ignored self reference in ${kind}: ${a}` }); });
@@ -464,7 +463,7 @@ export function detectConstraintConflicts(
  */
 export function detectAdjacentPairingConflicts(guests: GuestUnit[], adjacents: AdjRecord, tables: TableIn[], constraints?: ConstraintsMap): ValidationError[] {
   const errs = detectConstraintConflicts(guests, tables, constraints || {}, adjacents, {});
-  return errs.filter(e => e.kind === "adjacency_degree_violation" || e.kind === "adjacency_closed_loop_too_big" || e.kind === "adjacency_closed_loop_not_exact");
+  return errs.filter(e => e.kind === "adjacency_degree_violation" || e.kind === "adjacency_closed_loop_too_big");
 }
 
 /**

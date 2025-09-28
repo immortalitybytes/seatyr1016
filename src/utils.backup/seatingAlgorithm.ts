@@ -126,7 +126,7 @@ export async function generateSeatingPlans(
     // Call engine
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
       guests,
-      tables.map((t: Table) => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity), capacity: t.seats })),
+      tables.map((t: Table) => ({ id: t.id, name: t.name ?? undefined, seats: t.seats, capacity: t.seats })),
       engineConstraints,
       engineAdjacents,
       engineAssignments,
@@ -141,7 +141,7 @@ export async function generateSeatingPlans(
         return {
           id: Number(t.tableId),
           capacity: appTable?.seats ?? 0,
-          seats: (t.seats ?? (t as any).capacity),
+          seats: t.seats,
         };
       }).sort((a, b) => a.id - b.id),
     }));
@@ -176,7 +176,7 @@ export function detectConstraintConflicts(
   adjacents: Adjacents | null = {}
 ): ValidationError[] {
   const engineGuests = guests ?? [];
-  const engineTables = (tables ?? []).map(t => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity) }));
+  const engineTables = (tables ?? []).map(t => ({ id: t.id, name: t.name ?? undefined, seats: t.seats }));
   const nameToIdMap = new Map<string, string>();
   engineGuests.forEach((guest: Guest) => nameToIdMap.set(guest.name, guest.id));
 
@@ -212,17 +212,17 @@ export function detectAdjacentPairingConflicts(
   constraints?: Constraints | null
 ): ValidationError[] {
   const allErrors = detectConstraintConflicts(guests, tables, constraints ?? {}, true, adjacents);
-  return allErrors.filter((e: any) => e._originalKind === 'adjacency_degree_violation' || e._originalKind === 'adjacency_closed_loop_too_big' || e._originalKind === 'adjacency_closed_loop_not_exact');
+  return allErrors.filter((e: any) => e._originalKind === 'adjacency_degree_violation' || e._originalKind === 'adjacency_closed_loop_too_big');
 }
 
 export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: Table[]): string {
   const enginePlan: Engine.SeatingPlanOut = {
-    tables: plan.tables.map(t => ({ tableId: String(t.id), seats: (t.seats ?? (t as any).capacity) })),
+    tables: plan.tables.map(t => ({ tableId: String(t.id), seats: t.seats })),
     score: 1.0,
     seedUsed: plan.id,
   };
   const engineGuests = guests;
-  const engineTables = tables.map(t => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity) }));
+  const engineTables = tables.map(t => ({ id: t.id, name: t.name ?? undefined, seats: t.seats }));
   return Engine.generatePlanSummary(enginePlan, engineGuests, engineTables);
 }
 
@@ -231,11 +231,6 @@ function mapErrorType(kind: Engine.ConflictKind): 'error' | 'warn' {
     case 'must_cycle':
     case 'invalid_input_data':
     case 'self_reference_ignored':
-    case 'assignment_conflict':
-    case 'cant_within_must_group':
-    case 'group_too_big_for_any_table':
-    case 'unknown_guest':
-    case 'adjacency_closed_loop_not_exact':
       return 'error';
     case 'adjacency_degree_violation':
     case 'adjacency_closed_loop_too_big':
