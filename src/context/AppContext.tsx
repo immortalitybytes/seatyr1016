@@ -320,6 +320,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         adjacents,
         assignments: idKeyed,
         assignmentSignature,
+        subscription: incoming.subscription ?? state.subscription,
         seatingPlans: [],
         lastGeneratedPlanSig: null,
         warnings: []
@@ -330,7 +331,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...state,
         ...incoming,
-        subscription: state.subscription,
+        subscription: incoming.subscription ?? state.subscription,
         user: state.user,
         seatingPlans: [],
         currentPlanIndex: 0,
@@ -411,6 +412,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       debouncedGeneratePlans();
     }
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.loadedSavedSetting, debouncedGeneratePlans]);
+
+  // Fetch subscription whenever user changes (no extra flags)
+  useEffect(() => {
+    let active = true;
+    const fetchSub = async () => {
+      if (!state.user) { dispatch({ type: "SET_SUBSCRIPTION", payload: null }); return; }
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", state.user.id)
+        .single();
+      if (active) dispatch({ type: "SET_SUBSCRIPTION", payload: data || null });
+    };
+    fetchSub().catch(console.error);
+    return () => { active = false; };
+  }, [state.user]);
 
   // Auth change listener
   useEffect(() => {

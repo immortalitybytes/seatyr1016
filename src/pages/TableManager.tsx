@@ -187,7 +187,7 @@ const TableManager: React.FC = () => {
     const seats = parseInt(value, 10);
     if (Number.isFinite(seats) && seats >= 1 && seats <= 20) {
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
-      dispatch({ type: 'UPDATE_TABLE_SEATS', payload: { id, seats } });
+      dispatch({ type: 'UPDATE_TABLE', payload: { id, seats } });
       purgePlans();
     }
   };
@@ -226,8 +226,9 @@ const TableManager: React.FC = () => {
       return;
     }
     
+    dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
     dispatch({ 
-      type: 'UPDATE_TABLE_NAME', 
+      type: 'UPDATE_TABLE', 
       payload: { id: editingTableId, name: trimmedName === `Table ${editingTableId}` ? undefined : trimmedName } 
     });
     
