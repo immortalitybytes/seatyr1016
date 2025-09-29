@@ -24,6 +24,7 @@ export type ConflictKind =
   | "must_cycle"
   | "adjacency_degree_violation"
   | "adjacency_closed_loop_too_big"
+  | "adjacency_closed_loop_not_exact"
   | "assignment_conflict"
   | "cant_within_must_group"
   | "group_too_big_for_any_table"
@@ -135,32 +136,53 @@ function buildUndirectedMap(pairs: Pair[]): Map<ID, Set<ID>> {
 
 function deg(map: Map<ID, Set<ID>>, id: ID): number { return map.get(id)?.size ?? 0; }
 
-function checkAdjacencyCyclesUndirected(adjMap: Map<ID, Set<ID>>, idToGuest: Map<ID, SafeGuest>, maxCap: number): ValidationError[] {
+function checkAdjacencyCyclesUndirected(
+  adjMap: Map<ID, Set<ID>>,
+  idToGuest: Map<ID, SafeGuest>,
+  capacities: number[],
+  maxCap: number
+): ValidationError[] {
   const errors: ValidationError[] = [];
   const visited = new Set<ID>();
   const nodes = Array.from(adjMap.keys());
+
   for (const startNode of nodes) {
     if (visited.has(startNode)) continue;
+    
     const component: ID[] = [];
     const queue: ID[] = [startNode];
     visited.add(startNode);
     let head = 0;
-    while(head < queue.length) {
-        const u = queue[head++];
-        component.push(u);
-        for(const v of adjMap.get(u) || []) {
-            if(!visited.has(v)) {
-                visited.add(v);
-                queue.push(v);
-            }
+    while (head < queue.length) {
+      const u = queue[head++];
+      component.push(u);
+      for (const v of adjMap.get(u) || []) {
+        if (!visited.has(v)) {
+          visited.add(v);
+          queue.push(v);
         }
+      }
     }
+
     if (component.length <= 2) continue;
+
     const isSimpleCycle = component.every(nodeId => deg(adjMap, nodeId) === 2);
     if (!isSimpleCycle) continue;
+
     const seats = component.reduce((sum, gid) => sum + (idToGuest.get(gid)?.count ?? 1), 0);
+
     if (seats > maxCap) {
-      errors.push({ kind: "adjacency_closed_loop_too_big", message: `An adjacency loop requires ${seats} seats, but the largest table only has ${maxCap}.`, details: { ids: component } });
+      errors.push({ 
+        kind: "adjacency_closed_loop_too_big", 
+        message: `A closed adjacency loop requires ${seats} seats, but the largest table only has ${maxCap}.`, 
+        details: { ids: component, seats, capacities } 
+      });
+    } else if (!capacities.some(c => c === seats)) {
+      errors.push({
+        kind: "adjacency_closed_loop_not_exact",
+        message: `A closed adjacency loop requires ${seats} seats, but no table has exactly ${seats} seats.`,
+        details: { ids: component, seats, capacities }
+      });
     }
   }
   return errors;
@@ -203,8 +225,12 @@ function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: Cons
     else if (tablesSet.size === 1) gi.preassignedTable = Array.from(tablesSet)[0];
   }
   for (const [id, s] of adjMap.entries()) if (s.size > 2) errors.push({ kind: "adjacency_degree_violation", message: `Adjacency degree > 2 for ${id}`, details: { id, degree: s.size } });
-  const maxCap = Math.max(0, ...tables.map(t => t.capacity));
-  errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, maxCap));
+  
+  // UPDATE THESE THREE LINES to pass capacities to the validation function
+  const capacities = tables.map(t => t.capacity);
+  const maxCap = Math.max(0, ...capacities);
+  errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, capacities, maxCap));
+  
   for (const gi of byRoot.values()) if (gi.size > maxCap) errors.push({ kind: "group_too_big_for_any_table", message: `Group size ${gi.size} exceeds max table capacity ${maxCap}`, details: { group: gi.members } });
   const guestIds = new Set(guests.map(g => g.id));
   const checkSelf = (pairs: Pair[], kind: string) => pairs.forEach(([a,b]) => { if (a === b) errors.push({ kind: "self_reference_ignored", message: `Ignored self reference in ${kind}: ${a}` }); });
@@ -370,8 +396,7 @@ export async function generateSeatingPlans(
   const adj = toPairsFromAdj(appAdjacents);
   const initialErrors = [...normGuestErrors, ...normTableErrors];
   const { groups, errors: validationErrors, ctx, cantMap, adjMap } = validateAndGroup(guests, tables, constr, adj, appAssignments);
-  const _preErrors = validateAdjacencyRings(guests, tables, appAdjacents || {}, appAssignments || {});
-  const allErrors = [...initialErrors, ...validationErrors, ..._preErrors];
+  const allErrors = [...initialErrors, ...validationErrors];
   const fatalErrors = allErrors.filter(e => e.kind !== "self_reference_ignored");
   if (fatalErrors.length > 0) return { plans: [], errors: fatalErrors };
   const rngBase = new RNG(defaults.seed);
@@ -439,7 +464,7 @@ export function detectConstraintConflicts(
  */
 export function detectAdjacentPairingConflicts(guests: GuestUnit[], adjacents: AdjRecord, tables: TableIn[], constraints?: ConstraintsMap): ValidationError[] {
   const errs = detectConstraintConflicts(guests, tables, constraints || {}, adjacents, {});
-  return errs.filter(e => e.kind === "adjacency_degree_violation" || e.kind === "adjacency_closed_loop_too_big");
+  return errs.filter(e => e.kind === "adjacency_degree_violation" || e.kind === "adjacency_closed_loop_too_big" || e.kind === "adjacency_closed_loop_not_exact");
 }
 
 /**
@@ -476,105 +501,4 @@ export function generatePlanSummary(plan: SeatingPlanOut, guests: GuestUnit[], t
     summary += `\n`;
   }
   return summary;
-}
-
-
-// --- Injected validations (non-breaking) ---
-type EngineGuest = { id: string; name: string; count?: number };
-type EngineTable = { id: number | string; name?: string; seats: number };
-type EngineErrors = { kind?: string; message: string }[];
-
-function buildAdjGraph(adjacents: Record<string, string[]>) {
-  const graph = new Map<string, Set<string>>();
-  Object.entries(adjacents || {}).forEach(([a, list]) => {
-    if (!graph.has(a)) graph.set(a, new Set());
-    (list || []).forEach((b) => {
-      if (!graph.has(b)) graph.set(b, new Set());
-      graph.get(a)!.add(b);
-      graph.get(b)!.add(a);
-    });
-  });
-  return graph;
-}
-
-function isCycleComponent(graph: Map<string, Set<string>>, nodes: string[]): boolean {
-  if (nodes.length < 3) return false;
-  for (const n of nodes) {
-    const deg = (graph.get(n)?.size || 0);
-    if (deg !== 2) return false;
-  }
-  return true;
-}
-
-function componentOf(graph: Map<string, Set<string>>, seed: string): string[] {
-  const seen = new Set<string>();
-  const q = [seed];
-  while (q.length) {
-    const x = q.shift()!;
-    if (seen.has(x)) continue;
-    seen.add(x);
-    for (const n of (graph.get(x) || [])) q.push(n as string);
-  }
-  return [...seen];
-}
-
-function firstLockedCapacity(assignments: Record<string, any>, tables: EngineTable[]): number | null {
-  const byId = new Map<string, number>();
-  for (const t of tables) byId.set(String(t.id), Number(t.seats || 0));
-  for (const [guestId, raw] of Object.entries(assignments || {})) {
-    if (!raw) continue;
-    const first = String(raw).split(',').map(s=>s.trim()).filter(Boolean)[0];
-    if (!first) continue;
-    // match by id or by name
-    if (byId.has(first)) return byId.get(first)!;
-    // attempt name match
-    for (const t of tables) {
-      if (t.name && String(t.name).trim().toLowerCase() == first.toLowerCase()) return Number(t.seats || 0);
-    }
-  }
-  return null;
-}
-
-function validateAdjacencyRings(guests: EngineGuest[], tables: EngineTable[], adjacents: Record<string, string[]>, assignments: Record<string, any>): EngineErrors {
-  const errors: EngineErrors = [];
-  const caps = new Set<number>(tables.map(t => Number(t.seats || 0)).filter(n => n > 0));
-  const headsById = new Map<string, number>();
-  for (const g of (guests || [])) headsById.set(String(g.id), Number(g.count || 1));
-
-  const graph = buildAdjGraph(adjacents || {});
-  const seen = new Set<string>();
-  for (const v of graph.keys()) {
-    if (seen.has(v)) continue;
-    const comp = componentOf(graph, v);
-    comp.forEach(n => seen.add(n));
-    // Degree-violation check (warn); cap enforced in UI/reducer
-    for (const n of comp) {
-      if ((graph.get(n)?.size || 0) > 2) {
-        errors.push({ kind: 'adjacency_degree_violation', message: `Adjacency degree >2 for ${n}` });
-        break;
-      }
-    }
-    // If component forms a cycle, enforce exact-capacity
-    if (isCycleComponent(graph, comp)) {
-      const heads = comp.reduce((s, id) => s + (headsById.get(String(id)) || 1), 0);
-      const lockedCap = firstLockedCapacity(assignments || {}, tables || []);
-      
-if (lockedCap !== null) {
-  if (heads !== lockedCap) {
-    errors.push({ kind: 'adjacency_closed_loop_not_exact', message: `Adjacent ring of ${heads} must equal locked table capacity ${lockedCap}.` });
-  }
-} else {
-  if (!caps.has(heads)) {
-    const maxCap = Math.max(0, ...Array.from(caps));
-    if (heads > maxCap) {
-      errors.push({ kind: 'adjacency_closed_loop_too_big', message: `Adjacent ring of ${heads} exceeds max table capacity ${maxCap}.` });
-    } else {
-      errors.push({ kind: 'adjacency_closed_loop_not_exact', message: `Adjacent ring of ${heads} does not match any available table capacity.` });
-    }
-  }
-}
-
-    }
-  }
-  return errors;
 }

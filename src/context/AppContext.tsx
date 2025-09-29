@@ -435,7 +435,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (event === "SIGNED_IN") setAuthChanged(true);
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [state.user]) ;
 
   // Most recent state handling
   useEffect(() => {

@@ -1,16 +1,14 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, ArrowDownAZ, ChevronDown, X } from 'lucide-react';
 
 // Disable large guest list warnings site-wide
 const SHOW_LARGE_LIST_WARNING = false;
-import Card from '../Components/Card';
-import Button from '../Components/Button';
+import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
-import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
-import SavedSettingsAccordion from '../Components/SavedSettingsAccordion';
-import FormatGuestName from '../Components/FormatGuestName';
+import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+import FormatGuestName from '../components/FormatGuestName';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -265,12 +263,6 @@ const ConstraintManager: React.FC = () => {
     guests.forEach((guest1, rowIndex) => {
       // Find the original index in the state.guests array
       const originalIndex = state.guests.findIndex(g => g.name === guest1.name);
-      const lineThickness = (originalIndex + 1) % 3 === 1 ? 'border-[1px]' :
-                          (originalIndex + 1) % 3 === 2 ? 'border-[2px]' :
-                           'border-[2px]';
-      const lineColor = (originalIndex + 1) % 3 === 1 ? 'border-gray-400' :
-                      (originalIndex + 1) % 3 === 2 ? 'border-gray-600' :
-                       'border-gray-800';
       
       // Get table assignment info if premium
       let assignmentInfo = null;
@@ -595,9 +587,6 @@ const ConstraintManager: React.FC = () => {
     }, 500);
   };
 
-  const handleNavigatePlan = (delta: number) => {
-    setCurrentPage(prev => Math.max(0, Math.min(totalPages - 1, prev + delta)));
-  };
 
   const clearLongPressTimer = () => {
     if (longPressTimer) {
@@ -677,8 +666,6 @@ const ConstraintManager: React.FC = () => {
     }
   };
 
-  // Check if pagination should be shown (120+ guests)
-  const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
 
   return (
     <div className="space-y-6">

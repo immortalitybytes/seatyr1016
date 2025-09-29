@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useApp } from '../context/AppContext';
+import { useAppState } from '../context/AppContext';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit3, Save, X, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import { isPremiumSubscription } from '../utils/premium';
-import Card from '../components/Card';
-import Button from '../components/Button';
 
 // Ultimate, feature-maximized, viable TableManager
 // - Enforces user-controlled table edits via userSetTables flag
@@ -19,7 +20,7 @@ const MAX_SEATS = 20;
 const MAX_TABLES = 100;
 
 const TableManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch } = useAppState();
   const isPremium = isPremiumSubscription(state.subscription);
 
   // Derive total heads
@@ -124,9 +125,9 @@ const TableManager: React.FC = () => {
             <p className="text-sm text-gray-600">Manage table count, capacity, and names. Names are a premium feature.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="danstyle1c-btn" onClick={handleAddTable}>
+            <Button onClick={handleAddTable}>
               <Plus className="w-4 h-4 mr-2" /> Add Table
-            </button>
+            </Button>
           </div>
         </div>
       </Card>
@@ -172,19 +173,19 @@ const TableManager: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {editingTableId === table.id ? (
                       <>
-                        <input
+                        <Input
                           value={editingName}
                           onChange={handleTableNameChange}
                           onBlur={handleTableNameBlur}
                           autoFocus
-                          className="h-9 w-48 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="h-9 w-48"
                         />
-                        <button className="danstyle1c-btn" onClick={handleTableNameBlur} aria-label="Save">
+                        <Button variant="ghost" size="icon" onClick={handleTableNameBlur} aria-label="Save">
                           <Save className="w-4 h-4" />
-                        </button>
-                        <button className="danstyle1c-btn" onClick={stopEditing} aria-label="Cancel">
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={stopEditing} aria-label="Cancel">
                           <X className="w-4 h-4" />
-                        </button>
+                        </Button>
                       </>
                     ) : (
                       <>
@@ -202,21 +203,21 @@ const TableManager: React.FC = () => {
                     )}
                   </div>
                   <div className="flex items-center gap-1">
-                    <button className="danstyle1c-btn" onClick={() => handleRemoveTable(table.id)} aria-label="Remove table">
+                    <Button variant="ghost" size="icon" onClick={() => handleRemoveTable(table.id)} aria-label="Remove table">
                       <Trash2 className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-gray-700">Seats:</label>
-                  <input
+                  <Input
                     type="number"
                     min={MIN_SEATS}
                     max={MAX_SEATS}
                     value={Math.max(MIN_SEATS, Math.min(MAX_SEATS, table.seats ?? 0))}
                     onChange={(e) => handleUpdateSeats(table.id, e.target.value)}
-                    className="h-9 w-24 px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="h-9 w-24"
                   />
                 </div>
               </div>

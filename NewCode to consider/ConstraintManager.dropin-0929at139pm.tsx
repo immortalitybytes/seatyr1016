@@ -3,14 +3,14 @@ import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, Arr
 
 // Disable large guest list warnings site-wide
 const SHOW_LARGE_LIST_WARNING = false;
-import Card from './Card';
-import Button from './Button';
+import Card from '../Components/Card';
+import Button from '../Components/Button';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
-import SavedSettingsAccordion from './SavedSettingsAccordion';
-import FormatGuestName from './FormatGuestName';
+import SavedSettingsAccordion from '../Components/SavedSettingsAccordion';
+import FormatGuestName from '../Components/FormatGuestName';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -722,6 +722,7 @@ const ConstraintManager: React.FC = () => {
                   </div>
                 </div>
               </div>
+              <ul className="list-disc pl-5 mt-2">
                 <li>To set "Adjacent Seating" (guests sit right next to each other):
                   <ol className="list-decimal pl-5 mt-1">
                     <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>

@@ -212,7 +212,7 @@ export function detectAdjacentPairingConflicts(
   constraints?: Constraints | null
 ): ValidationError[] {
   const allErrors = detectConstraintConflicts(guests, tables, constraints ?? {}, true, adjacents);
-  return allErrors.filter((e: any) => e._originalKind === 'adjacency_degree_violation' || e._originalKind === 'adjacency_closed_loop_too_big');
+  return allErrors.filter((e: any) => e._originalKind === 'adjacency_degree_violation' || e._originalKind === 'adjacency_closed_loop_too_big' || e._originalKind === 'adjacency_closed_loop_not_exact');
 }
 
 export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: Table[]): string {
@@ -231,6 +231,11 @@ function mapErrorType(kind: Engine.ConflictKind): 'error' | 'warn' {
     case 'must_cycle':
     case 'invalid_input_data':
     case 'self_reference_ignored':
+    case 'assignment_conflict':
+    case 'cant_within_must_group':
+    case 'group_too_big_for_any_table':
+    case 'unknown_guest':
+    case 'adjacency_closed_loop_not_exact':
       return 'error';
     case 'adjacency_degree_violation':
     case 'adjacency_closed_loop_too_big':
