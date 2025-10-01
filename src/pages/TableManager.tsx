@@ -297,9 +297,17 @@ const TableManager: React.FC = () => {
   };
   
   const getGuestConstraints = (guestId: string) => {
-    const must = Object.entries(state.constraints[guestId] ?? {}).filter(([,v]) => v === 'must').map(([id]) => state.guests.find(g => g.id === id)?.name ?? '');
-    const cannot = Object.entries(state.constraints[guestId] ?? {}).filter(([,v]) => v === 'cannot').map(([id]) => state.guests.find(g => g.id === id)?.name ?? '');
-    const adjacent = state.adjacents[guestId] ?? [];
+    const must = Object.entries(state.constraints[guestId] ?? {})
+      .filter(([,v]) => v === 'must')
+      .map(([id]) => state.guests.find(g => g.id === id)?.name ?? '')
+      .filter(Boolean);
+    const cannot = Object.entries(state.constraints[guestId] ?? {})
+      .filter(([,v]) => v === 'cannot')
+      .map(([id]) => state.guests.find(g => g.id === id)?.name ?? '')
+      .filter(Boolean);
+    const adjacent = (state.adjacents[guestId] ?? [])
+      .map(id => state.guests.find(g => g.id === id)?.name ?? '')
+      .filter(Boolean);
     return { must, cannot, adjacent };
   };
 
@@ -575,7 +583,7 @@ const TableManager: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-green-700 mb-1">Must Sit With</label>
-                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(id => <span key={`adj-${id}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">⭐ {state.guests.find(g => g.id === id)?.name}</span>)}</div>}
+                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(name => <span key={`adj-${name}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">⭐ {name}</span>)}</div>}
                           <ConstraintChipsInput
                             tone="must"
                             ownerName={guest.name}
