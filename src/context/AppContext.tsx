@@ -274,7 +274,13 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         userSetTables: true,
       };
     case "SET_SEATING_PLANS":
-      return { ...state, seatingPlans: action.payload, currentPlanIndex: 0 };
+      return {
+        ...state,
+        seatingPlans: action.payload,
+        currentPlanIndex: 0,
+        lastGeneratedSignature: state.assignmentSignature,
+        lastGeneratedPlanSig: computePlanSignature(state),
+      };
     case "SET_CURRENT_PLAN_INDEX":
       return { ...state, currentPlanIndex: action.payload };
     case "SET_USER":

@@ -89,7 +89,7 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey(prev => prev === inputKey ? null : prev);
+              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
             }
           }, 100);
         }}
@@ -181,7 +181,7 @@ const TableManager: React.FC = () => {
     }
     
     dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
-    dispatch({ type: 'ADD_TABLE', payload: {} });
+    dispatch({ type: 'ADD_TABLE', payload: { seats: 8 } });
     purgePlans();
   };
   
@@ -198,6 +198,7 @@ const TableManager: React.FC = () => {
     if (Number.isFinite(seats) && seats >= 1 && seats <= 20) {
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'UPDATE_TABLE', payload: { id, seats } });
+      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
       purgePlans();
     }
   };

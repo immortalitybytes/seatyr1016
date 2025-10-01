@@ -143,7 +143,7 @@ const ConstraintManager: React.FC = () => {
       return [...state.guests];
     }
     
-    return [...state.guests].sort((a, b) => {
+    const sortedGuests = [...state.guests].sort((a, b) => {
       if (sortOption === 'first-name') {
         // Sort by the first name (everything before the first space)
         const firstNameA = a.name.split(' ')[0].toLowerCase();
@@ -207,6 +207,8 @@ const ConstraintManager: React.FC = () => {
       }
       return 0;
     });
+    
+    return sortedGuests;
   };
   
   const constraintGrid = useMemo(() => {

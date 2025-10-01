@@ -13,8 +13,20 @@ type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
 const AssignmentManager: React.FC = () => {
   const { state, dispatch } = useApp();
-  const [sortOption, setSortOption] = useState<SortOption>('as-entered');
+  const [sortOption, setSortOption] = useState<SortOption>('last-name');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  const isPremium = isPremiumSubscription(state.subscription);
+  
+  // Premium gating for sorting options
+  const allowedSortOptions: SortOption[] = isPremium
+    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    : ['first-name', 'last-name'];
+
+  // If current sort became disallowed (e.g., downgrade), coerce safely
+  useEffect(() => {
+    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
+  }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   // Use a debounced query for smoother interaction if a future implementation uses a search box
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 300);
@@ -236,31 +248,39 @@ const AssignmentManager: React.FC = () => {
                 <ArrowDownAZ className="w-4 h-4 mr-1" />
                 Sort:
               </span>
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
-              <button
-                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('first-name')}
-              >
-                First Name
-              </button>
-              <button
-                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('last-name')}
-              >
-                Last Name
-              </button>
-              <button
-                className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
-                onClick={() => setSortOption('current-table')}
-                disabled={state.seatingPlans.length === 0}
-              >
-                Current Table
-              </button>
+              {allowedSortOptions.includes('as-entered') && (
+                <button
+                  className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('as-entered')}
+                >
+                  As Entered
+                </button>
+              )}
+              {allowedSortOptions.includes('first-name') && (
+                <button
+                  className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('first-name')}
+                >
+                  First Name
+                </button>
+              )}
+              {allowedSortOptions.includes('last-name') && (
+                <button
+                  className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('last-name')}
+                >
+                  Last Name
+                </button>
+              )}
+              {allowedSortOptions.includes('current-table') && (
+                <button
+                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
+                  onClick={() => setSortOption('current-table')}
+                  disabled={state.seatingPlans.length === 0}
+                >
+                  Current Table
+                </button>
+              )}
             </div>
           </div>
         }

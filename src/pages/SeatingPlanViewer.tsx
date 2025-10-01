@@ -190,7 +190,11 @@ const SeatingPlanViewer: React.FC = () => {
         state.assignments,
         isPremium
       ).then(({ plans, errors }) => {
-        if (!cancelled) dispatch({ type: 'SET_PLANS', payload: { plans, errors, planSig: planSigNow } });
+        if (!cancelled) {
+          dispatch({ type: 'SET_SEATING_PLANS', payload: plans });
+          dispatch({ type: 'SET_PLAN_ERRORS', payload: errors ?? [] });
+          dispatch({ type: 'SET_LAST_GENERATED_PLAN_SIG', payload: planSigNow });
+        }
       }).finally(() => {
         inFlightRef.current = false;
       });
