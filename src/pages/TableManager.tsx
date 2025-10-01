@@ -265,9 +265,17 @@ const TableManager: React.FC = () => {
   };
   
   const updateConstraints = (guestId: string, newNames: string[], type: 'must' | 'cannot') => {
-    const oldConstraints = Object.entries(state.constraints[guestId] ?? {}).filter(([, v]) => v === type).map(([k]) => k);
-    const added = newNames.filter(n => !oldConstraints.includes(n));
-    const removed = oldConstraints.filter(n => !newNames.includes(n));
+    // Get old constraint IDs and convert to names
+    const oldConstraintIds = Object.entries(state.constraints[guestId] ?? {})
+      .filter(([, v]) => v === type)
+      .map(([k]) => k);
+    const oldConstraintNames = oldConstraintIds
+      .map(id => state.guests.find(g => g.id === id)?.name)
+      .filter(Boolean) as string[];
+    
+    // Find what was added/removed
+    const added = newNames.filter(n => !oldConstraintNames.includes(n));
+    const removed = oldConstraintNames.filter(n => !newNames.includes(n));
     
     const nameToIdMap = new Map(state.guests.map(g => [g.name, g.id]));
     
