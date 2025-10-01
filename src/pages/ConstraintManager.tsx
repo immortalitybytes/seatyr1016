@@ -130,7 +130,16 @@ const ConstraintManager: React.FC = () => {
   
   // Function to get sorted guests
   const getSortedGuests = () => {
-    if (!isPremium || sortOption === 'as-entered') {
+    if (!isPremium && (sortOption === 'as-entered' || sortOption === 'current-table')) {
+      // Free/unsigned: only First/Last are allowed. Fall back to 'last-name'.
+      return [...state.guests].sort((a, b) => {
+        const lnA = getLastNameForSorting(a.name.split('&')[0].trim()).toLowerCase();
+        const lnB = getLastNameForSorting(b.name.split('&')[0].trim()).toLowerCase();
+        return lnA.localeCompare(lnB);
+      });
+    }
+    
+    if (sortOption === 'as-entered') {
       return [...state.guests];
     }
     
@@ -167,14 +176,20 @@ const ConstraintManager: React.FC = () => {
         let foundA = false;
         let foundB = false;
         
+        // Build ID mapping for robust matching
+        const idByName = new Map(state.guests.map(g => [g.name, g.id]));
+        const aId = idByName.get(a.name);
+        const bId = idByName.get(b.name);
+        
         // Find which table each guest is assigned to
         for (const table of plan.tables) {
           for (const seat of table.seats) {
-            if (seat.name === a.name) {
+            const seatId = (seat as any).id ?? idByName.get(seat.name);
+            if (aId && seatId === aId) {
               tableA = table.id;
               foundA = true;
             }
-            if (seat.name === b.name) {
+            if (bId && seatId === bId) {
               tableB = table.id;
               foundB = true;
             }
