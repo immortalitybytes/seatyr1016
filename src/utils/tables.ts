@@ -33,7 +33,8 @@ export function canReduceTables(
   tables: { id: number; seats: number }[]
 ): { canReduce: boolean; minTablesNeeded: number; currentCapacity: number; requiredCapacity: number } {
   const totalGuestCount = guests.reduce((sum, guest) => sum + guest.count, 0);
-  const minTablesNeeded = Math.ceil(totalGuestCount / 8); // Assuming 8 seats per table
+  const maxSeats = Math.max(8, ...tables.map(t => Number(t.seats) || 0));
+  const minTablesNeeded = Math.ceil(totalGuestCount / Math.max(1, maxSeats));
   const currentCapacity = calculateTotalCapacity(tables);
   
   return {

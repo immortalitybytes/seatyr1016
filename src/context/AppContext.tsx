@@ -25,6 +25,13 @@ interface AppAction {
   payload?: any;
 }
 
+// Helper to accept either payload shape for pairwise operations
+function pairPayload(p: any) {
+  const a = p?.a ?? p?.guest1;
+  const b = p?.b ?? p?.guest2;
+  return { a, b };
+}
+
 function isAssignedToTable(t: Table, assignments: Assignments): boolean {
   const tName = (t.name ?? '').trim().toLowerCase();
   for (const raw of Object.values(assignments)) {
@@ -209,25 +216,25 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
     case "SET_CONSTRAINT": {
-      const { guest1, guest2, value } = action.payload;
-      const constraints = { ...state.constraints } as any;
-      constraints[guest1] = { ...(constraints[guest1] || {}), [guest2]: value };
-      constraints[guest2] = { ...(constraints[guest2] || {}), [guest1]: value };
-      return {
-        ...state,
-        constraints,
-        seatingPlans: [],
-        currentPlanIndex: 0
-      };
+      const { a, b } = pairPayload(action.payload);
+      const value = action.payload?.value;
+      if (!a || !b) return state;
+
+      const constraints = { ...state.constraints };
+      constraints[a] = { ...(constraints[a] || {}), [b]: value };
+      constraints[b] = { ...(constraints[b] || {}), [a]: value };
+
+      return { ...state, constraints, seatingPlans: [], currentPlanIndex: 0 };
     }
     case "SET_ADJACENT": {
-      const { guest1, guest2 } = action.payload;
-      
-      // Closed-loop guard: check if adding this edge would close an invalid ring
+      const { a, b } = pairPayload(action.payload);
+      if (!a || !b) return state;
+
+      // ring guard (already present; keep call signature the same)
       const caps = state.tables.map(
         t => Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)
       );
-      const { closes, ok, ringSize } = wouldCloseInvalidRing(state.adjacents, guest1, guest2, caps);
+      const { closes, ok, ringSize } = wouldCloseInvalidRing(state.adjacents, a, b, caps);
       
       if (closes && !ok) {
         alert(`That adjacency would close a ring of ${ringSize} guests that does not match any table capacity.`);
@@ -236,47 +243,53 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       
       return {
         ...state,
-        adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2),
+        adjacents: addAdjacentSymmetric(state.adjacents, a, b),
         seatingPlans: [],
         currentPlanIndex: 0
       };
     }
     case "REMOVE_ADJACENT": {
-      const { guest1, guest2 } = action.payload;
+      const { a, b } = pairPayload(action.payload);
+      if (!a || !b) return state;
       return {
         ...state,
-        adjacents: removeAdjacentSymmetric(state.adjacents, guest1, guest2),
+        adjacents: removeAdjacentSymmetric(state.adjacents, a, b),
         seatingPlans: [],
         currentPlanIndex: 0
       };
     }
     case "SET_TABLES":
       return { ...state, tables: action.payload, userSetTables: true };
-    case "ADD_TABLE":
-      return { ...state, tables: [...state.tables, action.payload], userSetTables: true };
+    case "ADD_TABLE": {
+      const nextId = Math.max(0, ...state.tables.map(t => t.id ?? 0)) + 1;
+      const p = action.payload || {};
+      const newTable = { id: p.id ?? nextId, seats: p.seats ?? 8, name: p.name };
+      return { ...state, tables: [...state.tables, newTable], userSetTables: true };
+    }
     case "REMOVE_TABLE": {
-      const id = action.payload;
+      const id = action.payload as number;
       const tables = state.tables.filter(t => t.id !== id);
-      const assignments = { ...state.assignments } as any;
-      Object.keys(assignments).forEach(key => {
-        const ids = String(assignments[key] || '')
-          .split(',')
-          .map(Number)
-          .filter(n => !Number.isNaN(n) && n !== id);
-        assignments[key] = ids.sort((a,b) => a-b).join(',');
-      });
+      const assignments = { ...state.assignments };
+      // scrub removed table id from CSVs; keep order stable
+      for (const key of Object.keys(assignments)) {
+        const ids = String(assignments[key] ?? '')
+          .split(',').map(s => s.trim()).filter(Boolean)
+          .map(Number).filter(n => !Number.isNaN(n) && n !== id)
+          .sort((a,b) => a - b);
+        assignments[key] = ids.join(',');
+      }
       return { ...state, tables, assignments, seatingPlans: [], currentPlanIndex: 0, userSetTables: true };
     }
     case "UPDATE_TABLE":
       return {
         ...state,
-        tables: state.tables.map(t => t.id === action.payload.id ? { ...t, ...action.payload } : t),
-        userSetTables: true,
+        tables: state.tables.map(t => (t.id === action.payload?.id ? { ...t, ...action.payload } : t)),
+        userSetTables: true
       };
     case "SET_SEATING_PLANS":
       return {
         ...state,
-        seatingPlans: action.payload,
+        seatingPlans: action.payload ?? [],
         currentPlanIndex: 0,
         lastGeneratedSignature: state.assignmentSignature,
         lastGeneratedPlanSig: computePlanSignature(state),
@@ -307,18 +320,36 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case "CLEAR_WARNINGS":
       return { ...state, warnings: [] };
-    case "SET_PLANS": {
-      const { payload } = action;
-      const { plans, errors = [], planSig } = payload;
-      const toText = (e: any) => (typeof e === 'string' ? e : e?.message ?? JSON.stringify(e));
+    case "SET_PLANS": { // alias — do not remove
+      const { plans, errors } = action.payload || {};
       return {
         ...state,
-        seatingPlans: plans,
+        seatingPlans: plans ?? [],
+        currentPlanIndex: 0,
+        warnings: [
+          ...new Set([
+            ...state.warnings,
+            ...(errors ?? []).map((e: any) => e?.message ?? String(e)),
+          ]),
+        ],
         lastGeneratedSignature: state.assignmentSignature,
-        lastGeneratedPlanSig: planSig ?? computePlanSignature(state),
-        warnings: [...new Set([...(state.warnings || []), ...errors.map(toText)])]
+        lastGeneratedPlanSig: computePlanSignature(state),
       };
     }
+    case "SET_PLAN_ERRORS": {
+      const errs = action.payload ?? [];
+      return {
+        ...state,
+        warnings: [
+          ...new Set([
+            ...state.warnings,
+            ...errs.map((e: any) => e?.message ?? String(e)),
+          ]),
+        ],
+      };
+    }
+    case "SET_LAST_GENERATED_PLAN_SIG":
+      return { ...state, lastGeneratedPlanSig: action.payload };
     case "PURGE_PLANS": {
       return { ...state, seatingPlans: [] };
     }

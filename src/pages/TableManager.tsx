@@ -199,7 +199,8 @@ const TableManager: React.FC = () => {
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'UPDATE_TABLE', payload: { id, seats } });
       dispatch({ type: 'AUTO_RECONCILE_TABLES' });
-      purgePlans();
+      dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     }
   };
   

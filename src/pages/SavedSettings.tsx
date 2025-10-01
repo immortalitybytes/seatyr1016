@@ -117,6 +117,7 @@ const SavedSettings: React.FC = () => {
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
+        .eq('user_id', (user || sessionUser).id)
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -171,12 +172,16 @@ const SavedSettings: React.FC = () => {
       // Just import the entire state directly
       dispatch({ type: 'IMPORT_STATE', payload: setting.data });
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
+      dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
       
       // Update the setting's last_accessed timestamp
       await supabase
         .from('saved_settings')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', setting.id);
+        .eq('id', setting.id)
+        .eq('user_id', (user || sessionUser).id);
       
       // Navigate to the Seating tab page
       navigate('/seating');
@@ -323,7 +328,8 @@ const SavedSettings: React.FC = () => {
       const { error } = await supabase
         .from('saved_settings')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', (user || sessionUser).id);
 
       if (error) {
         if (error.status === 401) {
@@ -358,7 +364,8 @@ const SavedSettings: React.FC = () => {
       const { error } = await supabase
         .from('saved_settings')
         .update({ name: newName })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', (user || sessionUser).id);
 
       if (error) {
         if (error.status === 401) {

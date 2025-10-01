@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FolderOpen, FilePlus, X, Save, RefreshCw } from 'lucide-react';
-import Button from './Button';
 import { useNavigate } from 'react-router-dom';
 import { clearMostRecentState } from '../lib/mostRecentState';
 

@@ -80,7 +80,8 @@ const AssignmentManager: React.FC = () => {
       // Remove constraints that are no longer in the list
       currentMusts.forEach(mustGuestName => {
         if (!newMusts.includes(mustGuestName)) {
-          const otherGuest = state.guests.find(g => g.name === mustGuestName);
+          const byName = new Map(state.guests.map(g => [g.name.toLowerCase(), g]));
+          const otherGuest = byName.get(mustGuestName.toLowerCase());
           if (otherGuest) {
             dispatch({
               type: 'SET_CONSTRAINT',
@@ -92,7 +93,8 @@ const AssignmentManager: React.FC = () => {
       
       // Add new constraints
       newMusts.forEach(name => {
-        const otherGuest = state.guests.find(g => g.name === name);
+        const byName = new Map(state.guests.map(g => [g.name.toLowerCase(), g]));
+        const otherGuest = byName.get(name.trim().toLowerCase());
         if (otherGuest) {
           dispatch({
             type: 'SET_CONSTRAINT',
@@ -123,7 +125,8 @@ const AssignmentManager: React.FC = () => {
       // Remove constraints that are no longer in the list
       currentCannots.forEach(cannotGuestName => {
         if (!newCannots.includes(cannotGuestName)) {
-          const otherGuest = state.guests.find(g => g.name === cannotGuestName);
+          const byName = new Map(state.guests.map(g => [g.name.toLowerCase(), g]));
+          const otherGuest = byName.get(cannotGuestName.toLowerCase());
           if (otherGuest) {
             dispatch({
               type: 'SET_CONSTRAINT',
@@ -135,7 +138,8 @@ const AssignmentManager: React.FC = () => {
       
       // Add new constraints
       newCannots.forEach(name => {
-        const otherGuest = state.guests.find(g => g.name === name);
+        const byName = new Map(state.guests.map(g => [g.name.toLowerCase(), g]));
+        const otherGuest = byName.get(name.trim().toLowerCase());
         if (otherGuest) {
           dispatch({
             type: 'SET_CONSTRAINT',
