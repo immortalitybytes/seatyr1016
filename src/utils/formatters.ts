@@ -81,13 +81,24 @@ export function getLastNameForSorting(fullName: string): string {
 export function formatTableAssignment(
   assignments: Assignments | undefined,
   tables: Pick<Table, 'id' | 'name'>[],
-  guestId: string
+  guestKey: string /* id or name */
 ): string {
-  if (!assignments || !tables || !guestId) {
+  if (!assignments || !tables || !guestKey) {
     return 'Table: unassigned';
   }
   
-  const rawIdCsv = assignments[guestId];
+  // Prefer ID lookup first
+  let rawIdCsv = assignments[guestKey];
+  
+  // If not found by ID, try legacy name-based lookup (compatibility)
+  if (!rawIdCsv || typeof rawIdCsv !== 'string') {
+    // Check if assignments has a byGuestName structure (legacy)
+    const byNameMap = (assignments as any).byGuestName;
+    if (byNameMap && typeof byNameMap === 'object') {
+      rawIdCsv = byNameMap[guestKey];
+    }
+  }
+  
   if (!rawIdCsv || typeof rawIdCsv !== 'string') {
     return 'Table: unassigned';
   }

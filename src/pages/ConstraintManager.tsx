@@ -262,8 +262,8 @@ const ConstraintManager: React.FC = () => {
       
       // Check if this header is selected or highlighted
       const isSelected = selectedGuest === guest.name;
-      const isHighlighted = highlightedPair && 
-        (highlightedPair.guest1 === guest.name || highlightedPair.guest2 === guest.name);
+      const isHighlighted = !!highlightedPair &&
+        (highlightedPair.guest1 === guest.id || highlightedPair.guest2 === guest.id);
       
       headerRow.push(
         <th 
@@ -296,7 +296,7 @@ const ConstraintManager: React.FC = () => {
       // Get table assignment info if premium
       let assignmentInfo = null;
       if (isPremium) {
-        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
+        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.id);
         if (tableAssignment) {
           const color = 'text-gray-600'; // Default color for assignment info
           
@@ -309,8 +309,8 @@ const ConstraintManager: React.FC = () => {
       }
       
       // Check if this row should be highlighted
-      const isHighlighted = highlightedPair && 
-        (highlightedPair.guest1 === guest1.name || highlightedPair.guest2 === guest1.name);
+      const isHighlighted = !!highlightedPair &&
+        (highlightedPair.guest1 === guest1.id || highlightedPair.guest2 === guest1.id);
       
       // Check if this row is selected
       const isSelected = selectedGuest === guest1.name;
@@ -371,11 +371,19 @@ const ConstraintManager: React.FC = () => {
           );
         } else {
           // Determine the current constraint value (if any)
-          const constraintValue = constraints[guest1.id]?.[guest2.id] || '';
+          const constraintValue =
+            constraints[guest1.id]?.[guest2.id] ??
+            // legacy name-keyed compatibility:
+            (constraints as any)[guest1.name]?.[guest2.name] ??
+            '';
           
           // Check if there's an adjacent relationship
-          const isAdjacent = !!adjacents[guest1.id]?.includes(guest2.id);
-          const isAdjacentReverse = !!adjacents[guest2.id]?.includes(guest1.id);
+          const isAdjacent =
+            !!adjacents[guest1.id]?.includes(guest2.id) ||
+            !!(adjacents as any)[guest1.name]?.includes?.(guest2.name);
+          const isAdjacentReverse =
+            !!adjacents[guest2.id]?.includes(guest1.id) ||
+            !!(adjacents as any)[guest2.name]?.includes?.(guest1.name);
           
           // Prepare the cell content and background color
           // Precedence: cannot > adjacency > must > empty

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useMemo, ReactNode } from "react";
+import React, { createContext, useContext, useReducer, useEffect, useState, useMemo, useRef, ReactNode } from "react";
 import { 
   Guest, Table, Assignments, AppState, GuestID, Constraints, Adjacents
 } from "../types";
@@ -391,6 +391,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       dispatch({ type: 'AUTO_RECONCILE_TABLES' });
     }
   }, [state.guests, state.assignments, state.userSetTables]);
+
+  // Capacity change → reconcile + plan invalidation + feasibility re-eval
+  useEffect(() => {
+    // Create a stable signature of tables and their capacities
+    const tablesSignature = state.tables.map(t => `${t.id}:${Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)}`).join('|');
+    
+    // Store the signature to detect changes
+    const prevSignature = useRef<string>('');
+    
+    if (prevSignature.current && prevSignature.current !== tablesSignature) {
+      // Tables changed - invalidate plans and trigger reconcile
+      dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
+      
+      // Mark as not from saved setting to trigger regeneration
+      dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
+    }
+    
+    prevSignature.current = tablesSignature;
+  }, [state.tables]);
 
   // Debounced plan generation
   const debouncedGeneratePlans = useMemo(() => {
