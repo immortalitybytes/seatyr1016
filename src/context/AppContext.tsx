@@ -442,6 +442,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => { active = false; };
   }, [state.user]);
 
+  // Persist guests for unsigned/free users only
+  useEffect(() => {
+    if (state.user) return; // Premium signed-in uses existing mostRecent flow
+    try {
+      const payload = { guests: state.guests };
+      localStorage.setItem('seatyr_app_state', JSON.stringify(payload));
+    } catch {}
+  }, [state.user, state.guests]);
+
+  // Hydrate guests on mount for unsigned/free users only
+  useEffect(() => {
+    if (state.user) return; // Premium signed-in uses existing mostRecent flow
+    try {
+      const raw = localStorage.getItem('seatyr_app_state');
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (Array.isArray(saved?.guests) && saved.guests.length > 0) {
+        dispatch({ type: 'SET_GUESTS', payload: saved.guests });
+      }
+    } catch {}
+  }, []);
+
   // Pre-seed session on mount to eliminate premium flicker
   useEffect(() => {
     let alive = true;

@@ -32,7 +32,7 @@ const ConstraintManager: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   
   // Sorting state (for premium users)
-  const [sortOption, setSortOption] = useState<SortOption>('as-entered');
+  const [sortOption, setSortOption] = useState<SortOption>('last-name');
   
   // Warning message state
   const [isWarningExpanded, setIsWarningExpanded] = useState(false);
@@ -41,6 +41,16 @@ const ConstraintManager: React.FC = () => {
   
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
+
+  // Premium gating for sorting options
+  const allowedSortOptions: SortOption[] = isPremium
+    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    : ['first-name', 'last-name'];
+
+  // If current sort became disallowed (e.g., downgrade), coerce safely
+  useEffect(() => {
+    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
+  }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Load pagination warning expanded state from localStorage
   useEffect(() => {
@@ -741,34 +751,42 @@ const ConstraintManager: React.FC = () => {
               Sort by:
             </span>
             <div className="flex space-x-2">
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
-              <button
-                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('first-name')}
-              >
-                First Name
-              </button>
-              <button
-                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('last-name')}
-              >
-                Last Name
-              </button>
-              <button
-                className={`
-                  ${sortOption === 'current-table' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                `}
-                onClick={() => setSortOption('current-table')}
-                disabled={!state.seatingPlans || state.seatingPlans.length === 0}
-                title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
-              >
-                Current Table
-              </button>
+              {allowedSortOptions.includes('first-name') && (
+                <button
+                  className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('first-name')}
+                >
+                  First Name
+                </button>
+              )}
+              {allowedSortOptions.includes('last-name') && (
+                <button
+                  className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('last-name')}
+                >
+                  Last Name
+                </button>
+              )}
+              {allowedSortOptions.includes('as-entered') && (
+                <button
+                  className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('as-entered')}
+                >
+                  As Entered
+                </button>
+              )}
+              {allowedSortOptions.includes('current-table') && (
+                <button
+                  className={`
+                    ${sortOption === 'current-table' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  `}
+                  onClick={() => setSortOption('current-table')}
+                  disabled={!state.seatingPlans || state.seatingPlans.length === 0}
+                  title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
+                >
+                  Current Table
+                </button>
+              )}
             </div>
           </div>
         </div>

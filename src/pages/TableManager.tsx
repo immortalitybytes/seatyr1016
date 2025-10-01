@@ -89,7 +89,7 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
+              setActiveFieldKey(prev => prev === inputKey ? null : prev);
             }
           }, 100);
         }}
@@ -145,11 +145,21 @@ const TableManager: React.FC = () => {
   const [nameError, setNameError] = useState<string | null>(null);
   const [isTablesOpen, setIsTablesOpen] = useState(true);
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
-  const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('as-entered');
+  const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, table) => sum + table.seats, 0), [state.tables]);
   const isPremium = isPremiumSubscription(state.subscription);
+
+  // Premium gating for sorting options
+  const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = isPremium
+    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    : ['first-name', 'last-name'];
+
+  // If current sort became disallowed (e.g., downgrade), coerce safely
+  useEffect(() => {
+    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
+  }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
@@ -525,50 +535,37 @@ const TableManager: React.FC = () => {
             
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-sm text-gray-600">Sort by:</span>
-              {!state.user ? (
-                // Non-logged-in users: only First Name and Last Name
-                <>
-                  <button
-                    onClick={() => setSortOption('first-name')}
-                    className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
-                  >
-                    First Name
-                  </button>
-                  <button
-                    onClick={() => setSortOption('last-name')}
-                    className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
-                  >
-                    Last Name
-                  </button>
-                </>
-              ) : (
-                // Logged-in users: First Name, Last Name, As Entered, By Table
-                <>
-                  <button
-                    onClick={() => setSortOption('as-entered')}
-                    className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
-                  >
-                    As Entered
-                  </button>
-                  <button
-                    onClick={() => setSortOption('first-name')}
-                    className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
-                  >
-                    First Name
-                  </button>
-                  <button
-                    onClick={() => setSortOption('last-name')}
-                    className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
-                  >
-                    Last Name
-                  </button>
-                  <button
-                    onClick={() => setSortOption('current-table')}
-                    className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
-                  >
-                    Current Table
-                  </button>
-                </>
+              {allowedSortOptions.includes('first-name') && (
+                <button
+                  onClick={() => setSortOption('first-name')}
+                  className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
+                >
+                  First Name
+                </button>
+              )}
+              {allowedSortOptions.includes('last-name') && (
+                <button
+                  onClick={() => setSortOption('last-name')}
+                  className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
+                >
+                  Last Name
+                </button>
+              )}
+              {allowedSortOptions.includes('as-entered') && (
+                <button
+                  onClick={() => setSortOption('as-entered')}
+                  className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
+                >
+                  As Entered
+                </button>
+              )}
+              {allowedSortOptions.includes('current-table') && (
+                <button
+                  onClick={() => setSortOption('current-table')}
+                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
+                >
+                  Current Table
+                </button>
               )}
             </div>
             

@@ -100,7 +100,7 @@ const GuestManager: React.FC = () => {
   const [videoVisible, setVideoVisible] = useState(false);
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null);
   const [editingGuestName, setEditingGuestName] = useState('');
-  const [sortOption, setSortOption] = useState<SortOption>('as-entered');
+  const [sortOption, setSortOption] = useState<SortOption>('last-name');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [localDuplicates, setLocalDuplicates] = useState<string[]>([]);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
@@ -112,6 +112,16 @@ const GuestManager: React.FC = () => {
 
   const isPremium = isPremiumSubscription(state.subscription);
   const maxGuests = getMaxGuestLimit(state.subscription);
+
+  // Premium gating for sorting options
+  const allowedSortOptions: SortOption[] = isPremium
+    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    : ['first-name', 'last-name'];
+
+  // If current sort became disallowed (e.g., downgrade), coerce safely
+  useEffect(() => {
+    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
+  }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Function to hide pulsing arrows
   const hideArrows = () => {
@@ -455,14 +465,15 @@ const GuestManager: React.FC = () => {
 
       {state.user ? (
         // Signed-in users: Only show Add Guest Names box at full width
-        <Card title={
-          <div className="flex justify-between items-center w-full">
-            <span>Add Guest Names</span>
+        <Card title="Add Guest Names" style={{ minHeight: '280px' }}>
+          <div className="flex justify-between items-center w-full mb-4">
+            <span></span>
             {!isPremium && (
-              <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
+              <span className="text-sm text-gray-700 ml-auto text-right whitespace-normal break-words">
+                Free Plan: {totalGuests}/80 guests used
+              </span>
             )}
           </div>
-        } style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
             <table className="w-full invisible">
@@ -486,11 +497,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
+          <div className="mt-4 flex w-full flex-wrap min-w-0" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '48.3%' }}
+              className="min-w-0 w-full sm:w-[48.3%]"
+              style={{ height: '70.2px' }}
             >
               Add Guests
             </Button>
@@ -506,8 +518,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '48.3%' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center min-w-0 w-full sm:w-[48.3%]"
+                  style={{ height: '70.2px' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -569,16 +581,15 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             </div>
           </Card>
 
-          <Card title={
-            <div className="w-full">
-              <div className="flex justify-between items-center">
-                <span>Add Guest Names</span>
-                {!isPremium && (
-                  <span className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</span>
-                )}
-              </div>
+          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
+            <div className="flex justify-between items-center w-full mb-4">
+              <span></span>
+              {!isPremium && (
+                <span className="text-sm text-gray-700 ml-auto text-right whitespace-normal break-words">
+                  Free Plan: {totalGuests}/80 guests used
+                </span>
+              )}
             </div>
-          } className="lg:col-span-2" style={{ minHeight: '280px' }}>
           <div className="space-y-2 mb-2" style={{ paddingLeft: '0' }}>
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>Enter guest names separated by commas or line breaks.</p>
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
@@ -603,12 +614,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full justify-center" style={{ paddingLeft: '1rem', paddingRight: '1rem', gap: '1rem' }}>
+          <div className="mt-4 flex w-full flex-wrap min-w-0 justify-center" style={{ paddingLeft: '1rem', paddingRight: '1rem', gap: '1rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
-                className="danstyle1c-btn inline-flex items-center justify-center"
-                style={{ height: '70.2px', width: '60%' }}
+                className="danstyle1c-btn inline-flex items-center justify-center min-w-0 w-full sm:w-[60%]"
+                style={{ height: '70.2px' }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -619,7 +630,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              style={{ height: '70.2px', width: '40%' }}
+              className="min-w-0 w-full sm:w-[40%]"
+              style={{ height: '70.2px' }}
             >
               Add Guests
             </Button>
@@ -635,8 +647,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px', width: '65%' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center min-w-0 w-full sm:w-[65%]"
+                  style={{ height: '70.2px' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -687,50 +699,37 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Sort by:</span>
-            {!state.user ? (
-              // Non-logged-in users: only First Name and Last Name
-              <>
-                <button
-                  onClick={() => setSortOption('first-name')}
-                  className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
-                >
-                  First Name
-                </button>
-                <button
-                  onClick={() => setSortOption('last-name')}
-                  className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
-                >
-                  Last Name
-                </button>
-              </>
-            ) : (
-              // Logged-in users: First Name, Last Name, As Entered, By Table
-              <>
-                <button
-                  onClick={() => setSortOption('first-name')}
-                  className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
-                >
-                  First Name
-                </button>
-                <button
-                  onClick={() => setSortOption('last-name')}
-                  className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
-                >
-                  Last Name
-                </button>
-                <button
-                  onClick={() => setSortOption('as-entered')}
-                  className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
-                >
-                  As Entered
-                </button>
-                <button
-                  onClick={() => setSortOption('current-table')}
-                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
-                >
-                  By Table
-                </button>
-              </>
+            {allowedSortOptions.includes('first-name') && (
+              <button
+                onClick={() => setSortOption('first-name')}
+                className={`danstyle1c-btn ${sortOption === 'first-name' ? 'selected' : ''}`}
+              >
+                First Name
+              </button>
+            )}
+            {allowedSortOptions.includes('last-name') && (
+              <button
+                onClick={() => setSortOption('last-name')}
+                className={`danstyle1c-btn ${sortOption === 'last-name' ? 'selected' : ''}`}
+              >
+                Last Name
+              </button>
+            )}
+            {allowedSortOptions.includes('as-entered') && (
+              <button
+                onClick={() => setSortOption('as-entered')}
+                className={`danstyle1c-btn ${sortOption === 'as-entered' ? 'selected' : ''}`}
+              >
+                As Entered
+              </button>
+            )}
+            {allowedSortOptions.includes('current-table') && (
+              <button
+                onClick={() => setSortOption('current-table')}
+                className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
+              >
+                By Table
+              </button>
             )}
           </div>
         </div>
