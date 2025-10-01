@@ -375,6 +375,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [recentFetched, setRecentFetched] = useState(false);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [authChanged, setAuthChanged] = useState(false);
+  
+  // Ref for tracking table capacity changes
+  const prevTablesSignature = useRef<string>('');
 
   // Sanitize on mount
   useEffect(() => {
@@ -397,10 +400,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Create a stable signature of tables and their capacities
     const tablesSignature = state.tables.map(t => `${t.id}:${Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)}`).join('|');
     
-    // Store the signature to detect changes
-    const prevSignature = useRef<string>('');
-    
-    if (prevSignature.current && prevSignature.current !== tablesSignature) {
+    if (prevTablesSignature.current && prevTablesSignature.current !== tablesSignature) {
       // Tables changed - invalidate plans and trigger reconcile
       dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
       dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
@@ -410,7 +410,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
     }
     
-    prevSignature.current = tablesSignature;
+    prevTablesSignature.current = tablesSignature;
   }, [state.tables]);
 
   // Debounced plan generation
