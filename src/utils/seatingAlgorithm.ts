@@ -126,7 +126,17 @@ export async function generateSeatingPlans(
     // Call engine
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
       guests,
-      tables.map((t: Table) => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity), capacity: t.seats })),
+      tables.map((t: Table) => {
+        const capacity = Array.isArray(t.seats)
+          ? t.seats.length
+          : Number((t as any).capacity ?? t.seats ?? 0);
+        return {
+          id: t.id,
+          name: t.name ?? undefined,
+          seats: Array.isArray(t.seats) ? t.seats : [],
+          capacity
+        };
+      }),
       engineConstraints,
       engineAdjacents,
       engineAssignments,
@@ -141,7 +151,7 @@ export async function generateSeatingPlans(
         return {
           id: Number(t.tableId),
           capacity: appTable?.seats ?? 0,
-          seats: (t.seats ?? (t as any).capacity),
+          seats: Array.isArray(t.seats) ? t.seats : [],
         };
       }).sort((a, b) => a.id - b.id),
     }));
@@ -176,7 +186,17 @@ export function detectConstraintConflicts(
   adjacents: Adjacents | null = {}
 ): ValidationError[] {
   const engineGuests = guests ?? [];
-  const engineTables = (tables ?? []).map(t => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity) }));
+  const engineTables = (tables ?? []).map(t => {
+    const capacity = Array.isArray(t.seats)
+      ? t.seats.length
+      : Number((t as any).capacity ?? t.seats ?? 0);
+    return {
+      id: t.id,
+      name: t.name ?? undefined,
+      seats: Array.isArray(t.seats) ? t.seats : [],
+      capacity
+    };
+  });
   const nameToIdMap = new Map<string, string>();
   engineGuests.forEach((guest: Guest) => nameToIdMap.set(guest.name, guest.id));
 
@@ -217,12 +237,22 @@ export function detectAdjacentPairingConflicts(
 
 export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: Table[]): string {
   const enginePlan: Engine.SeatingPlanOut = {
-    tables: plan.tables.map(t => ({ tableId: String(t.id), seats: (t.seats ?? (t as any).capacity) })),
+    tables: plan.tables.map(t => ({ tableId: String(t.id), seats: Array.isArray(t.seats) ? t.seats : [] })),
     score: 1.0,
     seedUsed: plan.id,
   };
   const engineGuests = guests;
-  const engineTables = tables.map(t => ({ id: t.id, name: t.name ?? undefined, seats: (t.seats ?? (t as any).capacity) }));
+  const engineTables = tables.map(t => {
+    const capacity = Array.isArray(t.seats)
+      ? t.seats.length
+      : Number((t as any).capacity ?? t.seats ?? 0);
+    return {
+      id: t.id,
+      name: t.name ?? undefined,
+      seats: Array.isArray(t.seats) ? t.seats : [],
+      capacity
+    };
+  });
   return Engine.generatePlanSummary(enginePlan, engineGuests, engineTables);
 }
 

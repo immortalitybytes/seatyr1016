@@ -23,6 +23,10 @@ const ConstraintManager: React.FC = () => {
   const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   
+  // ID ↔ Name mapping for display only (UI still shows names)
+  const idToName = useMemo(() => new Map(state.guests.map(g => [g.id, g.name])), [state.guests]);
+  const nameToId = useMemo(() => new Map(state.guests.map(g => [g.name, g.id])), [state.guests]);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -110,8 +114,8 @@ const ConstraintManager: React.FC = () => {
   };
   
   // Get adjacent count for a guest
-  const getAdjacentCount = (guestName: string) => {
-    return state.adjacents[guestName]?.length || 0;
+  const getAdjacentCount = (guestId: string) => {
+    return state.adjacents[guestId]?.length || 0;
   }
   
   // Function to get sorted guests
@@ -219,13 +223,13 @@ const ConstraintManager: React.FC = () => {
     // Add column headers (only for the current page when paginated)
     displayGuests.forEach((guest, index) => {
       // Get the number of adjacent pairings for visual indicator
-      const adjacentCount = getAdjacentCount(guest.name);
+      const adjacentCount = getAdjacentCount(guest.id);
       
       // Create adjacent indicator based on count
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest.name].join(', ')}`}>
+          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${(adjacents[guest.id] || []).map(id => idToName.get(id)).filter(Boolean).join(', ')}`}>
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
@@ -287,11 +291,11 @@ const ConstraintManager: React.FC = () => {
       const isSelected = selectedGuest === guest1.name;
       
       // Get adjacent count indicator
-      const adjacentCount = getAdjacentCount(guest1.name);
+      const adjacentCount = getAdjacentCount(guest1.id);
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest1.name].join(', ')}`}>
+          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${(adjacents[guest1.id] || []).map(id => idToName.get(id)).filter(Boolean).join(', ')}`}>
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
@@ -342,11 +346,11 @@ const ConstraintManager: React.FC = () => {
           );
         } else {
           // Determine the current constraint value (if any)
-          const constraintValue = constraints[guest1.name]?.[guest2.name] || '';
+          const constraintValue = constraints[guest1.id]?.[guest2.id] || '';
           
           // Check if there's an adjacent relationship
-          const isAdjacent = adjacents[guest1.name]?.includes(guest2.name);
-          const isAdjacentReverse = adjacents[guest2.name]?.includes(guest1.name);
+          const isAdjacent = !!adjacents[guest1.id]?.includes(guest2.id);
+          const isAdjacentReverse = !!adjacents[guest2.id]?.includes(guest1.id);
           
           // Prepare the cell content and background color
           // Precedence: cannot > adjacency > must > empty
@@ -375,8 +379,8 @@ const ConstraintManager: React.FC = () => {
           
           // Check if this cell should be highlighted
           const isCellHighlighted = highlightedPair && 
-            ((highlightedPair.guest1 === guest1.name && highlightedPair.guest2 === guest2.name) ||
-             (highlightedPair.guest1 === guest2.name && highlightedPair.guest2 === guest1.name));
+            ((highlightedPair.guest1 === guest1.id && highlightedPair.guest2 === guest2.id) ||
+             (highlightedPair.guest1 === guest2.id && highlightedPair.guest2 === guest1.id));
           
           if (isCellHighlighted) {
             bgColor = 'bg-[#88abc6]';
@@ -386,7 +390,7 @@ const ConstraintManager: React.FC = () => {
             <td
               key={`cell-${rowIndex}-${colIndexOnPage}`}
               className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
-              onClick={() => handleToggleConstraint(guest1.name, guest2.name)}
+              onClick={() => handleToggleConstraint(guest1.id, guest2.id)}
               data-guest1={guest1.name}
               data-guest2={guest2.name}
             >
@@ -594,7 +598,7 @@ const ConstraintManager: React.FC = () => {
     }
   };
 
-  const handleToggleConstraint = (guest1: string, guest2: string) => {
+  const handleToggleConstraint = (guest1Id: string, guest2Id: string) => {
     setSelectedGuest(null);
     setHighlightedPair(null);
     if (highlightTimeout) {
@@ -602,16 +606,16 @@ const ConstraintManager: React.FC = () => {
       setHighlightTimeout(null);
     }
 
-    const currentValue = state.constraints[guest1]?.[guest2] || '';
+    const currentValue = state.constraints[guest1Id]?.[guest2Id] || '';
     let nextValue: 'must' | 'cannot' | '';
 
     if (currentValue === '') {
       nextValue = 'must';
     } else if (currentValue === 'must') {
-      if (state.adjacents[guest1]?.includes(guest2)) {
+      if (state.adjacents[guest1Id]?.includes(guest2Id)) {
         dispatch({
           type: 'REMOVE_ADJACENT',
-          payload: { guest1, guest2 }
+          payload: { guest1: guest1Id, guest2: guest2Id }
         });
       }
       nextValue = 'cannot';
@@ -621,7 +625,7 @@ const ConstraintManager: React.FC = () => {
 
     dispatch({
       type: 'SET_CONSTRAINT',
-      payload: { guest1, guest2, value: nextValue }
+      payload: { guest1: guest1Id, guest2: guest2Id, value: nextValue }
     });
 
     // Purge seating plans when constraints change
@@ -630,23 +634,29 @@ const ConstraintManager: React.FC = () => {
 
   const handleGuestSelect = (guestName: string) => {
     if (!isPremium) { alert('Adjacency pairing is a premium feature.'); return; }
+    const guestId = nameToId.get(guestName);
+    if (!guestId) return;
+    
     if (selectedGuest === null) {
-      setSelectedGuest(guestName);
+      setSelectedGuest(guestName); // Keep name for UI display
     } else if (selectedGuest !== guestName) {
+      const selectedGuestId = nameToId.get(selectedGuest);
+      if (!selectedGuestId) return;
+      
       // Set constraint to 'must' when setting adjacency
       dispatch({
         type: 'SET_CONSTRAINT',
-        payload: { guest1: selectedGuest, guest2: guestName, value: 'must' }
+        payload: { guest1: selectedGuestId, guest2: guestId, value: 'must' }
       });
       
       // Then set the adjacency
       dispatch({
         type: 'SET_ADJACENT',
-        payload: { guest1: selectedGuest, guest2: guestName }
+        payload: { guest1: selectedGuestId, guest2: guestId }
       });
 
-      // Highlight the pair
-      setHighlightedPair({ guest1: selectedGuest, guest2: guestName });
+      // Highlight the pair (using IDs for internal state)
+      setHighlightedPair({ guest1: selectedGuestId, guest2: guestId });
       setSelectedGuest(null);
 
       // Clear highlight after 3 seconds

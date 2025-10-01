@@ -11,6 +11,7 @@ import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
+import { wouldCloseInvalidRing } from '../utils/conflictsSafe';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
   id: i + 1, seats: 8 
@@ -221,6 +222,18 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case "SET_ADJACENT": {
       const { guest1, guest2 } = action.payload;
+      
+      // Closed-loop guard: check if adding this edge would close an invalid ring
+      const caps = state.tables.map(
+        t => Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)
+      );
+      const { closes, ok, ringSize } = wouldCloseInvalidRing(state.adjacents, guest1, guest2, caps);
+      
+      if (closes && !ok) {
+        alert(`That adjacency would close a ring of ${ringSize} guests that does not match any table capacity.`);
+        return state; // block the change
+      }
+      
       return {
         ...state,
         adjacents: addAdjacentSymmetric(state.adjacents, guest1, guest2),
@@ -375,7 +388,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const reconciled = reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables);
     if (reconciled.length !== state.tables.length) {
-      dispatch({ type: 'SET_TABLES', payload: reconciled });
+      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
     }
   }, [state.guests, state.assignments, state.userSetTables]);
 
@@ -428,6 +441,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     fetchSub().catch(console.error);
     return () => { active = false; };
   }, [state.user]);
+
+  // Pre-seed session on mount to eliminate premium flicker
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (!alive || !session) return;
+
+        // Set user if we have a session
+        dispatch({ type: 'SET_USER', payload: session.user });
+        
+        // Fetch subscription for the user
+        const { data: subData } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .single();
+        
+        if (alive) {
+          dispatch({ type: "SET_SUBSCRIPTION", payload: subData || null });
+        }
+      } catch (error) {
+        // Silently handle errors - this is just pre-seeding
+        console.debug('Pre-seed session failed:', error);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   // Auth change listener
   useEffect(() => {

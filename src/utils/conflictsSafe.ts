@@ -44,3 +44,43 @@ export function detectConstraintConflictsSafe(
 
   return out;
 }
+
+// Closed-loop adjacency guard helper
+export function wouldCloseInvalidRing(
+  adj: Record<string, string[]>,
+  a: string,
+  b: string,
+  tableCapacities: number[]
+): { closes: boolean; ok: boolean; ringSize?: number } {
+  // BFS to detect a path between a and b
+  const q = [a];
+  const seen = new Set([a]);
+  let found = false;
+  let depth = 0;
+  
+  while (q.length && !found) {
+    const size = q.length;
+    for (let i = 0; i < size; i++) {
+      const cur = q.shift()!;
+      for (const nx of (adj[cur] || [])) {
+        if (!seen.has(nx)) {
+          if (nx === b) {
+            found = true;
+            depth = depth + 1;
+            break;
+          }
+          seen.add(nx);
+          q.push(nx);
+        }
+      }
+      if (found) break;
+    }
+    if (!found) depth++;
+  }
+  
+  if (!found) return { closes: false, ok: true };
+  
+  const ringSize = depth + 1; // adding (a,b) closes the cycle
+  const ok = tableCapacities.includes(ringSize);
+  return { closes: true, ok, ringSize };
+}
