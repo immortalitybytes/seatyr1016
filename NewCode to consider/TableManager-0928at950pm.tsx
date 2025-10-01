@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, X, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
@@ -89,7 +89,7 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
+              setActiveFieldKey(prev => prev === inputKey ? null : prev);
             }
           }, 100);
         }}
