@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapPin, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
 import { getCapacity } from '../utils/tables';
-import { generateSeatingPlans } from '../utils/seatingAlgorithm';
 import { ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { isPremiumSubscription } from '../utils/premium';
@@ -201,26 +200,8 @@ const SeatingPlanViewer: React.FC = () => {
   const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
   const handleNavigatePage = (delta: number) => setCurrentPage(p => Math.max(0, Math.min(totalPages - 1, p + delta)));
 
-  const handleGenerateSeatingPlan = async () => {
-      setIsGenerating(true);
-      setErrors([]);
-      try {
-          const { plans, errors: validationErrors } = await generateSeatingPlans(
-              state.guests, state.tables, state.constraints, state.adjacents, state.assignments, isPremium
-          );
-          if (validationErrors.length > 0) setErrors(validationErrors);
-          if (plans.length > 0) {
-              dispatch({ type: 'SET_SEATING_PLANS', payload: plans });
-              dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
-          } else if (validationErrors.length === 0) {
-              setErrors([{ type: 'error', message: 'No valid seating plans could be generated. Try relaxing constraints.' }]);
-          }
-      } catch (e) {
-          setErrors([{ type: 'error', message: 'An unexpected error occurred during plan generation.' }]);
-      } finally {
-          setIsGenerating(false);
-      }
-  };
+  // SEATYR: Viewer is passive; AppContext handles generation centrally.
+  // Manual generation button removed - generation happens automatically in AppContext
 
   // Render page numbers function (matching Constraints page)
   const renderPageNumbers = () => {
@@ -320,10 +301,9 @@ const SeatingPlanViewer: React.FC = () => {
           <h2 className="text-lg font-bold text-[#586D78] mb-4">Seating Plan</h2>
           <p className="text-gray-700">Generate and review seating plans based on your guests, tables, and constraints.</p>
           <div className="flex flex-wrap gap-2 mt-4">
-            <button className="danstyle1c-btn" onClick={handleGenerateSeatingPlan} disabled={isGenerating}>
-              {isGenerating && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              {isGenerating ? 'Generating...' : 'Generate Seating Plan'}
-            </button>
+            <div className="text-sm text-gray-600">
+              Seating plans are generated automatically when you make changes to guests, tables, or constraints.
+            </div>
           </div>
           {errors.length > 0 && (
               <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3">
