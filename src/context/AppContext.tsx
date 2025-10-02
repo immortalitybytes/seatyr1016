@@ -11,6 +11,7 @@ import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
+import { getCapacity } from '../utils/tables';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
   id: i + 1, seats: 8 
