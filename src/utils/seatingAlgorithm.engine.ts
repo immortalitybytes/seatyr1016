@@ -6,6 +6,8 @@
  * It is designed to be called by a backward-compatible adapter, not used directly by the application.
  */
 
+import { getCapacity } from './tables';
+
 // ========================= Engine-Internal Types =========================
 
 type ID = string;
@@ -227,7 +229,7 @@ function validateAndGroup(guests: SafeGuest[], tables: SafeTable[], constr: Cons
   for (const [id, s] of adjMap.entries()) if (s.size > 2) errors.push({ kind: "adjacency_degree_violation", message: `Adjacency degree > 2 for ${id}`, details: { id, degree: s.size } });
   
   // UPDATE THESE THREE LINES to pass capacities to the validation function
-  const capacities = tables.map(t => t.capacity);
+  const capacities = tables.map(t => getCapacity(t));
   const maxCap = Math.max(0, ...capacities);
   errors.push(...checkAdjacencyCyclesUndirected(adjMap, idToGuest, capacities, maxCap));
   
@@ -259,7 +261,7 @@ function canPlaceGroup(gi: GroupInfo, ts: TableState, cantMap: Map<ID, Set<ID>>)
 }
 
 function placeGroups(groups: GroupInfo[], tables: SafeTable[], cantMap: Map<ID, Set<ID>>, adjMap: Map<ID, Set<ID>>, rng: RNG, attemptCap: number, deadline: number): { success: boolean; state: PlacementState; attempts: number } {
-  const state: PlacementState = { placed: new Map(), tables: tables.map(t => ({ table: t, remaining: t.capacity, occupants: [] })) };
+  const state: PlacementState = { placed: new Map(), tables: tables.map(t => ({ table: t, remaining: getCapacity(t), occupants: [] })) };
   let attempts = 0;
   for (const gi of groups) {
     if (!gi.preassignedTable) continue;
@@ -346,7 +348,7 @@ function buildPlanTables(state: PlacementState, tables: SafeTable[], idToGuest: 
   const planTables: PlanTableOut[] = [];
   let totalAdjSat = 0, totalAdjTables = 0, used = 0, totalCap = 0;
   let balanceSum = 0, countNonEmpty = 0;
-  for (const t of tables) totalCap += t.capacity;
+  for (const t of tables) totalCap += getCapacity(t);
   for (const t of tables) {
     const occ = (byTable.get(t.id) || []);
     if (occ.length === 0) { planTables.push({ tableId: t.id, seats: [] }); continue; }
@@ -361,7 +363,7 @@ function buildPlanTables(state: PlacementState, tables: SafeTable[], idToGuest: 
     used += seats.length;
     const sat = adjacencyPairsSatisfied(orderedUnits, localAdj);
     totalAdjSat += sat; totalAdjTables++;
-    const fill = t.capacity > 0 ? seats.length / t.capacity : 1;
+    const fill = getCapacity(t) > 0 ? seats.length / getCapacity(t) : 1;
     balanceSum += Math.abs(0.8 - fill);
     countNonEmpty++;
     planTables.push({ tableId: t.id, seats });
@@ -479,7 +481,7 @@ export function generatePlanSummary(plan: SeatingPlanOut, guests: GuestUnit[], t
   const nameToId = new Map(guests.map(g => [g.name, g.id]));
   const tableMap = new Map(tables.map(t => [String(t.id), t]));
   const totalSeatsAssigned = plan.tables.reduce((sum, t) => sum + t.seats.length, 0);
-  const totalCapacity = tables.reduce((sum, t) => sum + (Number(t.capacity ?? t.seats) || 0), 0);
+  const totalCapacity = tables.reduce((sum, t) => sum + getCapacity(t), 0);
   const utilization = totalCapacity > 0 ? (totalSeatsAssigned / totalCapacity * 100).toFixed(1) : 'N.A.';
   let summary = `Seating Plan Summary:\n`;
   summary += `- Score: ${((plan.score ?? 0)*100).toFixed(1)}/100 | Adjacency: ${((plan.adjacencySatisfaction ?? 0) * 100).toFixed(0)}% | Utilization: ${utilization}% | Balance: ${(((plan.balance ?? 0) * 100)).toFixed(0)}%\n\n`;
@@ -488,7 +490,7 @@ export function generatePlanSummary(plan: SeatingPlanOut, guests: GuestUnit[], t
   for (const table of sortedTables) {
     const tinfo = tableMap.get(table.tableId);
     const tName = tinfo?.name || `Table ${table.tableId}`;
-    const tCap = Number(tinfo?.capacity ?? tinfo?.seats) || 0;
+    const tCap = getCapacity(tinfo || {});
     summary += `Table: "${tName}" (${table.seats.length} / ${tCap} seats)\n`;
     const orderedNames: string[] = [], seenNames = new Set<string>();
     for (const seat of table.seats) if (!seenNames.has(seat.name)) { orderedNames.push(seat.name); seenNames.add(seat.name); }
