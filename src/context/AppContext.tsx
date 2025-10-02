@@ -622,11 +622,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 };
 
-export const useApp = (): { state: AppState, dispatch: React.Dispatch<AppAction> } => {
+export function useApp(): { state: AppState, dispatch: React.Dispatch<AppAction> } {
   const context = useContext(AppContext);
   if (!context) throw new Error("useApp must be used within AppProvider");
   return context;
-};
+}
 
 const initialState: AppState = {
   guests: [],
