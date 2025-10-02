@@ -16,6 +16,7 @@ import {
 } from "../types";
 import * as Engine from "./seatingAlgorithm.engine";
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from "./assignments";
+import { getCapacity } from "./tables";
 
 export type AdapterResult = { plans: SeatingPlan[]; errors: ValidationError[] };
 
@@ -127,9 +128,7 @@ export async function generateSeatingPlans(
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
       guests,
       tables.map((t: Table) => {
-        const capacity = Array.isArray(t.seats)
-          ? t.seats.length
-          : Number((t as any).capacity ?? t.seats ?? 0);
+        const capacity = getCapacity(t);
         return {
           id: t.id,
           name: t.name ?? undefined,
@@ -187,9 +186,7 @@ export function detectConstraintConflicts(
 ): ValidationError[] {
   const engineGuests = guests ?? [];
   const engineTables = (tables ?? []).map(t => {
-    const capacity = Array.isArray(t.seats)
-      ? t.seats.length
-      : Number((t as any).capacity ?? t.seats ?? 0);
+    const capacity = getCapacity(t);
     return {
       id: t.id,
       name: t.name ?? undefined,
@@ -243,9 +240,7 @@ export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: 
   };
   const engineGuests = guests;
   const engineTables = tables.map(t => {
-    const capacity = Array.isArray(t.seats)
-      ? t.seats.length
-      : Number((t as any).capacity ?? t.seats ?? 0);
+    const capacity = getCapacity(t);
     return {
       id: t.id,
       name: t.name ?? undefined,

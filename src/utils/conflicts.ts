@@ -1,4 +1,5 @@
 import { parseAssignmentIds } from './assignments';
+import { getCapacity } from './tables';
 
 function shareAnyTable(csvA?: string, csvB?: string): boolean {
   const setA = new Set(parseAssignmentIds(csvA || ''));
@@ -57,7 +58,7 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
   for (const t of tables) {
     const idNum = typeof t.id === "string" ? Number(t.id) : t.id;
     if (Number.isFinite(idNum)) {
-      tableCapById.set(idNum as number, t.capacity);
+      tableCapById.set(idNum as number, getCapacity(t));
     }
   }
   const allTableIds = [...tableCapById.keys()];

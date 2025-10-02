@@ -11,7 +11,7 @@ import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
-import { wouldCloseInvalidRing } from '../utils/conflictsSafe';
+import { wouldCloseInvalidRing, wouldCloseInvalidRingExact } from '../utils/conflictsSafe';
 import { getCapacity } from '../utils/tables';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
@@ -233,7 +233,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       if (!a || !b) return state;
 
       const capacities = state.tables.map(getCapacity);
-      const ring = wouldCloseInvalidRing(state.adjacents, a, b, capacities);
+      const ring = wouldCloseInvalidRingExact(state.adjacents, [a, b], capacities);
       if (ring.closes && !ring.ok) return state; // block invalid ring, silent (existing UX)
 
       return {

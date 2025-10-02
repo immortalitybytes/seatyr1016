@@ -1,3 +1,5 @@
+import { getCapacity } from './tables';
+
 export function stableStringify(v: any): string {
   if (v === null || typeof v !== 'object') return JSON.stringify(v);
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
@@ -7,7 +9,7 @@ export function stableStringify(v: any): string {
 
 export function computePlanSignature(state: any): string {
   const tablesLite = [...(state.tables || [])]
-    .map((t: any) => ({ id: t.id, capacity: t.capacity }))
+    .map((t: any) => ({ id: t.id, capacity: getCapacity(t) }))
     .sort((a, b) => a.id - b.id);
   const guestsLite = [...(state.guests || [])]
     .map((g: any) => ({ id: g.id, count: g.count }))

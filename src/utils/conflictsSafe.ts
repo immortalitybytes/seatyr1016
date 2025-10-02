@@ -46,12 +46,14 @@ export function detectConstraintConflictsSafe(
 }
 
 // Closed-loop adjacency guard helper
-export function wouldCloseInvalidRing(
+// Shared ring validation util for exact capacity matching
+export function wouldCloseInvalidRingExact(
   adj: Record<string, string[]>,
-  a: string,
-  b: string,
-  tableCapacities: number[]
-): { closes: boolean; ok: boolean; ringSize?: number } {
+  closingEdge: [string, string],
+  tableCaps: number[]
+): { closes: boolean; ringSize?: number; ok: boolean } {
+  const [a, b] = closingEdge;
+  
   // BFS to detect a path between a and b
   const q = [a];
   const seen = new Set([a]);
@@ -81,6 +83,6 @@ export function wouldCloseInvalidRing(
   if (!found) return { closes: false, ok: true };
   
   const ringSize = depth + 1; // adding (a,b) closes the cycle
-  const ok = tableCapacities.includes(ringSize);
+  const ok = tableCaps.includes(ringSize);
   return { closes: true, ok, ringSize };
 }
