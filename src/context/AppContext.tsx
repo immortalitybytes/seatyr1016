@@ -9,6 +9,7 @@ import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
 import { migrateState, normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds, migrateAssignmentsToIdKeys } from '../utils/assignments';
 import { detectConflicts, detectUnsatisfiableMustGroups } from '../utils/conflicts';
 import { wouldCloseInvalidRingExact } from '../utils/conflictsSafe';
+import { detectAdjacentPairingConflicts } from '../utils/seatingAlgorithm';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
@@ -484,6 +485,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         if (mustGroupErrors.length > 0) {
           dispatch({ type: 'SET_PLAN_ERRORS', payload: mustGroupErrors });
+          return; // do not call engine with impossible state
+        }
+        
+        // Pre-engine validation: detect adjacent pairing conflicts
+        const adjErrors = detectAdjacentPairingConflicts(state.guests, state.adjacents, state.tables, state.constraints);
+        if (adjErrors.length > 0) {
+          dispatch({ type: 'SET_PLAN_ERRORS', payload: adjErrors });
           return; // do not call engine with impossible state
         }
         

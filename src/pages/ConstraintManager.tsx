@@ -11,7 +11,7 @@ import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 
 // Sort options
-type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
 
 const GUEST_THRESHOLD = 120; // Threshold for pagination
 const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
@@ -45,7 +45,7 @@ const ConstraintManager: React.FC = () => {
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
     ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+    : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -162,6 +162,9 @@ const ConstraintManager: React.FC = () => {
         const lastNameB = getLastName(b.name);
         
         return lastNameA.localeCompare(lastNameB);
+      }
+      else if (sortOption === 'party-size') {
+        return b.count - a.count; // descending
       }
       else if (sortOption === 'current-table') {
         // Sort by current table assignment in the currently active plan
@@ -825,6 +828,14 @@ const ConstraintManager: React.FC = () => {
                   title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
                 >
                   Current Table
+                </button>
+              )}
+              {allowedSortOptions.includes('party-size') && (
+                <button
+                  className={sortOption === 'party-size' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('party-size')}
+                >
+                  Party Size
                 </button>
               )}
             </div>

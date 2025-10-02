@@ -13,7 +13,7 @@ import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
 import { getDisplayName, countHeads } from '../utils/guestCount';
 
-type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
 
 const normalizeName = (name: string) => name.trim().toLowerCase();
 
@@ -116,7 +116,7 @@ const GuestManager: React.FC = () => {
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
     ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+    : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -407,6 +407,8 @@ const GuestManager: React.FC = () => {
       return guests.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sortOption === 'last-name') {
       return guests.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
+    } else if (sortOption === 'party-size') {
+      return guests.sort((a, b) => b.count - a.count); // descending
     } else if (sortOption === 'current-table') {
       if (state.seatingPlans.length === 0) return guests; // no-op when no plans
       return guests.sort((a, b) => {
@@ -730,6 +732,14 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
               >
                 By Table
+              </button>
+            )}
+            {allowedSortOptions.includes('party-size') && (
+              <button
+                onClick={() => setSortOption('party-size')}
+                className={`danstyle1c-btn ${sortOption === 'party-size' ? 'selected' : ''}`}
+              >
+                Party Size
               </button>
             )}
           </div>

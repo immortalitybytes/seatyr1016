@@ -1,13 +1,7 @@
 import type { Assignments, Table } from '../types';
 import { countHeads as canonicalCountHeads } from './guestCount';
 
-// Centralized regex for detecting party size additions
-export const PLUS_ONE_RE = /(?:\+|&|\band\b|\bplus\b)\s*(\d+)/i;
-
-export function extractPartyExtra(name: string): number | null {
-  const m = name.match(/(?:\+|&|\band\b|\bplus\b)\s*(\d+)/i);
-  return m ? parseInt(m[1], 10) : null;
-}
+// Delegated to guestCount.ts as SSOT - no duplicate patterns
 
 // Delegate to the canonical implementation to avoid logic drift
 export function countHeads(name: string): number {

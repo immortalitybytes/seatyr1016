@@ -90,7 +90,7 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
+              setActiveFieldKey(prev => prev === inputKey ? null : prev);
             }
           }, 100);
         }}
@@ -146,16 +146,16 @@ const TableManager: React.FC = () => {
   const [nameError, setNameError] = useState<string | null>(null);
   const [isTablesOpen, setIsTablesOpen] = useState(true);
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
-  const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
+  const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = isPremiumSubscription(state.subscription);
 
   // Premium gating for sorting options
-  const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = isPremium
+  const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size')[] = isPremium
     ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+    : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -350,6 +350,7 @@ const TableManager: React.FC = () => {
     switch (sortOption) {
       case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
       case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
+      case 'party-size': return guests.sort((a, b) => b.count - a.count); // descending
       case 'current-table': 
         if (state.seatingPlans.length === 0) return guests; // no-op when no plans
         return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
@@ -568,6 +569,14 @@ const TableManager: React.FC = () => {
                   className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''}`}
                 >
                   Current Table
+                </button>
+              )}
+              {allowedSortOptions.includes('party-size') && (
+                <button
+                  onClick={() => setSortOption('party-size')}
+                  className={`danstyle1c-btn ${sortOption === 'party-size' ? 'selected' : ''}`}
+                >
+                  Party Size
                 </button>
               )}
             </div>

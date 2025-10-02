@@ -9,7 +9,7 @@ import { normalizeAssignmentInputToIdsWithWarnings } from '../utils/assignments'
 import FormatGuestName from '../components/FormatGuestName';
 
 // Sort options
-type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
 
 const AssignmentManager: React.FC = () => {
   const { state, dispatch } = useApp();
@@ -21,7 +21,7 @@ const AssignmentManager: React.FC = () => {
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
     ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+    : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -191,6 +191,7 @@ const AssignmentManager: React.FC = () => {
     switch (sortOption) {
       case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
       case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
+      case 'party-size': return guests.sort((a, b) => b.count - a.count); // descending
       case 'current-table': 
         if (state.seatingPlans.length === 0) return guests; // no-op when no plans
         return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
@@ -285,6 +286,14 @@ const AssignmentManager: React.FC = () => {
                   disabled={state.seatingPlans.length === 0}
                 >
                   Current Table
+                </button>
+              )}
+              {allowedSortOptions.includes('party-size') && (
+                <button
+                  className={sortOption === 'party-size' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('party-size')}
+                >
+                  Party Size
                 </button>
               )}
             </div>
