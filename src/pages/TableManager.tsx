@@ -7,6 +7,7 @@ import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
 import { normalizeAssignmentInputToIdsWithWarnings } from '../utils/assignments';
+import { getCapacity } from '../utils/tables';
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -148,7 +149,7 @@ const TableManager: React.FC = () => {
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
-  const totalSeats = useMemo(() => state.tables.reduce((sum, table) => sum + table.seats, 0), [state.tables]);
+  const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = isPremiumSubscription(state.subscription);
 
   // Premium gating for sorting options
@@ -351,7 +352,9 @@ const TableManager: React.FC = () => {
     switch (sortOption) {
       case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
       case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
-      case 'current-table': return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
+      case 'current-table': 
+        if (state.seatingPlans.length === 0) return guests; // no-op when no plans
+        return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
       default: return guests;
     }
   }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments]);

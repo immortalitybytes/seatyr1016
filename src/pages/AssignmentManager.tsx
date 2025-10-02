@@ -191,7 +191,9 @@ const AssignmentManager: React.FC = () => {
     switch (sortOption) {
       case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
       case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
-      case 'current-table': return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
+      case 'current-table': 
+        if (state.seatingPlans.length === 0) return guests; // no-op when no plans
+        return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
       default: return guests;
     }
   }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments]);

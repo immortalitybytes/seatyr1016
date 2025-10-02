@@ -12,6 +12,7 @@ import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
 import { wouldCloseInvalidRing } from '../utils/conflictsSafe';
+import { getCapacity } from '../utils/tables';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
   id: i + 1, seats: 8 
@@ -19,6 +20,7 @@ const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({
 
 const DEFAULT_TABLE_CAPACITY = 8;
 const ADJACENCY_MAX_DEGREE = 2;
+const MAX_TABLES = 100;
 
 interface AppAction {
   type: string;
@@ -48,7 +50,7 @@ function isAssignedToTable(t: Table, assignments: Assignments): boolean {
 
 function isTableLocked(t: Table, assignments: Assignments): boolean {
   const named = !!(t.name && t.name.trim());
-  const capChanged = (t.seats ?? (t as any).capacity) !== DEFAULT_TABLE_CAPACITY;
+  const capChanged = getCapacity(t) !== DEFAULT_TABLE_CAPACITY;
   const hasAssign = isAssignedToTable(t, assignments);
   return named || capChanged || hasAssign;
 }
@@ -62,10 +64,10 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   const needed = totalSeatsNeeded(guests);
   let lockedCap = 0;
   for (const t of tables) {
-    if (isTableLocked(t, assignments)) lockedCap += (t.seats ?? (t as any).capacity);
+    if (isTableLocked(t, assignments)) lockedCap += getCapacity(t);
   }
   const remaining = Math.max(0, needed - lockedCap);
-  const untouched = tables.filter(t => !isTableLocked(t, assignments) && (t.seats ?? (t as any).capacity) === DEFAULT_TABLE_CAPACITY);
+  const untouched = tables.filter(t => !isTableLocked(t, assignments) && getCapacity(t) === DEFAULT_TABLE_CAPACITY);
   const delta = Math.ceil(remaining / DEFAULT_TABLE_CAPACITY) - untouched.length;
   if (delta <= 0) return tables;
   const maxId = Math.max(...tables.map(t => t.id), 0);
@@ -230,9 +232,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { a, b } = pairPayload(action.payload);
       if (!a || !b) return state;
 
-      const capacities = state.tables.map(
-        t => Array.isArray(t.seats) ? t.seats.length : Number((t as any).capacity ?? t.seats ?? 0)
-      );
+      const capacities = state.tables.map(getCapacity);
       const ring = wouldCloseInvalidRing(state.adjacents, a, b, capacities);
       if (ring.closes && !ring.ok) return state; // block invalid ring, silent (existing UX)
 
@@ -256,6 +256,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "SET_TABLES":
       return { ...state, tables: action.payload, userSetTables: true };
     case "ADD_TABLE": {
+      if (state.tables.length >= MAX_TABLES) return state; // enforce cap (UI may already alert)
       const nextId = Math.max(0, ...state.tables.map(t => t.id ?? 0)) + 1;
       const p = action.payload || {};
       const newTable = { id: p.id ?? nextId, seats: p.seats ?? 8, name: p.name };
@@ -281,6 +282,24 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         tables: state.tables.map(t => (t.id === action.payload?.id ? { ...t, ...action.payload } : t)),
         userSetTables: true
       };
+    case 'SET_PLANS': {
+      const { plans, errors, planSig } = action.payload || {};
+      return {
+        ...state,
+        seatingPlans: plans ?? [],
+        currentPlanIndex: 0,
+        warnings: [
+          ...new Set([
+            ...state.warnings,
+            ...(errors ?? []).map((e: any) => e?.message ?? String(e)),
+          ]),
+        ],
+        lastGeneratedSignature: state.assignmentSignature,
+        lastGeneratedPlanSig: planSig ?? computePlanSignature(state),
+      };
+    }
+
+    // Back-compat alias (do not remove)
     case "SET_SEATING_PLANS":
       return {
         ...state,
@@ -315,22 +334,6 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case "CLEAR_WARNINGS":
       return { ...state, warnings: [] };
-    case "SET_PLANS": { // alias — do not remove
-      const { plans, errors } = action.payload || {};
-      return {
-        ...state,
-        seatingPlans: plans ?? [],
-        currentPlanIndex: 0,
-        warnings: [
-          ...new Set([
-            ...state.warnings,
-            ...(errors ?? []).map((e: any) => e?.message ?? String(e)),
-          ]),
-        ],
-        lastGeneratedSignature: state.assignmentSignature,
-        lastGeneratedPlanSig: computePlanSignature(state),
-      };
-    }
     case "SET_PLAN_ERRORS": {
       const errs = action.payload ?? [];
       return {
@@ -430,7 +433,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Capacity change → reconcile + plan invalidation + feasibility re-eval
   useEffect(() => {
     // Create a stable signature of tables and their capacities
-    const tablesSignature = state.tables.map(t => `${t.id}:${Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)}`).join('|');
+    const tablesSignature = state.tables.map(t => `${t.id}:${getCapacity(t)}`).join('|');
     
     if (prevTablesSignature.current && prevTablesSignature.current !== tablesSignature) {
       // Tables changed - invalidate plans and trigger reconcile
@@ -464,9 +467,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           dispatch({ type: "SET_WARNING", payload: errors.map(e => e.message) });
         }
         if (plans && plans.length > 0) {
-          dispatch({ type: "SET_SEATING_PLANS", payload: plans });
+          dispatch({ type: "SET_PLANS", payload: { plans, errors, planSig: computePlanSignature(state) } });
         } else {
-          dispatch({ type: "SET_SEATING_PLANS", payload: [] });
+          dispatch({ type: "SET_PLANS", payload: { plans: [], errors, planSig: computePlanSignature(state) } });
         }
         console.timeEnd("SeatingGeneration");
       }, 500);

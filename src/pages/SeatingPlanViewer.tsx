@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { MapPin, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
-import { useApp } from '../context/AppContext';
+import { getCapacity } from '../utils/tables';
 import { generateSeatingPlans } from '../utils/seatingAlgorithm';
 import { ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
@@ -214,7 +214,7 @@ const SeatingPlanViewer: React.FC = () => {
 
   const capacityById = useMemo(() => {
     const map = new Map<number, number>();
-    state.tables.forEach(t => map.set(t.id, t.seats));
+    state.tables.forEach(t => map.set(t.id, getCapacity(t)));
     return map;
   }, [state.tables]);
 

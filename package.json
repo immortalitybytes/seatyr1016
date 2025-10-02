@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "gm:check": "node scripts/check-gm-integrity.cjs",
-    "test:smoke": "npx playwright test tests/smoke-guests.spec.ts --reporter=line"
+    "test:smoke": "npx playwright test tests/smoke-guests.spec.ts --reporter=line",
+    "check:react": "npm ls react react-dom && echo 'React version check passed'"
   },
   "dependencies": {
     "@stripe/stripe-js": "^2.2.0",

@@ -3,6 +3,18 @@
  */
 
 /**
+ * Back-compatible capacity reader: number or array supported.
+ * @param t Table object with seats (number or array) or capacity property
+ * @returns Normalized capacity as number
+ */
+export const getCapacity = (t: { seats?: number | any[]; capacity?: number }) =>
+  Array.isArray(t.seats)
+    ? t.seats.length
+    : Number.isFinite(t.seats)
+      ? Number(t.seats)
+      : Number(t.capacity ?? 0);
+
+/**
  * Calculate the minimum number of tables needed for a given number of guests
  * @param guests Guest list array
  * @param seatsPerTable Number of seats per table (default: 8)
@@ -18,8 +30,8 @@ export function calculateMinTablesNeeded(guests: { name: string; count: number }
  * @param tables Array of tables
  * @returns Total capacity
  */
-export function calculateTotalCapacity(tables: { id: number; seats: number }[]): number {
-  return tables.reduce((sum, table) => sum + table.seats, 0);
+export function calculateTotalCapacity(tables: { id: number; seats: number | any[]; capacity?: number }[]): number {
+  return tables.reduce((sum, table) => sum + getCapacity(table), 0);
 }
 
 /**
@@ -30,10 +42,10 @@ export function calculateTotalCapacity(tables: { id: number; seats: number }[]):
  */
 export function canReduceTables(
   guests: { name: string; count: number }[],
-  tables: { id: number; seats: number }[]
+  tables: { id: number; seats: number | any[]; capacity?: number }[]
 ): { canReduce: boolean; minTablesNeeded: number; currentCapacity: number; requiredCapacity: number } {
   const totalGuestCount = guests.reduce((sum, guest) => sum + guest.count, 0);
-  const maxSeats = Math.max(8, ...tables.map(t => Number(t.seats) || 0));
+  const maxSeats = Math.max(8, ...tables.map(t => getCapacity(t)));
   const minTablesNeeded = Math.ceil(totalGuestCount / Math.max(1, maxSeats));
   const currentCapacity = calculateTotalCapacity(tables);
   

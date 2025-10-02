@@ -408,6 +408,7 @@ const GuestManager: React.FC = () => {
     } else if (sortOption === 'last-name') {
       return guests.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
     } else if (sortOption === 'current-table') {
+      if (state.seatingPlans.length === 0) return guests; // no-op when no plans
       return guests.sort((a, b) => {
         const keyA = currentTableKey(a.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
         const keyB = currentTableKey(b.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
