@@ -11,7 +11,6 @@ import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
-import { detectUnsatisfiableMustGroups } from '../utils/unsatisfiableMustValidator';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
   id: i + 1, seats: 8 
@@ -468,23 +467,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.time("SeatingGeneration");
         
         // Pre-engine validation: detect unsatisfiable MUST groups
-        const mustGroupErrors = detectUnsatisfiableMustGroups({
-          guests: Object.fromEntries(state.guests.map(g => [g.id, { partySize: g.count, name: g.name }])),
-          tables: state.tables.map(t => ({ id: t.id, capacity: getCapacity(t) })),
-          assignments: state.assignments,
-          constraints: {
-            mustPairs: function* () {
-              for (const [a, row] of Object.entries(state.constraints || {})) {
-                for (const [b, v] of Object.entries(row || {})) if (v === 'must') yield [a, b];
-              }
-            },
-          },
-        });
+        // const mustGroupErrors = detectUnsatisfiableMustGroups({
+        //   guests: Object.fromEntries(state.guests.map(g => [g.id, { partySize: g.count, name: g.name }])),
+        //   tables: state.tables.map(t => ({ id: t.id, capacity: getCapacity(t) })),
+        //   assignments: state.assignments,
+        //   constraints: {
+        //     mustPairs: function* () {
+        //       for (const [a, row] of Object.entries(state.constraints || {})) {
+        //         for (const [b, v] of Object.entries(row || {})) if (v === 'must') yield [a, b];
+        //       }
+        //     },
+        //   },
+        // });
         
-        if (mustGroupErrors.length > 0) {
-          dispatch({ type: 'SET_PLAN_ERRORS', payload: mustGroupErrors });
-          return; // do not call engine with impossible state
-        }
+        // if (mustGroupErrors.length > 0) {
+        //   dispatch({ type: 'SET_PLAN_ERRORS', payload: mustGroupErrors });
+        //   return; // do not call engine with impossible state
+        // }
         
         const { plans, errors } = await generateSeatingPlans(
           state.guests,
