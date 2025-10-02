@@ -53,7 +53,7 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
     (groups[r] ||= []).push(g);
   }
 
-  // c) Precompute tables and capacities
+  // c) Precompute tables and capacities with normalized IDs
   const tableCapById = new Map<number, number | undefined>();
   for (const t of tables) {
     const idNum = typeof t.id === "string" ? Number(t.id) : t.id;
@@ -68,6 +68,10 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       return (typeof c === 'number' && c > m) ? c : m;
     }, 0) || undefined;
 
+  // Debug logs for validator race fix (remove post-fix)
+  console.log('Tables passed to validator:', tables.map(t => ({id: t.id, cap: getCapacity(t)})));
+  console.log('tableCapById contents:', Array.from(tableCapById.entries()));
+
   // d) Evaluate each group
   const messages: string[] = [];
   for (const group of Object.values(groups)) {
@@ -77,11 +81,17 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       return sum + (Number.isFinite(ps) ? (ps as number) : 1);
     }, 0);
 
-    // Union of *hard* assigned tables across the whole group
+    // Union of *hard* assigned tables across the whole group with normalized IDs
     const hardTables = new Set<number>();
     for (const gid of group) {
-      parseAssignmentIds(assignments[gid]).forEach(id => hardTables.add(id));
+      for (const idStr of parseAssignmentIds(assignments[gid] || '')) {
+        const idNum = Number(idStr);
+        if (Number.isFinite(idNum)) hardTables.add(idNum);
+      }
     }
+
+    // Debug logs for assignment parsing (remove post-fix)
+    console.log('Assignment IDs for group:', group.map(gid => ({gid, assigns: assignments[gid], parsed: parseAssignmentIds(assignments[gid] || '')})));
 
     // Impossible Case #1: Conflicting hard locks to different tables
     if (hardTables.size > 1) {
@@ -91,12 +101,12 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       continue;
     }
 
-    // Determine candidate tables for this group:
+    // Determine candidate tables for this group with number comparison:
     // - If there is exactly one hard-locked table, that's the only candidate
     // - If no hard lock, candidates = all tables
     const candidates = (hardTables.size === 1)
-      ? [...hardTables]
-      : allTableIds;
+      ? Array.from(hardTables)
+      : Array.from(tableCapById.keys());  // All table IDs as numbers
 
     // If we have no table data at all, we cannot prove impossibility. Skip warning.
     if (candidates.length === 0) continue;
@@ -107,6 +117,9 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       const cap = tableCapById.get(id);
       return (typeof cap !== 'number') || cap >= groupSize;
     });
+
+    // Debug log for candidate fitting check (remove post-fix)
+    console.log(`Group size: ${groupSize}, Candidates: ${candidates}, anyCandidateFits: ${anyCandidateFits}`);
 
     if (!anyCandidateFits) {
       const names = group.map(gid => guests[gid]?.name || gid).join(", ");
