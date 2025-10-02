@@ -600,7 +600,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const value = useMemo(() => ({ state, dispatch }), [state, dispatch]);
+  const value = useMemo(() => {
+    if (!state || !dispatch) {
+      console.error('AppContext: state or dispatch is undefined', { state, dispatch });
+      return { state: initialState, dispatch: () => {} };
+    }
+    return { state, dispatch };
+  }, [state, dispatch]);
 
   return (
     <AppContext.Provider value={value}>
