@@ -17,6 +17,7 @@ import {
 import * as Engine from "./seatingAlgorithm.engine";
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from "./assignments";
 import { getCapacity } from "./tables";
+import { countHeads } from "./guestCount";
 
 export type AdapterResult = { plans: SeatingPlan[]; errors: ValidationError[] };
 
@@ -184,7 +185,12 @@ export function detectConstraintConflicts(
   _checkAdjacency: boolean = false,
   adjacents: Adjacents | null = {}
 ): ValidationError[] {
-  const engineGuests = guests ?? [];
+    const engineGuests = (guests ?? []).map(g => ({
+      ...g,
+      id: String(g.id),
+      name: g.name ?? `Guest ${g.id}`, // internal only
+      count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
+    }));
   const engineTables = (tables ?? []).map(t => {
     const capacity = getCapacity(t);
     return {
@@ -238,7 +244,12 @@ export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: 
     score: 1.0,
     seedUsed: plan.id,
   };
-  const engineGuests = guests;
+  const engineGuests = guests.map(g => ({
+    ...g,
+    id: String(g.id),
+    name: g.name ?? `Guest ${g.id}`,
+    count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
+  }));
   const engineTables = tables.map(t => {
     const capacity = getCapacity(t);
     return {

@@ -11,8 +11,7 @@ import { detectConflicts } from '../utils/conflicts';
 import { computePlanSignature } from '../utils/planSignature';
 import { countHeads } from '../utils/formatters';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
-import { wouldCloseInvalidRing, wouldCloseInvalidRingExact } from '../utils/conflictsSafe';
-import { getCapacity } from '../utils/tables';
+import { detectUnsatisfiableMustGroups } from '../utils/unsatisfiableMustValidator';
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ 
   id: i + 1, seats: 8 
@@ -300,14 +299,23 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
 
     // Back-compat alias (do not remove)
-    case "SET_SEATING_PLANS":
+    case "SET_SEATING_PLANS": { // compat alias
+      const plans = Array.isArray(action.payload) ? action.payload : (action.payload?.plans ?? []);
+      const errors = action.payload?.errors ?? [];
       return {
         ...state,
-        seatingPlans: action.payload ?? [],
-        currentPlanIndex: 0,
+        seatingPlans: plans,
+        warnings: [
+          ...new Set([
+            ...state.warnings,
+            ...(errors ?? []).map((e: any) => e?.message ?? String(e)),
+          ]),
+        ],
+        currentPlanIndex: plans.length ? Math.min(state.currentPlanIndex, plans.length - 1) : 0,
         lastGeneratedSignature: state.assignmentSignature,
         lastGeneratedPlanSig: computePlanSignature(state),
       };
+    }
     case "SET_CURRENT_PLAN_INDEX":
       return { ...state, currentPlanIndex: action.payload };
     case "SET_USER":
@@ -458,6 +466,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       timeout = setTimeout(async () => {
         const currentGen = ++generationIdRef.current;
         console.time("SeatingGeneration");
+        
+        // Pre-engine validation: detect unsatisfiable MUST groups
+        const mustGroupErrors = detectUnsatisfiableMustGroups({
+          guests: Object.fromEntries(state.guests.map(g => [g.id, { partySize: g.count, name: g.name }])),
+          tables: state.tables.map(t => ({ id: t.id, capacity: getCapacity(t) })),
+          assignments: state.assignments,
+          constraints: {
+            mustPairs: function* () {
+              for (const [a, row] of Object.entries(state.constraints || {})) {
+                for (const [b, v] of Object.entries(row || {})) if (v === 'must') yield [a, b];
+              }
+            },
+          },
+        });
+        
+        if (mustGroupErrors.length > 0) {
+          dispatch({ type: 'SET_PLAN_ERRORS', payload: mustGroupErrors });
+          return; // do not call engine with impossible state
+        }
+        
         const { plans, errors } = await generateSeatingPlans(
           state.guests,
           state.tables,
@@ -520,7 +548,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (Array.isArray(saved?.guests) && saved.guests.length > 0) {
-        const sanitized = sanitizeAndMigrateAppState({ ...initialState, ...saved });
+        // Heal guest counts using canonical countHeads
+        const healedGuests = saved.guests.map((g: any) => ({
+          ...g,
+          count: countHeads(g.name || ''),
+        }));
+        const sanitized = sanitizeAndMigrateAppState({ ...initialState, ...saved, guests: healedGuests });
         dispatch({ type: 'IMPORT_STATE', payload: sanitized });
       }
     } catch {}

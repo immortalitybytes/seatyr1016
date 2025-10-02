@@ -10,6 +10,7 @@ import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/forma
 import { computePlanSignature } from '../utils/planSignature';
 import FormatGuestName from '../components/FormatGuestName';
 import { getDisplayName, extractPartySuffix } from '../utils/guestCount';
+import { useApp } from '../context/AppContext'; // SEATYR-CANONICAL-IMPORT
 
 // Helper component to handle both bolding and % marker styling
 const BoldedGuestName: React.FC<{ name: string; shouldBold: boolean }> = ({ name, shouldBold }) => {
@@ -172,35 +173,7 @@ const SeatingPlanViewer: React.FC = () => {
 
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
 
-  // Debounced auto-generation with proper signature checking
-  const inFlightRef = useRef(false);
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      const ready = state.guests.length && state.tables.length;
-      const planSigNow = computePlanSignature(state);
-      const stale = state.lastGeneratedPlanSig !== planSigNow;
-      if (!ready || !stale || inFlightRef.current) return;
-      inFlightRef.current = true;
-      generateSeatingPlans(
-        state.guests,
-        state.tables,
-        state.constraints,
-        state.adjacents,
-        state.assignments,
-        isPremium
-      ).then(({ plans, errors }) => {
-        if (!cancelled) {
-          dispatch({ type: 'SET_SEATING_PLANS', payload: plans });
-          dispatch({ type: 'SET_PLAN_ERRORS', payload: errors ?? [] });
-          dispatch({ type: 'SET_LAST_GENERATED_PLAN_SIG', payload: planSigNow });
-        }
-      }).finally(() => {
-        inFlightRef.current = false;
-      });
-    }, 300); // Debounce window
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [state.assignmentSignature, state.guests, state.tables, state.constraints, state.adjacents]);
+  // SEATYR: Viewer is passive; AppContext handles generation centrally.
 
   // Guest pagination logic (matching Constraints page)
   useEffect(() => {
