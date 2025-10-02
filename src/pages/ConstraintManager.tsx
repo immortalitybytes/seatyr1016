@@ -634,6 +634,13 @@ const ConstraintManager: React.FC = () => {
   };
 
   const handleToggleConstraint = (guest1Id: string, guest2Id: string) => {
+    // Free-tier grid edit guard at >80 heads (no UI change)
+    const totalHeads = state.guests.reduce((s,g) => s + (g.count ?? 1), 0);
+    if (!isPremium && totalHeads > 80) { 
+      alert('Free plan limit: editing constraints above 80 total guests is blocked.'); 
+      return; 
+    }
+
     setSelectedGuest(null);
     setHighlightedPair(null);
     if (highlightTimeout) {
@@ -641,33 +648,41 @@ const ConstraintManager: React.FC = () => {
       setHighlightTimeout(null);
     }
 
-    const currentValue = state.constraints[guest1Id]?.[guest2Id] || '';
-    let nextValue: 'must' | 'cannot' | '';
+    if (guest1Id === guest2Id) return;
 
-    if (currentValue === '') {
-      nextValue = 'must';
-    } else if (currentValue === 'must') {
-      if (state.adjacents[guest1Id]?.includes(guest2Id)) {
-        dispatch({
-          type: 'REMOVE_ADJACENT',
-          payload: { guest1: guest1Id, guest2: guest2Id }
-        });
-      }
-      nextValue = 'cannot';
+    const current = (state.constraints[guest1Id]?.[guest2Id] ?? '') as ''|'must'|'cannot';
+    const adj = !!state.adjacents[guest1Id]?.includes(guest2Id);
+
+    let next: ''|'must'|'cannot' = '';
+    if (!isPremium) {
+      next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
     } else {
-      nextValue = '';
+      if (current === '') {
+        next = 'must';
+      } else if (current === 'must' && !adj) {
+        dispatch({ type: 'SET_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
+        next = 'must';
+      } else if (current === 'must' && adj) {
+        dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
+        next = 'cannot';
+      } else if (current === 'cannot') {
+        next = '';
+      }
     }
-
-    dispatch({
-      type: 'SET_CONSTRAINT',
-      payload: { guest1: guest1Id, guest2: guest2Id, value: nextValue }
-    });
-
-    // Purge seating plans when constraints change
-    purgeSeatingPlans();
+    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guest1Id, guest2: guest2Id, value: next } });
+    // Auto-purge plans on change (keeps behavior consistent)
+    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+    dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
   };
 
   const handleGuestSelect = (guestName: string) => {
+    // Free-tier grid edit guard at >80 heads (no UI change)
+    const totalHeads = state.guests.reduce((s,g) => s + (g.count ?? 1), 0);
+    if (!isPremium && totalHeads > 80) { 
+      alert('Free plan limit: editing constraints above 80 total guests is blocked.'); 
+      return; 
+    }
+
     if (!isPremium) { alert('Adjacency pairing is a premium feature.'); return; }
     const guestId = nameToId.get(guestName);
     if (!guestId) return;

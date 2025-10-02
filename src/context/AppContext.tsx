@@ -230,22 +230,17 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { a, b } = pairPayload(action.payload);
       if (!a || !b) return state;
 
-      // ring guard (already present; keep call signature the same)
-      const caps = state.tables.map(
-        t => Array.isArray(t.seats) ? t.seats.length : Number(t.seats ?? (t as any).capacity ?? 0)
+      const capacities = state.tables.map(
+        t => Array.isArray(t.seats) ? t.seats.length : Number((t as any).capacity ?? t.seats ?? 0)
       );
-      const { closes, ok, ringSize } = wouldCloseInvalidRing(state.adjacents, a, b, caps);
-      
-      if (closes && !ok) {
-        alert(`That adjacency would close a ring of ${ringSize} guests that does not match any table capacity.`);
-        return state; // block the change
-      }
-      
+      const ring = wouldCloseInvalidRing(state.adjacents, a, b, capacities);
+      if (ring.closes && !ring.ok) return state; // block invalid ring, silent (existing UX)
+
       return {
         ...state,
         adjacents: addAdjacentSymmetric(state.adjacents, a, b),
         seatingPlans: [],
-        currentPlanIndex: 0
+        currentPlanIndex: 0,
       };
     }
     case "REMOVE_ADJACENT": {

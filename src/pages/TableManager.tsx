@@ -172,7 +172,7 @@ const TableManager: React.FC = () => {
   useEffect(() => {
     dispatch({ type: 'AUTO_RECONCILE_TABLES' });
     purgePlans();
-  }, [totalSeatsNeeded, state.assignments, dispatch]);
+  }, [totalSeatsNeeded, state.assignments, state.tables, dispatch]);
   
   const handleAddTable = () => {
     if (state.tables.length >= 100) {
