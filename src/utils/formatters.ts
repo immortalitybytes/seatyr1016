@@ -1,4 +1,5 @@
 import type { Assignments, Table } from '../types';
+import { countHeads as canonicalCountHeads } from './guestCount';
 
 // Centralized regex for detecting party size additions
 export const PLUS_ONE_RE = /(?:\+|&|\band\b|\bplus\b)\s*(\d+)/i;
@@ -8,16 +9,9 @@ export function extractPartyExtra(name: string): number | null {
   return m ? parseInt(m[1], 10) : null;
 }
 
+// Delegate to the canonical implementation to avoid logic drift
 export function countHeads(name: string): number {
-  const extra = extractPartyExtra(name);
-  if (extra !== null && Number.isFinite(extra) && extra >= 0) return 1 + extra; // John +2 => 3
-  const fam = name.match(/\bfamily of (\w+)\b/i);
-  if (fam) {
-    const words: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-    const n = words[fam[1].toLowerCase()];
-    if (n) return n;
-  }
-  return 1;
+  return canonicalCountHeads(name);
 }
 
 // Centralized display name formatter (from guestCount.ts)

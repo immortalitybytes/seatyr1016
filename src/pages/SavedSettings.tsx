@@ -174,7 +174,6 @@ const SavedSettings: React.FC = () => {
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
       dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
       dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
-      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
       
       // Update the setting's last_accessed timestamp
       await supabase

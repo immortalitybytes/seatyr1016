@@ -449,11 +449,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [state.tables]);
 
   // Debounced plan generation
+  const generationIdRef = useRef(0);
+  
   const debouncedGeneratePlans = useMemo(() => {
     let timeout: NodeJS.Timeout;
     return () => {
       clearTimeout(timeout);
       timeout = setTimeout(async () => {
+        const currentGen = ++generationIdRef.current;
         console.time("SeatingGeneration");
         const { plans, errors } = await generateSeatingPlans(
           state.guests,
@@ -463,14 +466,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           state.assignments,
           isPremiumSubscription(state.subscription)
         );
-        if (errors && errors.length > 0) {
-          dispatch({ type: "SET_WARNING", payload: errors.map(e => e.message) });
-        }
-        if (plans && plans.length > 0) {
-          dispatch({ type: "SET_PLANS", payload: { plans, errors, planSig: computePlanSignature(state) } });
-        } else {
-          dispatch({ type: "SET_PLANS", payload: { plans: [], errors, planSig: computePlanSignature(state) } });
-        }
+        if (currentGen === generationIdRef.current) {
+          if (errors && errors.length > 0) {
+            dispatch({ type: "SET_WARNING", payload: errors.map(e => e.message) });
+          }
+          if (plans && plans.length > 0) {
+            dispatch({ type: "SET_PLANS", payload: { plans, errors, planSig: computePlanSignature(state) } });
+          } else {
+            dispatch({ type: "SET_PLANS", payload: { plans: [], errors, planSig: computePlanSignature(state) } });
+          }
+        } // else: stale; ignore
         console.timeEnd("SeatingGeneration");
       }, 500);
     };
@@ -515,7 +520,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!raw) return;
       const saved = JSON.parse(raw);
       if (Array.isArray(saved?.guests) && saved.guests.length > 0) {
-        dispatch({ type: 'SET_GUESTS', payload: saved.guests });
+        const sanitized = sanitizeAndMigrateAppState({ ...initialState, ...saved });
+        dispatch({ type: 'IMPORT_STATE', payload: sanitized });
       }
     } catch {}
   }, []);
@@ -622,6 +628,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 };
 
+// SEATYR-CANONICAL-IMPORT: Always import useApp from 'src/context/AppContext'
 export function useApp(): { state: AppState, dispatch: React.Dispatch<AppAction> } {
   const context = useContext(AppContext);
   if (!context) throw new Error("useApp must be used within AppProvider");

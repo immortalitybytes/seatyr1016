@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "gm:check": "node scripts/check-gm-integrity.cjs",
     "test:smoke": "npx playwright test tests/smoke-guests.spec.ts --reporter=line",
-    "check:react": "npm ls react react-dom && echo 'React version check passed'"
+    "check:react": "npm ls react react-dom && echo 'React version check passed'",
+    "check:imports": "rg -n \"export .* from ['\\\"][^\"']*AppContext\" src && exit 1 || true && rg -n \"from ['\\\"][^\"']*index['\\\"];?\" src | rg -n \"useApp|AppContext|AppProvider\" && exit 1 || true && rg -n \"import\\\\s+useApp\\\\s+from\" src && exit 1 || true && echo 'Import checks passed'"
   },
   "dependencies": {
     "@stripe/stripe-js": "^2.2.0",

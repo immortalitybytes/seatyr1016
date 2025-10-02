@@ -171,7 +171,6 @@ const TableManager: React.FC = () => {
   
   const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
   useEffect(() => {
-    dispatch({ type: 'AUTO_RECONCILE_TABLES' });
     purgePlans();
   }, [totalSeatsNeeded, state.assignments, state.tables, dispatch]);
   
@@ -199,7 +198,6 @@ const TableManager: React.FC = () => {
     if (Number.isFinite(seats) && seats >= 1 && seats <= 20) {
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'UPDATE_TABLE', payload: { id, seats } });
-      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
       dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
       dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     }
