@@ -253,13 +253,12 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       }
 
       // Ring guard - require exact table capacity to close loop
-      const ringViolation = value && wouldCloseInvalidRingExact({
-        guests: state.guests,
-        tables: state.tables,
-        adjacents: state.adjacents,
-        newEdge: [a, b],
-      });
-      if (ringViolation) {
+      const ringViolation = value && wouldCloseInvalidRingExact(
+        state.adjacents,
+        [a, b],
+        state.tables.map(getCapacity)
+      );
+      if (ringViolation && ringViolation.closes && !ringViolation.ok) {
         return { 
           ...state, 
           warnings: [...(state.warnings ?? []), `Ring blocked: no table with exact capacity for closed loop`] 
