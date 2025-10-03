@@ -118,6 +118,23 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       continue;
     }
 
+    // Impossible Case #3: Individual guests assigned to tables with insufficient capacity for the group
+    if (hardTables.size === 1) {
+      const assignedTableId = Array.from(hardTables)[0];
+      const assignedTableCap = tableCapById.get(assignedTableId);
+      
+      if (typeof assignedTableCap === 'number' && assignedTableCap < groupSize) {
+        const names = group.map(gid => guests[gid]?.name || gid).join(", ");
+        const conflictingGuests = group.filter(gid => {
+          const guestAssignments = parseAssignmentIds(assignments[gid] || '');
+          return guestAssignments.some(idStr => Number(idStr) === assignedTableId);
+        }).map(gid => guests[gid]?.name || gid);
+        
+        messages.push(`Must-group assignment conflict: ${names} must sit together but ${conflictingGuests.join(", ")} ${conflictingGuests.length === 1 ? 'is' : 'are'} assigned to table ${assignedTableId} (${assignedTableCap} seats) which is too small for the group (${groupSize} seats).`);
+        continue;
+      }
+    }
+
     // Otherwise: not *provably* impossible → do not warn.
   }
 
