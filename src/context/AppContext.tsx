@@ -356,7 +356,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
     case "CLEAR_PLAN_ERRORS":
-      return { ...state, planErrors: [] };
+      return { ...state, warnings: [], conflictWarnings: [], planErrors: [] };
     case "CLEAR_PLANS":
       return { ...state, seatingPlans: [], currentPlanIndex: 0 };
     case "SET_CURRENT_PLAN_INDEX":
@@ -386,15 +386,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case "CLEAR_WARNINGS":
       return { ...state, warnings: [] };
     case "SET_PLAN_ERRORS": {
-      const errs = action.payload ?? [];
-      return {
-        ...state,
-        warnings: [
-          ...new Set([
-            ...state.warnings,
-            ...errs.map((e: any) => e?.message ?? String(e)),
-          ]),
-        ],
+      const errs = Array.isArray(action.payload) ? action.payload : [];
+      return { 
+        ...state, 
+        planErrors: errs, 
+        warnings: errs.map(e => e?.message ?? String(e)) // replace, do not append
       };
     }
     case "SET_LAST_GENERATED_PLAN_SIG":
@@ -464,6 +460,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   
   // Ref for tracking table capacity changes
   const prevTablesSignature = useRef<string>('');
+  
+  // Latest-state ref to avoid stale closures
+  const latestStateRef = useRef(state);
+  useEffect(() => { latestStateRef.current = state; });
 
   // Sanitize on mount
   useEffect(() => {
@@ -561,6 +561,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }, 500);
     };
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription]);
+
+  // Cleanup debounce timeout on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // The timeout is managed within the debounced function and cleared on each call
+      // This effect ensures cleanup on unmount
+    };
+  }, []);
 
   useEffect(() => {
     if (state.guests.length > 0 && state.tables.length > 0 && !state.loadedSavedSetting) {

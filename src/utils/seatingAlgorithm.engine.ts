@@ -302,7 +302,7 @@ function placeGroups(groups: GroupInfo[], tables: SafeTable[], cantMap: Map<ID, 
 }
 
 function orderTableCircular(guestIds: ID[], localAdj: Map<ID, Set<ID>>): ID[] {
-  if (guestIds.length <= 1) return guestIds.slice();
+  if (!guestIds || guestIds.length <= 1) return guestIds?.slice() || [];
   const start = guestIds.slice().sort((a,b)=> (deg(localAdj,b)-deg(localAdj,a)) || a.localeCompare(b))[0];
   const remaining = new Set(guestIds); remaining.delete(start);
   const ordered: ID[] = [start];
@@ -315,7 +315,7 @@ function orderTableCircular(guestIds: ID[], localAdj: Map<ID, Set<ID>>): ID[] {
         let gain = ((localAdj.get(c)?.has(last) ? 1 : 0) + (localAdj.get(c)?.has(ordered[0]) ? 1 : 0)) + deg(localAdj, c) * 0.01;
         if (!best || gain > best.gain || (gain === best.gain && c < best.id)) best = { id: c, gain };
       }
-      next = best!.id;
+      next = best?.id || Array.from(remaining)[0]; // null-safe fallback
     }
     ordered.push(next); remaining.delete(next);
   }
