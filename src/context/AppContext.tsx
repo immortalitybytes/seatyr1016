@@ -11,7 +11,7 @@ import { detectConflicts, detectUnsatisfiableMustGroups } from '../utils/conflic
 import { wouldCloseInvalidRingExact } from '../utils/conflictsSafe';
 import { detectAdjacentPairingConflicts } from '../utils/seatingAlgorithm';
 import { computePlanSignature } from '../utils/planSignature';
-import { countHeads } from '../utils/formatters';
+import { countHeads } from '../utils/guestCount';
 import { detectConstraintConflicts, generateSeatingPlans } from "../utils/seatingAlgorithm";
 import { getCapacity } from '../utils/tables';
 
@@ -62,21 +62,35 @@ function totalSeatsNeeded(guests: Guest[]): number {
 
 function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignments, userSetTables: boolean): Table[] {
   if (userSetTables) return tables;
-  const needed = totalSeatsNeeded(guests);
-  let lockedCap = 0;
-  for (const t of tables) {
-    if (isTableLocked(t, assignments)) lockedCap += getCapacity(t);
+
+  const out = [...tables];
+  const requiredSeats = totalSeatsNeeded(guests);
+
+  // Add tables as needed (mark auto:true)
+  while (requiredSeats > out.reduce((n,t)=>n+getCapacity(t), 0)) {
+    const maxId = Math.max(...out.map(t => t.id), 0);
+    out.push({ id: maxId + 1, seats: DEFAULT_TABLE_CAPACITY, auto: true });
   }
-  const remaining = Math.max(0, needed - lockedCap);
-  const untouched = tables.filter(t => !isTableLocked(t, assignments) && getCapacity(t) === DEFAULT_TABLE_CAPACITY);
-  const delta = Math.ceil(remaining / DEFAULT_TABLE_CAPACITY) - untouched.length;
-  if (delta <= 0) return tables;
-  const maxId = Math.max(...tables.map(t => t.id), 0);
-  const newTables = Array.from({ length: delta }, (_, i) => ({
-    id: maxId + i + 1,
-    seats: DEFAULT_TABLE_CAPACITY,
-  }));
-  return [...tables, ...newTables];
+
+  // Prune only empty auto tables if currently over-capacity and userSetTables=false
+  const nowCap = out.reduce((n,t)=>n+getCapacity(t),0);
+  if (nowCap > requiredSeats) {
+    for (let i = out.length - 1; i >= 0; i--) {
+      const t = out[i] as any;
+      if (t.auto && tableIsEmpty(t, assignments)) {
+        out.splice(i,1);
+        if (out.reduce((n,tt)=>n+getCapacity(tt),0) <= requiredSeats) break;
+      }
+    }
+  }
+  return out;
+}
+
+function tableIsEmpty(table: Table, assignments: Assignments): boolean {
+  // Check if any guest is assigned to this table
+  return !Object.values(assignments).some(assignment => 
+    assignment && assignment.toString().includes(table.id.toString())
+  );
 }
 
 // P-1: Sanitize and migrate full state on load
@@ -592,29 +606,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => { active = false; };
   }, [state.user]);
 
-  // Persist guests for unsigned/free users only
+  // Persist core app state for unsigned/free users only
   useEffect(() => {
     if (state.user) return; // Premium signed-in uses existing mostRecent flow
     try {
-      const payload = { guests: state.guests };
-      localStorage.setItem('seatyr_app_state', JSON.stringify(payload));
+      const toSave = {
+        guests: state.guests,
+        tables: state.tables,
+        constraints: state.constraints,
+        adjacents: state.adjacents,
+        assignments: state.assignments,
+      };
+      localStorage.setItem('seatyr_app_state', JSON.stringify(toSave));
     } catch {}
-  }, [state.user, state.guests]);
+  }, [state.user, state.guests, state.tables, state.constraints, state.adjacents, state.assignments]);
 
-  // Hydrate guests on mount for unsigned/free users only
+  // Hydrate core app state on mount for unsigned/free users only
   useEffect(() => {
     if (state.user) return; // Premium signed-in uses existing mostRecent flow
     try {
       const raw = localStorage.getItem('seatyr_app_state');
       if (!raw) return;
       const saved = JSON.parse(raw);
-      if (Array.isArray(saved?.guests) && saved.guests.length > 0) {
-        // Heal guest counts using canonical countHeads
-        const healedGuests = saved.guests.map((g: any) => ({
-          ...g,
-          count: countHeads(g.name || ''),
-        }));
-        const sanitized = sanitizeAndMigrateAppState({ ...initialState, ...saved, guests: healedGuests });
+      const loaded = { ...initialState, ...saved };
+      loaded.guests = (loaded.guests ?? []).map((g: any) => ({
+        ...g, 
+        count: countHeads(g.name || '')
+      }));
+      const sanitized = sanitizeAndMigrateAppState(loaded);
+      if (Array.isArray(sanitized.guests) && sanitized.guests.length > 0) {
         dispatch({ type: 'IMPORT_STATE', payload: sanitized });
       }
     } catch {}
@@ -657,6 +677,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
     return () => subscription.unsubscribe();
   }, [state.user]) ;
+
+  // Premium: debounced cloud save (exclude seatingPlans blob)
+  const premiumSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!state.user || !isPremiumSubscription(state.subscription)) return;
+    if (premiumSaveTimer.current) clearTimeout(premiumSaveTimer.current);
+    premiumSaveTimer.current = setTimeout(() => {
+      const { seatingPlans, currentPlanIndex, lastGeneratedPlanSig, ...rest } = state as any;
+      saveMostRecentState(state.user!.id, rest).catch(console.error);
+    }, 800);
+    return () => { if (premiumSaveTimer.current) clearTimeout(premiumSaveTimer.current); };
+  }, [state, state.user, state.subscription]);
 
   // Most recent state handling
   useEffect(() => {

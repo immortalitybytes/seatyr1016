@@ -10,8 +10,8 @@ import { supabase } from '../lib/supabase';
 import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
-import { getLastNameForSorting } from '../utils/formatters';
-import { getDisplayName, countHeads } from '../utils/guestCount';
+import { getLastNameForSorting, sanitizeGuestUnitName } from '../utils/formatters';
+import { countHeads } from '../utils/guestCount';
 
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
 
@@ -306,7 +306,7 @@ const GuestManager: React.FC = () => {
             type: 'ADD_GUEST', 
             payload: {
               id: crypto.randomUUID(),
-              name: parsed.name,
+              name: sanitizeGuestUnitName(parsed.name),
               count: parsed.count
             }
           });
@@ -341,7 +341,10 @@ const GuestManager: React.FC = () => {
 
         if (guests.length > 0) {
           guests.forEach(guest => {
-            dispatch({ type: 'ADD_GUEST', payload: guest });
+            dispatch({ type: 'ADD_GUEST', payload: {
+              ...guest,
+              name: sanitizeGuestUnitName(guest.name)
+            }});
           });
           
           setImportError(null);
@@ -371,7 +374,7 @@ const GuestManager: React.FC = () => {
     if (editingGuestId && editingGuestName.trim()) {
       dispatch({
         type: 'RENAME_GUEST',
-        payload: { id: editingGuestId, name: editingGuestName },
+        payload: { id: editingGuestId, name: sanitizeGuestUnitName(editingGuestName) },
       });
     }
     setEditingGuestId(null);
@@ -559,10 +562,17 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           )}
         </Card>
       ) : (
-        // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '0.4fr 0.05fr 0.55fr' }}>
-          <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
-            <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
+        // Non-signed-in users: Show Instructions and Add Guest Names with proportional squeeze and wrap
+        <div
+          className="grid gap-4 overflow-x-auto"
+          style={{
+            gridTemplateColumns: 'repeat(2, minmax(var(--card-min), 1fr))',
+            ['--card-min' as any]: 'min(60cqw, 520px)'
+          }}
+        >
+          <section className="min-w-[312px]">
+            <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
+              <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>
               <div className="flex-1 flex items-center">
                 <div className="text-sm text-[#566F9B] text-left" style={{ fontSize: 'clamp(0.8em, 1.25em, 1.25em)', lineHeight: '1.3', marginLeft: '1.25rem' }}>
                   <p style={{ marginBottom: '1.3em' }}>1.) Click "Load Test Guest List" button.</p>
@@ -582,9 +592,11 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 </div>
               </div>
             </div>
-          </Card>
-
-          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
+            </Card>
+          </section>
+          
+          <section className="min-w-[312px]">
+            <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
             <div className="flex justify-between items-center w-full mb-4">
               <span></span>
               {!isPremium && (
@@ -686,7 +698,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
               </div>
             </div>
           )}
-        </Card>
+            </Card>
+          </section>
         </div>
       )}
 

@@ -1,6 +1,31 @@
 import { parseAssignmentIds } from './assignments';
 import { getCapacity } from './tables';
 
+export function formatPlanErrorsWithAssignments(
+  errors: string[],
+  assignments: Record<string, string | string[]>,
+  guestsById: Map<string,string>,
+  tablesById: Map<string,string>
+): string[] {
+  const lines: string[] = [];
+  for (const err of errors) {
+    const m = err.match(/\[([^\]]+)\]/g); // expects id lists like [a,b]
+    if (!m) { lines.push(err); continue; }
+    const ids = Array.from(new Set(
+      m.flatMap(s => s.slice(1,-1).split(',').map((x: string)=>x.trim()))
+    ));
+    const names = ids.map(id => guestsById.get(id) ?? id);
+    const bound = ids
+      .map(id => assignments[id]).filter(Boolean)
+      .map(a => Array.isArray(a) ? a : [a])
+      .map(arr => arr!.map(tid => tablesById.get(tid as string) ?? `Table ${tid}`).join(' | '))
+      .filter(Boolean);
+    const assignText = bound.length ? ` • Allowed tables: ${bound.join(' ; ')}` : '';
+    lines.push(`${err} • Guests: ${names.join(', ')}${assignText}`);
+  }
+  return lines;
+}
+
 function shareAnyTable(csvA?: string, csvB?: string): boolean {
   const setA = new Set(parseAssignmentIds(csvA || ''));
   return parseAssignmentIds(csvB || '').some(id => setA.has(id));
@@ -62,11 +87,11 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
     }
   }
   const allTableIds = [...tableCapById.keys()];
-  const maxKnownCapacity =
-    allTableIds.reduce((m, id) => {
-      const c = tableCapById.get(id);
-      return (typeof c === 'number' && c > m) ? c : m;
-    }, 0) || undefined;
+  // const maxKnownCapacity =
+  //   allTableIds.reduce((m, id) => {
+  //     const c = tableCapById.get(id);
+  //     return (typeof c === 'number' && c > m) ? c : m;
+  //   }, 0) || undefined;
 
   // d) Evaluate each group
   const messages: string[] = [];
@@ -127,7 +152,7 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
         const names = group.map(gid => guests[gid]?.name || gid).join(", ");
         const conflictingGuests = group.filter(gid => {
           const guestAssignments = parseAssignmentIds(assignments[gid] || '');
-          return guestAssignments.some(idStr => Number(idStr) === assignedTableId);
+          return guestAssignments.some((idStr: number) => idStr === assignedTableId);
         }).map(gid => guests[gid]?.name || gid);
         
         messages.push(`Must-group assignment conflict: ${names} must sit together but ${conflictingGuests.join(", ")} ${conflictingGuests.length === 1 ? 'is' : 'are'} assigned to table ${assignedTableId} (${assignedTableCap} seats) which is too small for the group (${groupSize} seats).`);

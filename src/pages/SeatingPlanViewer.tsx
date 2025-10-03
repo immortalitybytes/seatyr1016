@@ -127,18 +127,24 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
         }
       };
       
-      const ordinalText = getOrdinalText(ordinalNumber);
       const totalAdditional = extraTokens.length;
       
       // Build display with ordinal number bolded and % marker styling
-      // Format: "BaseName + 1st (of X)"
       const baseName = baseTokens.join(' & ');
       const additionalPart = originalName.match(/[&+]|\b(?:and|plus)\b.*$/i)?.[0] || '';
+      
+      function formatPlusLabel(count: number, ordinalIndex: number | undefined) {
+        if (count === 1) return '+ 1';
+        return `+ ${ordinalIndex} (of ${count})`;
+      }
+      
+      const ordinalText = getOrdinalText(ordinalNumber);
+      const plusLabel = formatPlusLabel(totalAdditional, ordinalText);
       
       return (
         <span>
           <BoldedGuestName name={baseName} shouldBold={false} /> {additionalPart.replace(/\d+/, '').trim()}
-          <strong> {ordinalText}</strong> (of {totalAdditional})
+          <strong> {plusLabel}</strong>
         </span>
       );
     }
@@ -315,8 +321,8 @@ const SeatingPlanViewer: React.FC = () => {
           )}
           {state.warnings && state.warnings.length > 0 && (
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                  <h3 className="flex items-center text-yellow-800 font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Warnings</h3>
-                  <ul className="list-disc pl-5 text-yellow-700 text-sm space-y-1">
+                  <h3 className="flex items-center text-[#CC5500] font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Warnings</h3>
+                  <ul className="list-disc pl-5 text-[#CC5500] text-sm space-y-1">
                       {state.warnings.map((warning, index) => (<li key={index}>{warning}</li>))}
                   </ul>
               </div>
@@ -427,21 +433,32 @@ const SeatingPlanViewer: React.FC = () => {
           </div>
         )}
         
-        {/* Guest pagination controls - bottom (matching Constraints page) */}
+        {/* Bottom controls */}
         {needsPagination && (
-          <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
-            <div className="flex items-center w-full justify-between">
-              <div className="pl-[140px]">
-                <button onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0} className="danstyle1c-btn w-24 mx-1">
-                  <ChevronLeft className="w-4 h-4 mr-1" /> Previous
-                </button>
-              </div>
-                <div className="flex flex-wrap justify-center">{renderPageNumbers()}</div>
-                <div className="pr-[10px]">
-                <button onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1} className="danstyle1c-btn w-24 mx-1">
-                  Next <ChevronRight className="w-4 h-4 ml-1" />
-                </button>
-              </div>
+          <div className="mt-3">
+            {/* Row of 10 static buttons; wraps on narrow screens */}
+            <div className="grid grid-cols-10 gap-2 [@media(max-width:480px)]:grid-cols-5 [@media(max-width:480px)]:grid-rows-2">
+              {(() => {
+                const TOTAL_PAGES = Math.max(1, totalPages);
+                const pageWindow = 10;
+                const first = Math.floor(currentPage / pageWindow) * pageWindow; // 0-based window
+                const pageIndices = Array.from({ length: Math.min(pageWindow, TOTAL_PAGES - first) },
+                                               (_, i) => first + i);
+                return pageIndices.map((i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`px-2 py-1 border text-sm ${i===currentPage ? 'bg-[#586D78] text-white' : 'bg-white text-[#586D78]'}`}
+                  >
+                    {i+1}
+                  </button>
+                ));
+              })()}
+            </div>
+            {/* Row 2: centered arrows */}
+            <div className="flex items-center justify-center gap-4 mt-2">
+              <button onClick={() => setCurrentPage(Math.max(0, currentPage-1))} aria-label="Previous Page">◀</button>
+              <button onClick={() => setCurrentPage(Math.min(totalPages-1, currentPage+1))} aria-label="Next Page">▶</button>
             </div>
           </div>
         )}

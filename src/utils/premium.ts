@@ -7,32 +7,15 @@ import type { UserSubscription, TrialSubscription } from '../types';
 /**
  * Determine if a subscription indicates premium status
  */
-export function isPremiumSubscription(subscription: UserSubscription | null | undefined, trial?: TrialSubscription | null): boolean {
-  // Check for trial subscription first
-  if (trial) {
-    const expiryDate = new Date(trial.expires_on);
-    const now = new Date();
-    if (expiryDate > now) return true;
-  }
-
-  if (!subscription) return false;
-  
-  // Check for valid subscription statuses
-  if (['active', 'trialing', 'past_due'].includes(subscription.status)) {
-    return true;
-  }
-  
-  // Also check if subscription is still within current period
-  if (subscription.current_period_end) {
-    // Handle Unix timestamp (seconds) or ISO date string
-    const endDate = isUnixTimestamp(subscription.current_period_end) 
-      ? new Date(Number(subscription.current_period_end) * 1000)
-      : new Date(subscription.current_period_end);
-    
-    if (endDate > new Date()) return true;
-  }
-  
-  return false;
+export function isPremiumSubscription(sub: any): boolean {
+  if (!sub) return false;
+  if (!['active', 'trialing', 'past_due'].includes(sub.status || '')) return false;
+  const end = sub.current_period_end
+    ? (Number.isFinite(+sub.current_period_end)
+        ? new Date(+sub.current_period_end * 1000)
+        : new Date(sub.current_period_end))
+    : null;
+  return !end || end > new Date();
 }
 
 // Helper function to check if a value is likely a Unix timestamp in seconds

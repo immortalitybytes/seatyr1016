@@ -279,6 +279,11 @@ function placeGroups(groups: GroupInfo[], tables: SafeTable[], cantMap: Map<ID, 
     for (const m of gi.members) for (const v of (adjMap.get(m) || [])) partnerSet.add(v);
     for (const ts of state.tables) {
       if (!canPlaceGroup(gi, ts, cantMap)) continue;
+      // Engine feasibility: check allowed tables
+      const allow = allowedTables[gi.members[0]]; // Use first member to check allowed tables
+      if (Array.isArray(allow) && allow.length && !allow.includes(String(ts.table.id))) {
+        continue; // infeasible table for this guest
+      }
       let overlap = 0; for (const occ of ts.occupants) if (partnerSet.has(occ)) overlap++;
       candidates.push({ ts, score: overlap * 10 - (ts.remaining - gi.size) });
     }
@@ -388,7 +393,7 @@ interface EngineOptions { seed?: number; timeBudgetMs?: number; targetPlans?: nu
  */
 export async function generateSeatingPlans(
   appGuests: GuestUnit[], appTables: TableIn[], appConstraints: ConstraintsMap, appAdjacents: AdjRecord,
-  appAssignments: AssignmentsIn = {}, isPremium: boolean = false
+  appAssignments: AssignmentsIn = {}, isPremium: boolean = false, allowedTables: Record<string, string[]> = {}
 ): Promise<GenerateReturn> {
   const start = Date.now();
   const defaults: Required<EngineOptions> = { seed: 12345, timeBudgetMs: isPremium ? 3500 : 1500, targetPlans: isPremium ? 30 : 10, maxAttemptsPerRun: 7500, runsMultiplier: 3, weights: { adj: 0.6, util: 0.3, balance: 0.1 } };

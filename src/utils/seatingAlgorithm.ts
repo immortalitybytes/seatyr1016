@@ -15,7 +15,7 @@ import {
   GuestID,
 } from "../types";
 import * as Engine from "./seatingAlgorithm.engine";
-import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from "./assignments";
+import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds, normalizeAssignmentsToArrayShape } from "./assignments";
 import { getCapacity } from "./tables";
 import { countHeads } from "./guestCount";
 
@@ -120,10 +120,7 @@ export async function generateSeatingPlans(
     });
 
     // Allowed tables hint
-    const allowedTablesByGuest: Record<string, number[]> = {};
-    Object.entries(engineAssignments ?? {}).forEach(([guestId, csv]) => {
-      allowedTablesByGuest[guestId] = parseAssignmentIds(String(csv));
-    });
+    const allowedByGuest = normalizeAssignmentsToArrayShape(state.assignments);
 
     // Call engine
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
@@ -140,7 +137,8 @@ export async function generateSeatingPlans(
       engineConstraints,
       engineAdjacents,
       engineAssignments,
-      isPremium
+      isPremium,
+      allowedByGuest
     );
 
     // Map to app types

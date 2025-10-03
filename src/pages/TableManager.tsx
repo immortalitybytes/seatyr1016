@@ -519,10 +519,10 @@ const TableManager: React.FC = () => {
             
             {state.conflictWarnings.length > 0 && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
-                <AlertCircle className="text-red-500 mr-2 mt-1 flex-shrink-0" />
+                <AlertCircle className="text-[#CC5500] mr-2 mt-1 flex-shrink-0" />
                 <div>
-                  <p className="text-red-700 font-medium">Assignment Warnings</p>
-                  <ul className="list-disc pl-5 text-red-600 text-sm">
+                  <p className="text-[#CC5500] font-medium">Assignment Warnings</p>
+                  <ul className="list-disc pl-5 text-[#CC5500] text-sm">
                     {state.conflictWarnings.map((warn, index) => (
                       <li key={index}>{warn}</li>
                     ))}
@@ -532,7 +532,7 @@ const TableManager: React.FC = () => {
             )}
             
             {state.warnings && state.warnings.length > 0 && (
-              <div className="text-red-50 mt-2">
+              <div className="text-[#CC5500] mt-2">
                 {state.warnings.map(w => <p key={w}>{w}</p>)}
               </div>
             )}

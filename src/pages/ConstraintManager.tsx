@@ -439,112 +439,33 @@ const ConstraintManager: React.FC = () => {
       grid.push(<tr key={`row-${rowIndex}`}>{row}</tr>);
     });
 
-    // Generate page number buttons
-    const renderPageNumbers = () => {
-      // If we have 9 pages or fewer, show all pages
-      if (totalPages <= 9) {
-        return Array.from({ length: totalPages }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
-          >
-            {i + 1}
-          </button>
-        ));
-      }
-
-      // Otherwise show first 3, current page, last 3
-      const pageButtons = [] as React.ReactNode[];
-
-      // Always show first 3 pages
-      for (let i = 0; i < 3; i++) {
-        if (i < totalPages) {
-          pageButtons.push(
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i)}
-              className={currentPage === i 
-                ? 'danstyle1c-btn selected mx-1 w-4'
-                : 'danstyle1c-btn mx-1 w-4'}
-            >
-              {i + 1}
-            </button>
-          );
-        }
-      }
-
-      // Show ellipsis if current page is not in first 3
-      if (currentPage > 2) {
-        pageButtons.push(<span key="ellipsis1" className="mx-1">...</span>);
-        // Show current page if it's not in first 3 or last 3
-        if (currentPage > 2 && currentPage < totalPages - 3) {
-          pageButtons.push(
-            <button
-              key={currentPage}
-              onClick={() => setCurrentPage(currentPage)}
-              className="danstyle1c-btn selected mx-1 w-4"
-            >
-              {currentPage + 1}
-            </button>
-          );
-        }
-      }
-      
-      // Show ellipsis if current page is not in last 3
-      if (currentPage < totalPages - 3) {
-        pageButtons.push(<span key="ellipsis2" className="mx-1">...</span>);
-      }
-      
-      // Always show last 3 pages
-      for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) {
-        pageButtons.push(
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
-          >
-            {i + 1}
-          </button>
-        );
-      }
-      
-      return pageButtons;
-    };
     
-    // For large guest lists, include pagination controls
+    // Bottom controls
     const paginationControls = needsPagination && (
-      <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
-        <div className="flex items-center w-full justify-between">
-          <div className="pl-[140px]"> {/* This aligns with the left column width */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Previous
-            </button>
-          </div>
-          
-          <div className="flex flex-wrap justify-center">
-            {renderPageNumbers()}
-          </div>
-          
-          <div className="pr-[10px]"> {/* Small padding to ensure not cut off */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-              disabled={currentPage >= totalPages - 1}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              Next
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </button>
-          </div>
+      <div className="mt-3">
+        {/* Row of 10 static buttons; wraps on narrow screens */}
+        <div className="grid grid-cols-10 gap-2 [@media(max-width:480px)]:grid-cols-5 [@media(max-width:480px)]:grid-rows-2">
+          {(() => {
+            const TOTAL_PAGES = Math.max(1, totalPages);
+            const pageWindow = 10;
+            const first = Math.floor(currentPage / pageWindow) * pageWindow; // 0-based window
+            const pageIndices = Array.from({ length: Math.min(pageWindow, TOTAL_PAGES - first) },
+                                           (_, i) => first + i);
+            return pageIndices.map((i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i)}
+                className={`px-2 py-1 border text-sm ${i===currentPage ? 'bg-[#586D78] text-white' : 'bg-white text-[#586D78]'}`}
+              >
+                {i+1}
+              </button>
+            ));
+          })()}
+        </div>
+        {/* Row 2: centered arrows */}
+        <div className="flex items-center justify-center gap-4 mt-2">
+          <button onClick={() => setCurrentPage(Math.max(0, currentPage-1))} aria-label="Previous Page">◀</button>
+          <button onClick={() => setCurrentPage(Math.min(totalPages-1, currentPage+1))} aria-label="Next Page">▶</button>
         </div>
       </div>
     );
@@ -734,53 +655,55 @@ const ConstraintManager: React.FC = () => {
 
       </h1>
       
-      <Card>
-        <div className="space-y-4">
-          <div className="flex items-start space-x-4">
-            <Info className="text-[#586D78] mt-1 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <div className="text-gray-600 text-[17px] mt-2">
-                <div>Click a cell to cycle between constraints:</div>
-                <div className="mt-1 flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="Must">
-                      &
-                    </span>
-                    <span>Must sit at the same table</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="Cannot">
-                      X
-                    </span>
-                    <span>Cannot sit at the same table</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="No constraint">
-                    </span>
-                    <span>No constraint</span>
+      {isPremium && (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-start space-x-4">
+              <Info className="text-[#586D78] mt-1 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
+                <div className="text-gray-600 text-[17px] mt-2">
+                  <div>Click a cell to cycle between constraints:</div>
+                  <div className="mt-1 flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="Must">
+                        &
+                      </span>
+                      <span>Must sit at the same table</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="Cannot">
+                        X
+                      </span>
+                      <span>Cannot sit at the same table</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="No constraint">
+                      </span>
+                      <span>No constraint</span>
+                    </div>
                   </div>
                 </div>
+                <ul className="list-disc pl-5 mt-2">
+                  <li>To set "Adjacent Seating" (guests sit right next to each other):
+                    <ol className="list-decimal pl-5 mt-1">
+                      <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
+                      <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
+                    </ol>
+                  </li>
+                  <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
+                </ul>
               </div>
-              <ul className="list-disc pl-5 mt-2">
-                <li>To set "Adjacent Seating" (guests sit right next to each other):
-                  <ol className="list-decimal pl-5 mt-1">
-                    <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
-                    <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
-                  </ol>
-                </li>
-                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
-              </ul>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
     
       <Card title="Constraint Grid">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4 space-y-2 md:space-y-0">

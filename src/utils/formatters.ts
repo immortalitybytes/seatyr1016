@@ -1,203 +1,38 @@
-import type { Assignments, Table } from '../types';
-import { countHeads as canonicalCountHeads } from './guestCount';
-
-// Delegated to guestCount.ts as SSOT - no duplicate patterns
-
-// Delegate to the canonical implementation to avoid logic drift
-export function countHeads(name: string): number {
-  return canonicalCountHeads(name);
+export function sanitizeGuestUnitName(raw: string): string {
+  let s = (raw ?? '').trim();
+  s = s.replace(/\b(and|also|plus)\b/gi, '+');   // words → '+'
+  s = s.replace(/([&+])\s*([&+])+/g, '$1');     // collapse multi connectors
+  s = s.replace(/\s*([&+])\s*/g, ' $1 ');       // exactly one space around connectors
+  s = s.replace(/\s{2,}/g, ' ');                // collapse spaces
+  return s;
 }
 
-// Centralized display name formatter (from guestCount.ts)
-export function getDisplayName(raw: string): string {
-  return raw
-    .replace(/\s*\(\s*\d+\s*\)\s*$/i, '')
-    .replace(/\s*[&+]\s*\d+\s*$/i, '')
-    .replace(/\s+(?:and|plus|\+|&)\s+(?:guest|guests?)\s*$/i, '')
-    .trim();
+export function getLastNameForSorting(name: string): string {
+  // Simple implementation - return the last word
+  const parts = name.trim().split(/\s+/);
+  return parts[parts.length - 1] || '';
 }
 
-/**
- * Extracts the effective last name for sorting purposes.
- * Priority order:
- * 1. First instance of word prefixed with % character (user-designated sorting word)
- * 2. Last word of first multi-word name separated by addition signifiers
- * 3. First name if no multi-word names exist
- */
-export function getLastNameForSorting(fullName: string): string {
-  if (!fullName || typeof fullName !== 'string') {
-    return '';
-  }
-  
-  const trimmedName = fullName.trim();
-  if (!trimmedName) {
-    return '';
-  }
-  
-  // Priority 1: Look for first instance of word prefixed with % character
-  const percentMatch = trimmedName.match(/%([A-Za-z][\w-]*)/);
-  if (percentMatch) {
-    return percentMatch[1];
-  }
-  
-  // Priority 2: Look for multi-word guest names separated by addition signifiers
-  // Split by addition signifiers: &, +, and, plus
-  const separators = /[&+]|\b(?:and|plus)\b/gi;
-  const parts = trimmedName.split(separators);
-  
-  // Find the first multi-word part (more than one word)
-  for (const part of parts) {
-    const words = part
-      .trim()
-      .split(/\s+/)
-      .filter(w => w.length > 0 && !/^(?:&|\+|and|plus)$/i.test(w));
-    if (words.length > 1) {
-      // Return the last word of the first multi-word part
-      // Handle hyphens as single words (e.g., "Berns-Krishnan" is one word)
-      return words[words.length - 1];
-    }
-  }
-  
-  // Priority 3: If no multi-word names, treat first name as last name
-  const words = trimmedName.split(/\s+/).filter(word => word.length > 0);
-  return words.length > 0 ? words[0] : trimmedName;
+export function formatTableAssignment(assignment: string | undefined): string {
+  if (!assignment) return 'Unassigned';
+  const ids = assignment.split(',').map(id => id.trim()).filter(Boolean);
+  if (ids.length === 0) return 'Unassigned';
+  if (ids.length === 1) return `Table ${ids[0]}`;
+  return `Tables ${ids.join(', ')}`;
 }
 
-/**
- * Formats a guest's table assignments into a human-readable string.
- */
-export function formatTableAssignment(
-  assignments: Assignments | undefined,
-  tables: Pick<Table, 'id' | 'name'>[],
-  guestKey: string /* id or name */
-): string {
-  if (!assignments || !tables || !guestKey) {
-    return 'Table: unassigned';
-  }
-  
-  // Prefer ID lookup first
-  let rawIdCsv = assignments[guestKey];
-  
-  // If not found by ID, try legacy name-based lookup (compatibility)
-  if (!rawIdCsv || typeof rawIdCsv !== 'string') {
-    // Check if assignments has a byGuestName structure (legacy)
-    const byNameMap = (assignments as any).byGuestName;
-    if (byNameMap && typeof byNameMap === 'object') {
-      rawIdCsv = byNameMap[guestKey];
-    }
-  }
-  
-  if (!rawIdCsv || typeof rawIdCsv !== 'string') {
-    return 'Table: unassigned';
-  }
-  
-  // Create efficient lookup map for table data
-  const tableById = new Map<number, Pick<Table, 'id' | 'name'>>();
-  tables.forEach(table => {
-    if (table && typeof table.id === 'number' && table.id > 0) {
-      tableById.set(table.id, table);
-    }
-  });
-  
-  // Parse and format each table assignment
-  const parts = rawIdCsv
-    .split(',')
-    .map(part => part.trim())
-    .filter(part => part.length > 0);
-  
-  if (parts.length === 0) {
-    return 'Table: unassigned';
-  }
-  
-  const labels: string[] = [];
-  
-  for (const token of parts) {
-    const tableId = Number(token);
-    
-    // Validate table ID
-    if (!Number.isFinite(tableId) || tableId <= 0) {
-      labels.push(`Table #${token}`); // Show invalid token as-is
-      continue;
-    }
-    
-    const table = tableById.get(tableId);
-    
-    if (!table) {
-      labels.push(`Table #${token}`); // Show unknown table as-is
-      continue;
-    }
-    
-    // Format table label with name if available
-    const baseLabel = `Table #${table.id}`;
-    const hasCustomName = table.name && typeof table.name === 'string' && table.name.trim().length > 0;
-    
-    if (hasCustomName) {
-      labels.push(`${baseLabel} (${table.name.trim()})`);
-    } else {
-      labels.push(baseLabel);
-    }
-  }
-  
-  // Return formatted string or fallback
-  return labels.length > 0 ? labels.join(' • ') : 'Table: unassigned';
+export function seatingTokensFromGuestUnit(name: string): string[] {
+  // Simple implementation - split by common separators
+  const parts = name.split(/[&+]/).map(p => p.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [name];
 }
 
-/**
- * Splits a composite GuestUnit name into tokens to "bold" in rotation.
- */
-export function seatingTokensFromGuestUnit(raw: string): string[] {
-  if (!raw || typeof raw !== 'string') return [raw || ''];
-  
-  // Remove trailing party suffix for base tokens (keep it for N-of-N expansion)
-  const baseName = raw
-    .replace(/\s*\(\s*\d+\s*\)\s*$/i, '')
-    .replace(/\s*[&+]\s*\d+\s*$/i, '')
-    .replace(/\s+(?:and|plus|\+|&)\s+(?:guest|guests?)\s*$/i, '')
-    .trim();
-  
-  // Split by connectors while preserving the token words (no punctuation)
-  const tokens = baseName.split(/\s+(?:and|&|\+|plus|also)\s+/i)
-    .map(token => token.trim())
-    .filter(token => token.length > 0);
-  
-  // Return at least one token (the whole string if split fails)
-  return tokens.length > 0 ? tokens : [baseName];
-}
-
-/**
- * Converts "+N" etc to ["1st of N", "2nd of N", ...] for display only.
- */
-export function nOfNTokensFromSuffix(raw: string): string[] {
-  if (!raw || typeof raw !== 'string') return [];
-  
-  const s = raw.trim();
-  if (!s) return [];
-  
-  // Parse +N, (N), plus/and N, plus/and guest(s) => N
-  const plusNum = s.match(/[&+]\s*(\d+)\s*$/);
-  const paren = s.match(/\((\d+)\)\s*$/);
-  const plusGuest = /\b(?:\+|plus|and)\s+(?:guest|guests?)\s*$/i.test(s);
-  const plusWord = s.match(/\b(?:\+|plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i);
-  
-  let n = 0;
-  if (plusNum) n = parseInt(plusNum[1], 10);
-  else if (paren) n = parseInt(paren[1], 10);
-  else if (plusGuest) n = 1;
-  else if (plusWord) {
-    const map: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};                                                                                                        
-    n = map[plusWord[1].toLowerCase()] || 1;
+export function nOfNTokensFromSuffix(name: string): string[] {
+  // Simple implementation - look for +N patterns
+  const match = name.match(/\+(\d+)/);
+  if (match) {
+    const count = parseInt(match[1], 10);
+    return Array.from({ length: count }, (_, i) => `+${i + 1}`);
   }
-  
-  if (n <= 0) return [];
-  
-  // Generate English ordinals
-  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
-  const result: string[] = [];
-  
-  for (let i = 1; i <= n; i++) {
-    const ordinal = i <= 10 ? ordinals[i - 1] : `${i}th`;
-    result.push(`${ordinal} of ${n}`);
-  }
-  
-  return result;
+  return [];
 }
