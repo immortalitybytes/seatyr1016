@@ -68,10 +68,6 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       return (typeof c === 'number' && c > m) ? c : m;
     }, 0) || undefined;
 
-  // Debug logs for validator race fix (remove post-fix)
-  console.log('Tables passed to validator:', tables.map(t => ({id: t.id, cap: getCapacity(t)})));
-  console.log('tableCapById contents:', Array.from(tableCapById.entries()));
-
   // d) Evaluate each group
   const messages: string[] = [];
   for (const group of Object.values(groups)) {
@@ -89,9 +85,6 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
         if (Number.isFinite(idNum)) hardTables.add(idNum);
       }
     }
-
-    // Debug logs for assignment parsing (remove post-fix)
-    console.log('Assignment IDs for group:', group.map(gid => ({gid, assigns: assignments[gid], parsed: parseAssignmentIds(assignments[gid] || '')})));
 
     // Impossible Case #1: Conflicting hard locks to different tables
     if (hardTables.size > 1) {
@@ -117,9 +110,6 @@ export function detectUnsatisfiableMustGroups(params: DetectParams): string[] {
       const cap = tableCapById.get(id);
       return (typeof cap !== 'number') || cap >= groupSize;
     });
-
-    // Debug log for candidate fitting check (remove post-fix)
-    console.log(`Group size: ${groupSize}, Candidates: ${candidates}, anyCandidateFits: ${anyCandidateFits}`);
 
     if (!anyCandidateFits) {
       const names = group.map(gid => guests[gid]?.name || gid).join(", ");

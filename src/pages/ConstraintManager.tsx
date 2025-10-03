@@ -112,8 +112,8 @@ const ConstraintManager: React.FC = () => {
 
   // Function to purge seating plans when constraints change
   const purgeSeatingPlans = () => {
-    // Reset seating plans
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+    // Clear plans only - AppContext handles generation
+    dispatch({ type: 'CLEAR_PLANS' });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     
     // Reset plan name in localStorage
@@ -295,8 +295,6 @@ const ConstraintManager: React.FC = () => {
     
     // Now add the rows
     guests.forEach((guest1, rowIndex) => {
-      // Find the original index in the state.guests array
-      const originalIndex = state.guests.findIndex(g => g.name === guest1.name);
       
       // Get table assignment info if premium
       let assignmentInfo = null;
@@ -673,9 +671,7 @@ const ConstraintManager: React.FC = () => {
       }
     }
     dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guest1Id, guest2: guest2Id, value: next } });
-    // Auto-purge plans on change (keeps behavior consistent)
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
-    dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+    // AppContext handles plan clearing on constraint changes
   };
 
   const handleGuestSelect = (guestName: string) => {

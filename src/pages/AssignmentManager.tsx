@@ -33,7 +33,8 @@ const AssignmentManager: React.FC = () => {
 
   // Function to purge seating plans when assignments change
   const purgeSeatingPlans = () => {
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+    // Clear plans only - AppContext handles generation
+    dispatch({ type: 'CLEAR_PLANS' });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     localStorage.setItem('seatyr_current_setting_name', 'Unsaved');
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });

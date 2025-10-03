@@ -90,7 +90,7 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey(prev => prev === inputKey ? null : prev);
+              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
             }
           }, 100);
         }}
@@ -163,7 +163,8 @@ const TableManager: React.FC = () => {
   }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const purgePlans = () => {
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+    // Clear plans only - AppContext handles generation
+    dispatch({ type: 'CLEAR_PLANS' });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     localStorage.setItem('seatyr_current_setting_name', 'Unsaved');
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
@@ -198,8 +199,7 @@ const TableManager: React.FC = () => {
     if (Number.isFinite(seats) && seats >= 1 && seats <= 20) {
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'UPDATE_TABLE', payload: { id, seats } });
-      dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
-      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+      // AppContext handles plan clearing on table updates
     }
   };
   

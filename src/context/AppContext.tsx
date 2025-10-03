@@ -231,15 +231,53 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case "SET_ADJACENT": {
       const { a, b } = pairPayload(action.payload);
+      const value = action.payload?.value;
       if (!a || !b) return state;
 
-      const capacities = state.tables.map(getCapacity);
-      const ring = wouldCloseInvalidRingExact(state.adjacents, [a, b], capacities);
-      if (ring.closes && !ring.ok) return state; // block invalid ring, silent (existing UX)
+      // Self-loop guard
+      if (a === b) {
+        return { 
+          ...state, 
+          warnings: [...(state.warnings ?? []), `Self-loop blocked: ${a} cannot be adjacent to itself`] 
+        };
+      }
 
+      // Degree cap guard (max 2 neighbors)
+      const degA = new Set(state.adjacents[a] ?? []).size;
+      const degB = new Set(state.adjacents[b] ?? []).size;
+      if (value && (degA >= 2 || degB >= 2)) {
+        return { 
+          ...state, 
+          warnings: [...(state.warnings ?? []), `Degree cap exceeded: ${a} or ${b} already has 2 neighbors`] 
+        };
+      }
+
+      // Ring guard - require exact table capacity to close loop
+      const ringViolation = value && wouldCloseInvalidRingExact({
+        guests: state.guests,
+        tables: state.tables,
+        adjacents: state.adjacents,
+        newEdge: [a, b],
+      });
+      if (ringViolation) {
+        return { 
+          ...state, 
+          warnings: [...(state.warnings ?? []), `Ring blocked: no table with exact capacity for closed loop`] 
+        };
+      }
+
+      // Commit adjacency (immutable)
+      const next = { ...state, adjacents: { ...state.adjacents } } as typeof state;
+      const upd = (x: string, y: string) => {
+        const s = new Set(next.adjacents[x] ?? []);
+        value ? s.add(y) : s.delete(y);
+        next.adjacents[x] = Array.from(s);
+      };
+      upd(a, b); 
+      upd(b, a);
+      
       return {
-        ...state,
-        adjacents: addAdjacentSymmetric(state.adjacents, a, b),
+        ...next,
         seatingPlans: [],
         currentPlanIndex: 0,
       };
@@ -318,6 +356,10 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         lastGeneratedPlanSig: computePlanSignature(state),
       };
     }
+    case "CLEAR_PLAN_ERRORS":
+      return { ...state, planErrors: [] };
+    case "CLEAR_PLANS":
+      return { ...state, seatingPlans: [], currentPlanIndex: 0 };
     case "SET_CURRENT_PLAN_INDEX":
       return { ...state, currentPlanIndex: action.payload };
     case "SET_USER":
@@ -468,6 +510,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       timeout = setTimeout(async () => {
         const currentGen = ++generationIdRef.current;
         console.time("SeatingGeneration");
+        
+        // Clear stale plan errors at generation start
+        dispatch({ type: 'CLEAR_PLAN_ERRORS' });
         
         // Pre-engine validation: detect unsatisfiable MUST groups
         const mustGroupErrors = detectUnsatisfiableMustGroups({
