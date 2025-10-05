@@ -392,6 +392,8 @@ const ConstraintManager: React.FC = () => {
           // Precedence: cannot > adjacency > must > empty
           const hasAdj = isAdjacent || isAdjacentReverse;
           
+          // Debug logging removed to avoid interference
+          
           let cellContent = null;
           let bgColor = '';
           
@@ -472,7 +474,7 @@ const ConstraintManager: React.FC = () => {
     
     // Performance warning for large but not pagination-level guest lists
     const showPerformanceWarning = !isPremium && state.guests.length > 100 && state.guests.length <= GUEST_THRESHOLD;
-    
+
     return (
       <div className="flex flex-col space-y-4">
         {showPerformanceWarning && SHOW_LARGE_LIST_WARNING && (
@@ -531,7 +533,7 @@ const ConstraintManager: React.FC = () => {
         <div className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
           <table className="w-full border-collapse bg-white">
             <tbody>{grid}</tbody>
-          </table>
+      </table>
         </div>
         
         {needsPagination && paginationControls}
@@ -574,20 +576,26 @@ const ConstraintManager: React.FC = () => {
 
     const current = (state.constraints[guest1Id]?.[guest2Id] ?? '') as ''|'must'|'cannot';
     const adj = !!state.adjacents[guest1Id]?.includes(guest2Id);
+    
+    // Debug logging for constraint toggles (removed to avoid interference)
 
     let next: ''|'must'|'cannot' = '';
     if (!isPremium) {
       next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
     } else {
       if (current === '') {
+        // CLEAR → MUST
         next = 'must';
       } else if (current === 'must' && !adj) {
+        // MUST → ADJACENT PAIRED (create adjacency, keep must constraint)
         dispatch({ type: 'SET_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
-        next = 'must';
+        next = 'must'; // This will show as ⭐&⭐ because hasAdj will be true
       } else if (current === 'must' && adj) {
+        // ADJACENT PAIRED → CANNOT (remove adjacency, set cannot)
         dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
         next = 'cannot';
       } else if (current === 'cannot') {
+        // CANNOT → CLEAR
         next = '';
       }
     }
@@ -654,7 +662,7 @@ const ConstraintManager: React.FC = () => {
         Constraint Manager
 
       </h1>
-      
+
       {isPremium && (
         <Card>
           <div className="space-y-4">
@@ -689,7 +697,7 @@ const ConstraintManager: React.FC = () => {
                       <span>No constraint</span>
                     </div>
                   </div>
-                </div>
+        </div>
                 <ul className="list-disc pl-5 mt-2">
                   <li>To set "Adjacent Seating" (guests sit right next to each other):
                     <ol className="list-decimal pl-5 mt-1">
@@ -698,8 +706,8 @@ const ConstraintManager: React.FC = () => {
                     </ol>
                   </li>
                   <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
-                </ul>
-              </div>
+          </ul>
+        </div>
             </div>
           </div>
         </Card>
@@ -714,20 +722,20 @@ const ConstraintManager: React.FC = () => {
             </span>
             <div className="flex space-x-2">
               {allowedSortOptions.includes('first-name') && (
-                <button
+          <button
                   className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                  onClick={() => setSortOption('first-name')}
-                >
-                  First Name
-                </button>
+            onClick={() => setSortOption('first-name')}
+          >
+            First Name
+          </button>
               )}
               {allowedSortOptions.includes('last-name') && (
-                <button
+          <button
                   className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                  onClick={() => setSortOption('last-name')}
-                >
-                  Last Name
-                </button>
+            onClick={() => setSortOption('last-name')}
+          >
+            Last Name
+          </button>
               )}
               {allowedSortOptions.includes('as-entered') && (
                 <button
@@ -738,16 +746,16 @@ const ConstraintManager: React.FC = () => {
                 </button>
               )}
               {allowedSortOptions.includes('current-table') && (
-                <button
+          <button
                   className={`
                     ${sortOption === 'current-table' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
                   `}
-                  onClick={() => setSortOption('current-table')}
-                  disabled={!state.seatingPlans || state.seatingPlans.length === 0}
-                  title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
-                >
-                  Current Table
-                </button>
+            onClick={() => setSortOption('current-table')}
+            disabled={!state.seatingPlans || state.seatingPlans.length === 0}
+            title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
+          >
+            Current Table
+          </button>
               )}
               {allowedSortOptions.includes('party-size') && (
                 <button

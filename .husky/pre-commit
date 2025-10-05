@@ -1,2 +1,4 @@
-#!/usr/bin/env bash
-npm run gm:check || { echo "GuestManager integrity failed."; exit 1; }
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+npx lint-staged

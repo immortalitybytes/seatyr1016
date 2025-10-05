@@ -102,4 +102,5 @@ export interface AppState {
   warnings: string[]; // Non-blocking warnings for display
   lastGeneratedSignature: string | null; // Signature of last generated plan
   lastGeneratedPlanSig: string | null; // Plan signature of last generated plan
+  trial: TrialSubscription | null; // Trial subscription data
 }

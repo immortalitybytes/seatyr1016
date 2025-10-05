@@ -25,7 +25,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ onSuccess }) => {
     );
   }
   
-  const isPremium = isPremiumSubscription(subscription);
+  const isPremium = isPremiumSubscription(subscription, null);
   const isSpecialUser = subscription && subscription.id === 'special-user';
   const isTrialSubscription = subscription?.id?.toString().startsWith('trial-');
   

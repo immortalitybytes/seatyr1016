@@ -132,6 +132,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
     case "SET_USER": return { ...state, user: action.payload };
     case "SET_SUBSCRIPTION": return { ...state, subscription: action.payload };
     case "SET_TRIAL": return { ...state, trial: action.payload };
+    case "SET_SUBSCRIPTION_AND_TRIAL": 
+      return { 
+        ...state, 
+        subscription: action.payload.subscription, 
+        trial: action.payload.trial 
+      };
 
     case "ADD_GUEST": {
       const id = crypto.randomUUID();
@@ -304,8 +310,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           supabase.from("trials").select("*").eq("user_id", session.user.id).maybeSingle(),
         ]);
         if (!alive) return;
-        dispatch({ type: "SET_SUBSCRIPTION", payload: subData || null });
-        dispatch({ type: "SET_TRIAL", payload: trialData || null });
+        
+        // Atomic state update to prevent race conditions
+        dispatch({ 
+          type: "SET_SUBSCRIPTION_AND_TRIAL", 
+          payload: { subscription: subData || null, trial: trialData || null }
+        });
         
         // Debug logging for premium detection
         if (process.env.NODE_ENV === 'development') {
@@ -322,7 +332,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     })();
     return () => { alive = false; };
   }, []);
-
+  
   // Free/unsigned users: persist a core subset to localStorage
   const core = useMemo(() => ({
     guests: state.guests,
