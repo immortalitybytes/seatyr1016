@@ -1,50 +1,74 @@
-import type { Table } from "../types";
+// src/utils/assignments.ts
+// Multi-assignment utilities: robust parsing and normalization
 
-// Robust parser: accepts string | string[], returns string[]; splits CSV/whitespace
+import type { Table } from '../types';
+
+/** Parse multi-assignment CSVs/arrays into array<string> IDs (stable). */
 export function parseAssignmentIds(raw: string | string[] | undefined | null): string[] {
   if (Array.isArray(raw)) return raw.flatMap(parseAssignmentIds);
-  return (raw || "").split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+  return (raw || '')
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
 }
 
+/** Accepts names/ids → resolves to deduped ID CSV; warns on unknowns. */
 export function normalizeAssignmentInputToIdsWithWarnings(
   raw: string | string[] | undefined | null,
-  tables: Pick<Table, "id" | "name">[]
+  tables: Pick<Table, 'id' | 'name'>[]
 ): { idCsv: string; warnings: string[] } {
-  if (!raw) return { idCsv: "", warnings: [] };
-  const inputStr = Array.isArray(raw) ? raw.join(",") : String(raw);
+  if (!raw) return { idCsv: '', warnings: [] };
+
   const nameToId = new Map<string, number>();
-  tables.forEach(t => { if (t.name) nameToId.set(t.name.trim().toLowerCase(), t.id); });
-
-  const out = new Set<number>();
-  const warnings: string[] = [];
-  const tokens = inputStr.split(",").map(s => s.trim()).filter(Boolean);
-
-  tokens.forEach(tok => {
-    const num = parseInt(tok, 10);
-    if (Number.isFinite(num) && num > 0) {
-      if (tables.some(t => t.id === num)) out.add(num); else warnings.push(`Unknown table ID: ${tok}`);
-    } else {
-      const id = nameToId.get(tok.toLowerCase());
-      if (typeof id === "number") out.add(id); else warnings.push(`Unknown table name: ${tok}`);
+  for (const t of tables) {
+    if (t?.name && typeof t.name === 'string') {
+      nameToId.set(t.name.trim().toLowerCase(), t.id);
     }
-  });
-  return { idCsv: Array.from(out).join(","), warnings };
+  }
+
+  const resolved = new Set<number>();
+  const warnings: string[] = [];
+  const tokens = (Array.isArray(raw) ? raw.join(',') : String(raw))
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const tok of tokens) {
+    const n = parseInt(tok, 10);
+    if (Number.isFinite(n) && n > 0) {
+      if (tables.some(t => t.id === n)) resolved.add(n);
+      else warnings.push(`Unknown table ID: ${tok}`);
+      continue;
+    }
+    const byName = nameToId.get(tok.toLowerCase());
+    if (typeof byName === 'number') resolved.add(byName);
+    else warnings.push(`Unknown table name: ${tok}`);
+  }
+
+  return { idCsv: Array.from(resolved).join(','), warnings };
 }
 
-export function normalizeAssignmentsToArrayShape(a: Record<string, string | string[] | undefined>): Record<string, string[]> {
+/** Normalize assignments object to array-of-string-IDs shape for engine. */
+export function normalizeAssignmentsToArrayShape(
+  input: Record<string, string | string[] | undefined>
+): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  for (const [gid, v] of Object.entries(a || {})) {
+  for (const [gid, v] of Object.entries(input || {})) {
     if (!v) continue;
     out[gid] = parseAssignmentIds(v);
   }
   return out;
 }
 
-export function migrateAssignmentsToIdKeys(assignments: Record<string, string>, guests: { id: string; name: string }[]): Record<string, string> {
-  const nameToId = new Map<string, string>(guests.map(g => [g.name.toLowerCase(), g.id]));
+/** If your assignments were keyed by names, migrate to ID keys safely. */
+export function migrateAssignmentsToIdKeys(
+  assignments: Record<string, string>,
+  guests: { id: string; name: string }[]
+): Record<string, string> {
+  const nameToId = new Map(guests.map(g => [String(g.name || '').toLowerCase(), g.id]));
   const migrated: Record<string, string> = {};
-  for (const [key, value] of Object.entries(assignments)) {
-    const id = nameToId.get(key.toLowerCase()) || key;
+  for (const [key, value] of Object.entries(assignments || {})) {
+    const id = nameToId.get(String(key).toLowerCase()) || key;
     if (guests.some(g => g.id === id)) migrated[id] = value;
   }
   return migrated;

@@ -10,11 +10,25 @@ import { computePlanSignature } from "../utils/planSignature";
 import { countHeads } from "../utils/guestCount";
 import { sanitizeGuestUnitName } from "../utils/formatters";
 import { generateSeatingPlans } from "../utils/seatingAlgorithm";
-import { getCapacity } from "../utils/tables";
+import { getCapacity as _getCapacity } from "../utils/tables";
 
 const DEFAULT_TABLE_CAPACITY = 8;
 const ADJACENCY_MAX_DEGREE = 2;
 const MAX_TABLES = 100;
+
+/** Safe capacity reader that never throws at import/boot time. */
+function capOf(t: { seats?: number; capacity?: number } & Record<string, any>): number {
+  // Prefer the utility if available, but never rely on the bare global symbol
+  try {
+    if (typeof _getCapacity === 'function') {
+      return Number(_getCapacity(t)) || DEFAULT_TABLE_CAPACITY;
+    }
+  } catch {}
+  // Fallbacks if the util isn't ready or was tree-shaken:
+  if (Number.isFinite(t.capacity)) return Number(t.capacity);
+  if (Number.isFinite(t.seats)) return Number(t.seats);
+  return DEFAULT_TABLE_CAPACITY;
+}
 
 const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, seats: DEFAULT_TABLE_CAPACITY }));
 
@@ -36,7 +50,7 @@ function isAssignedToTable(t: Table, assignments: Assignments): boolean {
 }
 function isTableLocked(t: Table, assignments: Assignments): boolean {
   const named = !!(t.name && t.name.trim());
-  const capChanged = getCapacity(t) !== DEFAULT_TABLE_CAPACITY;
+  const capChanged = capOf(t) !== DEFAULT_TABLE_CAPACITY;
   const hasAssign = isAssignedToTable(t, assignments);
   return named || capChanged || hasAssign;
 }
@@ -56,7 +70,7 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   for (const t of tables) {
     if (isTableLocked(t, assignments)) {
       locked.push(t);
-      lockedCap += getCapacity(t);
+      lockedCap += capOf(t);
     } else {
       untouched.push(t);
     }
@@ -176,7 +190,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
       if (!a || !b || a === b) return state;
       const degA = (state.adjacents[a] ?? []).length, degB = (state.adjacents[b] ?? []).length;
       if (degA >= ADJACENCY_MAX_DEGREE || degB >= ADJACENCY_MAX_DEGREE) return { ...state, warnings: [...(state.warnings ?? []), { kind: "adjacency_degree_cap", a, b }] };
-      if (wouldCloseInvalidRingExact(state.adjacents, [a, b], state.tables.map(getCapacity))) return { ...state, warnings: [...(state.warnings ?? []), { kind: "invalid_ring_closure", a, b }] };
+      if (wouldCloseInvalidRingExact(state.adjacents, [a, b], state.tables.map(capOf))) return { ...state, warnings: [...(state.warnings ?? []), { kind: "invalid_ring_closure", a, b }] };
       return { ...state, adjacents: addAdjacentSymmetric(state.adjacents, a, b) };
     }
     case "REMOVE_ADJACENT": {
@@ -264,7 +278,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       dispatch({ type: "CLEAR_PLAN_ERRORS" });
       const params = {
         guests: state.guests.map(g => ({ id: g.id, name: g.name ?? "", partySize: g.count ?? countHeads(g.name ?? "") })),
-        tables: state.tables.map(t => ({ id: t.id, capacity: getCapacity(t) })),
+        tables: state.tables.map(t => ({ id: t.id, capacity: capOf(t) })),
         assignments: state.assignments,
         constraints: state.constraints,
         adjacents: state.adjacents,
@@ -292,7 +306,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Premium/trial users: save Most Recent State
   useEffect(() => {
-    if (!state.user || !isPremiumSubscription(state.subscription, state.trial)) return;
+    if (!state.user) return;
+    
+    // Use robust premium detection with fallbacks
+    const isPremium = isPremiumSubscription(state.subscription, state.trial) || 
+                     (state.user && state.subscription && (state.subscription as any).status === 'active');
+    
+    if (!isPremium) return;
     saveMostRecentState(state.user.id, state).catch(() => {});
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.user, state.subscription, state.trial]);
 
@@ -305,10 +325,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const session = data?.session;
         if (!alive || !session) return;
         dispatch({ type: "SET_USER", payload: session.user });
-        const [{ data: subData }, { data: trialData }] = await Promise.all([
+        // Fetch subscription and trial data with robust error handling
+        const [subResult, trialResult] = await Promise.allSettled([
           supabase.from("subscriptions").select("*").eq("user_id", session.user.id).maybeSingle(),
           supabase.from("trials").select("*").eq("user_id", session.user.id).maybeSingle(),
         ]);
+        
+        const subData = subResult.status === 'fulfilled' ? subResult.value.data : null;
+        const subError = subResult.status === 'fulfilled' ? subResult.value.error : subResult.reason;
+        const trialData = trialResult.status === 'fulfilled' ? trialResult.value.data : null;
+        const trialError = trialResult.status === 'fulfilled' ? trialResult.value.error : trialResult.reason;
         if (!alive) return;
         
         // Atomic state update to prevent race conditions
@@ -316,16 +342,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           type: "SET_SUBSCRIPTION_AND_TRIAL", 
           payload: { subscription: subData || null, trial: trialData || null }
         });
-        
-        // Debug logging for premium detection
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[PREMIUM DEBUG] Session preload completed:', {
-            userId: session.user.id,
-            subscription: subData,
-            trial: trialData,
-            isPremium: isPremiumSubscription(subData, trialData)
-          });
-        }
       } finally {
         if (alive) setSessionLoading(false);
       }
@@ -343,12 +359,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }), [state.guests, state.tables, state.constraints, state.adjacents, state.assignments]);
 
   useEffect(() => {
-    if (state.user || isPremiumSubscription(state.subscription, state.trial)) return;
+    // Only use localStorage for non-premium users
+    const isPremium = isPremiumSubscription(state.subscription, state.trial) || 
+                     (state.user && state.subscription && (state.subscription as any).status === 'active');
+    
+    if (state.user || isPremium) return;
     try { localStorage.setItem("seatyr_app_state", JSON.stringify(core)); } catch {}
   }, [state.user, core, state.subscription, state.trial]);
 
   useEffect(() => {
-    if (state.user || isPremiumSubscription(state.subscription, state.trial)) return;
+    // Only load from localStorage for non-premium users
+    const isPremium = isPremiumSubscription(state.subscription, state.trial) || 
+                     (state.user && state.subscription && (state.subscription as any).status === 'active');
+    
+    if (state.user || isPremium) return;
     try {
       const raw = localStorage.getItem("seatyr_app_state");
       if (!raw) return;

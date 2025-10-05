@@ -698,15 +698,17 @@ const ConstraintManager: React.FC = () => {
                     </div>
                   </div>
         </div>
-                <ul className="list-disc pl-5 mt-2">
-                  <li>To set "Adjacent Seating" (guests sit right next to each other):
-                    <ol className="list-decimal pl-5 mt-1">
-                      <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
-                      <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
-                    </ol>
-                  </li>
-                  <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
-          </ul>
+                {isPremium && (
+                  <ul className="list-disc pl-5 mt-2">
+                    <li>To set "Adjacent Seating" (guests sit right next to each other):
+                      <ol className="list-decimal pl-5 mt-1">
+                        <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
+                        <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
+                      </ol>
+                    </li>
+                    <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
+                  </ul>
+                )}
         </div>
             </div>
           </div>

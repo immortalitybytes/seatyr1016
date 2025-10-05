@@ -1,6 +1,10 @@
-import type { UserSubscription, TrialSubscription } from '../types';
+// src/utils/premium.ts
+// Production-ready, trial-aware premium helpers (robust date parsing)
 
-/** Parse ISO string, seconds(10), ms(13+), Date, or numberish string. */
+export type UserSubscription = any;   // Replace with your real type if available
+export type TrialSubscription  = any; // Replace with your real type if available
+
+/** Parse ISO string, seconds (10), milliseconds (13+), Date, or number-like string. */
 function parseAnyDate(input: unknown): Date | null {
   if (input == null) return null;
   if (input instanceof Date) return isNaN(+input) ? null : input;
@@ -9,9 +13,9 @@ function parseAnyDate(input: unknown): Date | null {
   if (!s) return null;
 
   if (/^\d+$/.test(s)) {
-    const n = Number(s);
-    const ms = s.length === 10 ? n * 1000 : n; // 10→seconds, 13+→ms
-    const d = new Date(ms);
+    const n  = Number(s);
+    const ms = s.length === 10 ? n * 1000 : n;
+    const d  = new Date(ms);
     return isNaN(+d) ? null : d;
   }
 
@@ -19,8 +23,10 @@ function parseAnyDate(input: unknown): Date | null {
   return isNaN(+d) ? null : d;
 }
 
+/** Best-effort extraction of a trial expiry across common shapes. */
 function trialExpiry(trial: TrialSubscription | null | undefined): Date | null {
   if (!trial) return null;
+  
   const candidates = [
     (trial as any).expires_on,
     (trial as any).expiresAt,
@@ -28,6 +34,7 @@ function trialExpiry(trial: TrialSubscription | null | undefined): Date | null {
     (trial as any).ends_at,
     (trial as any).endAt,
   ];
+  
   for (const c of candidates) {
     const d = parseAnyDate(c);
     if (d) return d;
@@ -35,13 +42,15 @@ function trialExpiry(trial: TrialSubscription | null | undefined): Date | null {
   return null;
 }
 
+/** Pulls end-of-period timestamps from a subscription row. */
 function subscriptionEndDate(subscription: any): Date | null {
   if (!subscription) return null;
+  
   const candidates = [
     subscription.current_period_end,
-    subscription.ends_at,
-    subscription.cancel_at,
+    subscription.period_end,
   ];
+  
   for (const c of candidates) {
     const d = parseAnyDate(c);
     if (d) return d;
@@ -49,28 +58,27 @@ function subscriptionEndDate(subscription: any): Date | null {
   return null;
 }
 
-/** Trial-first premium check; robust to field/format variance. */
+/** Trial-aware premium check. Treats active trial as premium. */
 export function isPremiumSubscription(
   subscription: UserSubscription | null | undefined,
   trial?: TrialSubscription | null
 ): boolean {
-  // 1) Trial treated as premium if unexpired
+  // 1) Trial wins if unexpired
   const tEnd = trialExpiry(trial);
   if (tEnd && tEnd > new Date()) return true;
 
-  // 2) Subscription states
+  // 2) Subscription states (kept simple & tolerant)
   if (!subscription) return false;
-  const status = String((subscription as any).status || '').toLowerCase();
-  if (status === 'active' || status === 'trialing' || status === 'past_due') return true;
+  const status: string = (subscription as any).status ?? '';
+  if (['active', 'trialing', 'past_due'].includes(status)) return true;
 
-  // 3) Time-bounded premium
+  // 3) Fall back to period end time (handles providers that don't set status usefully)
   const end = subscriptionEndDate(subscription);
   if (end && end > new Date()) return true;
 
   return false;
 }
 
-/** Keep the rest of your helpers, but pass `trial` through. */
 export function getMaxGuestLimit(
   subscription: UserSubscription | null | undefined,
   trial?: TrialSubscription | null
