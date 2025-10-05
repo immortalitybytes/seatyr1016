@@ -63,19 +63,45 @@ export function isPremiumSubscription(
   subscription: UserSubscription | null | undefined,
   trial?: TrialSubscription | null
 ): boolean {
+  // Debug logging for premium detection
+  console.log('[PREMIUM DEBUG] isPremiumSubscription called:', {
+    subscription,
+    trial,
+    subscriptionType: typeof subscription,
+    trialType: typeof trial,
+    timestamp: new Date().toISOString()
+  });
+
   // 1) Trial wins if unexpired
   const tEnd = trialExpiry(trial);
-  if (tEnd && tEnd > new Date()) return true;
+  console.log('[PREMIUM DEBUG] Trial expiry check:', { tEnd, isFuture: tEnd && tEnd > new Date() });
+  if (tEnd && tEnd > new Date()) {
+    console.log('[PREMIUM DEBUG] Trial is active, returning true');
+    return true;
+  }
 
   // 2) Subscription states (kept simple & tolerant)
-  if (!subscription) return false;
+  if (!subscription) {
+    console.log('[PREMIUM DEBUG] No subscription, returning false');
+    return false;
+  }
+  
   const status: string = (subscription as any).status ?? '';
-  if (['active', 'trialing', 'past_due'].includes(status)) return true;
+  console.log('[PREMIUM DEBUG] Subscription status check:', { status, isActive: ['active', 'trialing', 'past_due'].includes(status) });
+  if (['active', 'trialing', 'past_due'].includes(status)) {
+    console.log('[PREMIUM DEBUG] Subscription status is premium, returning true');
+    return true;
+  }
 
   // 3) Fall back to period end time (handles providers that don't set status usefully)
   const end = subscriptionEndDate(subscription);
-  if (end && end > new Date()) return true;
+  console.log('[PREMIUM DEBUG] Subscription end date check:', { end, isFuture: end && end > new Date() });
+  if (end && end > new Date()) {
+    console.log('[PREMIUM DEBUG] Subscription period end is in future, returning true');
+    return true;
+  }
 
+  console.log('[PREMIUM DEBUG] No premium conditions met, returning false');
   return false;
 }
 

@@ -342,6 +342,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           type: "SET_SUBSCRIPTION_AND_TRIAL", 
           payload: { subscription: subData || null, trial: trialData || null }
         });
+        
+        // Debug logging for session data
+        console.log('[SESSION DEBUG] Session preload completed:', {
+          userId: session.user.id,
+          subscription: subData,
+          trial: trialData,
+          subscriptionError: subError,
+          trialError: trialError
+        });
       } finally {
         if (alive) setSessionLoading(false);
       }

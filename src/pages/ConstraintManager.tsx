@@ -41,6 +41,15 @@ const ConstraintManager: React.FC = () => {
   
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  
+  // Debug logging for premium status in component
+  console.log('[CONSTRAINT DEBUG] Premium status check:', {
+    isPremium,
+    subscription: state.subscription,
+    trial: state.trial,
+    userId: state.user?.id,
+    userEmail: state.user?.email
+  });
 
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
