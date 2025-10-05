@@ -1,16 +1,10 @@
-import { countHeads as canonicalCountHeads } from "./guestCount";
-
-// SSOT sanitizer: "and/also/plus" → " + " ; exactly one space around [&+]; collapse dupes
 export function sanitizeGuestUnitName(raw: string): string {
-  let s = (raw ?? "").trim();
-  s = s.replace(/\s+(and|also|plus)\s+/gi, " + ");
-  s = s.replace(/([&+])\s*([&+])+/g, "$1");
-  s = s.replace(/\s*([&+])\s*/g, " $1 ");
-  s = s.replace(/\s{2,}/g, " ");
-  return s.trim();
-}
-export function countHeads(name: string): number {
-  return canonicalCountHeads(name);
+  let s = (raw ?? '').trim();
+  s = s.replace(/\b(and|also|plus)\b/gi, '+');   // words → '+'
+  s = s.replace(/([&+])\s*([&+])+/g, '$1');     // collapse multi connectors
+  s = s.replace(/\s*([&+])\s*/g, ' $1 ');       // exactly one space around connectors
+  s = s.replace(/\s{2,}/g, ' ');                // collapse spaces
+  return s;
 }
 
 export function getLastNameForSorting(name: string): string {
@@ -19,10 +13,9 @@ export function getLastNameForSorting(name: string): string {
   return parts[parts.length - 1] || '';
 }
 
-export function formatTableAssignment(assignments: any, tables: any[], guestId: string): string {
-  const assignment = assignments[guestId];
+export function formatTableAssignment(assignment: string | undefined): string {
   if (!assignment) return 'Unassigned';
-  const ids = assignment.split(',').map((id: string) => id.trim()).filter(Boolean);
+  const ids = assignment.split(',').map(id => id.trim()).filter(Boolean);
   if (ids.length === 0) return 'Unassigned';
   if (ids.length === 1) return `Table ${ids[0]}`;
   return `Tables ${ids.join(', ')}`;

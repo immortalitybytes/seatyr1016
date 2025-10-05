@@ -110,12 +110,12 @@ const GuestManager: React.FC = () => {
   const pulsingArrowTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isPremium = isPremiumSubscription(state.subscription);
-  const maxGuests = getMaxGuestLimit(state.subscription);
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  const maxGuests = getMaxGuestLimit(state.subscription, state.trial);
 
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    ? ['first-name', 'last-name', 'as-entered', 'current-table', 'party-size']
     : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely

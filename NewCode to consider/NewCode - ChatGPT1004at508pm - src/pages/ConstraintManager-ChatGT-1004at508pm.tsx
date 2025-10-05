@@ -1,19 +1,17 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, ArrowDownAZ, ChevronDown, X } from 'lucide-react';
 
 // Disable large guest list warnings site-wide
 const SHOW_LARGE_LIST_WARNING = false;
-import Card from './Card';
-import Button from './Button';
+import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
-import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
-import SavedSettingsAccordion from './SavedSettingsAccordion';
-import FormatGuestName from './FormatGuestName';
+import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+import FormatGuestName from '../components/FormatGuestName';
 
 // Sort options
-type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
 
 const GUEST_THRESHOLD = 120; // Threshold for pagination
 const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
@@ -25,12 +23,16 @@ const ConstraintManager: React.FC = () => {
   const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   
+  // ID ↔ Name mapping for display only (UI still shows names)
+  const idToName = useMemo(() => new Map(state.guests.map(g => [g.id, g.name])), [state.guests]);
+  const nameToId = useMemo(() => new Map(state.guests.map(g => [g.name, g.id])), [state.guests]);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   
   // Sorting state (for premium users)
-  const [sortOption, setSortOption] = useState<SortOption>('as-entered');
+  const [sortOption, setSortOption] = useState<SortOption>('last-name');
   
   // Warning message state
   const [isWarningExpanded, setIsWarningExpanded] = useState(false);
@@ -38,7 +40,17 @@ const ConstraintManager: React.FC = () => {
   const [userHasInteractedWithWarning, setUserHasInteractedWithWarning] = useState(false);
   
   // Check if user has premium subscription
-  const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  const isPremium = isPremiumSubscription(state.subscription);
+
+  // Premium gating for sorting options
+  const allowedSortOptions: SortOption[] = isPremium
+    ? ['first-name', 'last-name', 'as-entered', 'current-table', 'party-size']
+    : ['first-name', 'last-name', 'party-size'];
+
+  // If current sort became disallowed (e.g., downgrade), coerce safely
+  useEffect(() => {
+    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
+  }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
   // Load pagination warning expanded state from localStorage
   useEffect(() => {
@@ -100,8 +112,8 @@ const ConstraintManager: React.FC = () => {
 
   // Function to purge seating plans when constraints change
   const purgeSeatingPlans = () => {
-    // Reset seating plans
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
+    // Clear plans only - AppContext handles generation
+    dispatch({ type: 'CLEAR_PLANS' });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
     
     // Reset plan name in localStorage
@@ -112,17 +124,26 @@ const ConstraintManager: React.FC = () => {
   };
   
   // Get adjacent count for a guest
-  const getAdjacentCount = (guestName: string) => {
-    return state.adjacents[guestName]?.length || 0;
+  const getAdjacentCount = (guestId: string) => {
+    return state.adjacents[guestId]?.length || 0;
   }
   
   // Function to get sorted guests
   const getSortedGuests = () => {
-    if (!isPremium || sortOption === 'as-entered') {
+    if (!isPremium && (sortOption === 'as-entered' || sortOption === 'current-table')) {
+      // Free/unsigned: only First/Last are allowed. Fall back to 'last-name'.
+      return [...state.guests].sort((a, b) => {
+        const lnA = getLastNameForSorting(a.name.split('&')[0].trim()).toLowerCase();
+        const lnB = getLastNameForSorting(b.name.split('&')[0].trim()).toLowerCase();
+        return lnA.localeCompare(lnB);
+      });
+    }
+    
+    if (sortOption === 'as-entered') {
       return [...state.guests];
     }
     
-    return [...state.guests].sort((a, b) => {
+    const sortedGuests = [...state.guests].sort((a, b) => {
       if (sortOption === 'first-name') {
         // Sort by the first name (everything before the first space)
         const firstNameA = a.name.split(' ')[0].toLowerCase();
@@ -142,6 +163,9 @@ const ConstraintManager: React.FC = () => {
         
         return lastNameA.localeCompare(lastNameB);
       }
+      else if (sortOption === 'party-size') {
+        return b.count - a.count; // descending
+      }
       else if (sortOption === 'current-table') {
         // Sort by current table assignment in the currently active plan
         if (state.seatingPlans.length === 0) {
@@ -155,14 +179,20 @@ const ConstraintManager: React.FC = () => {
         let foundA = false;
         let foundB = false;
         
+        // Build ID mapping for robust matching
+        const idByName = new Map(state.guests.map(g => [g.name, g.id]));
+        const aId = idByName.get(a.name);
+        const bId = idByName.get(b.name);
+        
         // Find which table each guest is assigned to
         for (const table of plan.tables) {
           for (const seat of table.seats) {
-            if (seat.name === a.name) {
+            const seatId = (seat as any).id ?? idByName.get(seat.name);
+            if (aId && seatId === aId) {
               tableA = table.id;
               foundA = true;
             }
-            if (seat.name === b.name) {
+            if (bId && seatId === bId) {
               tableB = table.id;
               foundB = true;
             }
@@ -180,6 +210,8 @@ const ConstraintManager: React.FC = () => {
       }
       return 0;
     });
+    
+    return sortedGuests;
   };
   
   const constraintGrid = useMemo(() => {
@@ -221,22 +253,22 @@ const ConstraintManager: React.FC = () => {
     // Add column headers (only for the current page when paginated)
     displayGuests.forEach((guest, index) => {
       // Get the number of adjacent pairings for visual indicator
-      const adjacentCount = getAdjacentCount(guest.name);
+      const adjacentCount = getAdjacentCount(guest.id);
       
       // Create adjacent indicator based on count
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest.name].join(', ')}`}>
-            {adjacentCount === 1 ? '*' : '**'}
+          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${(adjacents[guest.id] || []).map(id => idToName.get(id)).filter(Boolean).join(', ')}`}>
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
       
       // Check if this header is selected or highlighted
       const isSelected = selectedGuest === guest.name;
-      const isHighlighted = highlightedPair && 
-        (highlightedPair.guest1 === guest.name || highlightedPair.guest2 === guest.name);
+      const isHighlighted = !!highlightedPair &&
+        (highlightedPair.guest1 === guest.id || highlightedPair.guest2 === guest.id);
       
       headerRow.push(
         <th 
@@ -263,19 +295,11 @@ const ConstraintManager: React.FC = () => {
     
     // Now add the rows
     guests.forEach((guest1, rowIndex) => {
-      // Find the original index in the state.guests array
-      const originalIndex = state.guests.findIndex(g => g.name === guest1.name);
-      const lineThickness = (originalIndex + 1) % 3 === 1 ? 'border-[1px]' :
-                          (originalIndex + 1) % 3 === 2 ? 'border-[2px]' :
-                           'border-[2px]';
-      const lineColor = (originalIndex + 1) % 3 === 1 ? 'border-gray-400' :
-                      (originalIndex + 1) % 3 === 2 ? 'border-gray-600' :
-                       'border-gray-800';
       
       // Get table assignment info if premium
       let assignmentInfo = null;
       if (isPremium) {
-        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
+        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.id);
         if (tableAssignment) {
           const color = 'text-gray-600'; // Default color for assignment info
           
@@ -288,19 +312,19 @@ const ConstraintManager: React.FC = () => {
       }
       
       // Check if this row should be highlighted
-      const isHighlighted = highlightedPair && 
-        (highlightedPair.guest1 === guest1.name || highlightedPair.guest2 === guest1.name);
+      const isHighlighted = !!highlightedPair &&
+        (highlightedPair.guest1 === guest1.id || highlightedPair.guest2 === guest1.id);
       
       // Check if this row is selected
       const isSelected = selectedGuest === guest1.name;
       
       // Get adjacent count indicator
-      const adjacentCount = getAdjacentCount(guest1.name);
+      const adjacentCount = getAdjacentCount(guest1.id);
       let adjacentIndicator = null;
       if (adjacentCount > 0) {
         adjacentIndicator = (
-          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest1.name].join(', ')}`}>
-            {adjacentCount === 1 ? '*' : '**'}
+          <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${(adjacents[guest1.id] || []).map(id => idToName.get(id)).filter(Boolean).join(', ')}`}>
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
@@ -345,16 +369,24 @@ const ConstraintManager: React.FC = () => {
           row.push(
             <td
               key={`cell-${rowIndex}-${colIndexOnPage}`}
-              className="p-2 border border-[#586D78] border-2 bg-gray-800"
+              className="p-2 border border-[#586D78] border-2 bg-black"
             />
           );
         } else {
           // Determine the current constraint value (if any)
-          const constraintValue = constraints[guest1.name]?.[guest2.name] || '';
+          const constraintValue =
+            constraints[guest1.id]?.[guest2.id] ??
+            // legacy name-keyed compatibility:
+            (constraints as any)[guest1.name]?.[guest2.name] ??
+            '';
           
           // Check if there's an adjacent relationship
-          const isAdjacent = adjacents[guest1.name]?.includes(guest2.name);
-          const isAdjacentReverse = adjacents[guest2.name]?.includes(guest1.name);
+          const isAdjacent =
+            !!adjacents[guest1.id]?.includes(guest2.id) ||
+            !!(adjacents as any)[guest1.name]?.includes?.(guest2.name);
+          const isAdjacentReverse =
+            !!adjacents[guest2.id]?.includes(guest1.id) ||
+            !!(adjacents as any)[guest2.name]?.includes?.(guest1.name);
           
           // Prepare the cell content and background color
           // Precedence: cannot > adjacency > must > empty
@@ -367,29 +399,24 @@ const ConstraintManager: React.FC = () => {
             // Hard prohibition always wins
             bgColor = 'bg-[#e6130b]';
             cellContent = <span className="text-black font-bold">X</span>;
-          } else if (hasAdj) {
-            // Show adjacency immediately (*&*) even if there is no 'must'
-            bgColor = 'bg-[#22cf04]'; // use the same green so the user sees it instantly
-            cellContent = (
-              <div className="flex items-center justify-center space-x-1">
-                <span className="text-[#b3b508] font-bold">*</span>
-                <span className="text-black font-bold">&</span>
-                <span className="text-[#b3b508] font-bold">*</span>
-              </div>
-            );
+          } else if (hasAdj && isPremium) {
+            // Premium-adjacent pairs: ⭐&⭐
+            bgColor = 'bg-[#22cf04]';
+            cellContent = <span className="text-black font-bold">⭐&⭐</span>;
           } else if (constraintValue === 'must') {
             // Must without adjacency remains green with '&'
             bgColor = 'bg-[#22cf04]';
             cellContent = <span className="text-black font-bold">&</span>;
-          } else {
-            // no constraint, no adjacency → empty
-            // cellContent stays null
+          } else if (hasAdj && !isPremium) {
+            // Non-premium adjacency shows as read-only 'adj'
+            bgColor = '';
+            cellContent = <span className="text-gray-500 text-xs">adj</span>;
           }
           
           // Check if this cell should be highlighted
           const isCellHighlighted = highlightedPair && 
-            ((highlightedPair.guest1 === guest1.name && highlightedPair.guest2 === guest2.name) ||
-             (highlightedPair.guest1 === guest2.name && highlightedPair.guest2 === guest1.name));
+            ((highlightedPair.guest1 === guest1.id && highlightedPair.guest2 === guest2.id) ||
+             (highlightedPair.guest1 === guest2.id && highlightedPair.guest2 === guest1.id));
           
           if (isCellHighlighted) {
             bgColor = 'bg-[#88abc6]';
@@ -399,7 +426,7 @@ const ConstraintManager: React.FC = () => {
             <td
               key={`cell-${rowIndex}-${colIndexOnPage}`}
               className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
-              onClick={() => handleToggleConstraint(guest1.name, guest2.name)}
+              onClick={() => handleToggleConstraint(guest1.id, guest2.id)}
               data-guest1={guest1.name}
               data-guest2={guest2.name}
             >
@@ -412,112 +439,33 @@ const ConstraintManager: React.FC = () => {
       grid.push(<tr key={`row-${rowIndex}`}>{row}</tr>);
     });
 
-    // Generate page number buttons
-    const renderPageNumbers = () => {
-      // If we have 9 pages or fewer, show all pages
-      if (totalPages <= 9) {
-        return Array.from({ length: totalPages }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
-          >
-            {i + 1}
-          </button>
-        ));
-      }
-
-      // Otherwise show first 3, current page, last 3
-      const pageButtons = [];
-
-      // Always show first 3 pages
-      for (let i = 0; i < 3; i++) {
-        if (i < totalPages) {
-          pageButtons.push(
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i)}
-              className={currentPage === i 
-                ? 'danstyle1c-btn selected mx-1 w-4'
-                : 'danstyle1c-btn mx-1 w-4'}
-            >
-              {i + 1}
-            </button>
-          );
-        }
-      }
-
-      // Show ellipsis if current page is not in first 3
-      if (currentPage > 2) {
-        pageButtons.push(<span key="ellipsis1" className="mx-1">...</span>);
-        // Show current page if it's not in first 3 or last 3
-        if (currentPage > 2 && currentPage < totalPages - 3) {
-          pageButtons.push(
-            <button
-              key={currentPage}
-              onClick={() => setCurrentPage(currentPage)}
-              className="danstyle1c-btn selected mx-1 w-4"
-            >
-              {currentPage + 1}
-            </button>
-          );
-        }
-      }
-      
-      // Show ellipsis if current page is not in last 3
-      if (currentPage < totalPages - 3) {
-        pageButtons.push(<span key="ellipsis2" className="mx-1">...</span>);
-      }
-      
-      // Always show last 3 pages
-      for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) {
-        pageButtons.push(
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
-          >
-            {i + 1}
-          </button>
-        );
-      }
-      
-      return pageButtons;
-    };
     
-    // For large guest lists, include pagination controls
+    // Bottom controls
     const paginationControls = needsPagination && (
-      <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
-        <div className="flex items-center w-full justify-between">
-          <div className="pl-[140px]"> {/* This aligns with the left column width */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Previous
-            </button>
-          </div>
-          
-          <div className="flex flex-wrap justify-center">
-            {renderPageNumbers()}
-          </div>
-          
-          <div className="pr-[10px]"> {/* Small padding to ensure not cut off */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-              disabled={currentPage >= totalPages - 1}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              Next
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </button>
-          </div>
+      <div className="mt-3">
+        {/* Row of 10 static buttons; wraps on narrow screens */}
+        <div className="grid grid-cols-10 gap-2 [@media(max-width:480px)]:grid-cols-3 [@media(max-width:480px)]:grid-rows-4">
+          {(() => {
+            const TOTAL_PAGES = Math.max(1, totalPages);
+            const pageWindow = 10;
+            const first = Math.floor(currentPage / pageWindow) * pageWindow; // 0-based window
+            const pageIndices = Array.from({ length: Math.min(pageWindow, TOTAL_PAGES - first) },
+                                           (_, i) => first + i);
+            return pageIndices.map((i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentPage(i)}
+                className={`px-2 py-1 border text-sm ${i===currentPage ? 'bg-[#586D78] text-white' : 'bg-white text-[#586D78]'}`}
+              >
+                {i+1}
+              </button>
+            ));
+          })()}
+        </div>
+        {/* Row 2: centered arrows */}
+        <div className="flex items-center justify-center gap-4 mt-2">
+          <button onClick={() => setCurrentPage(Math.max(0, currentPage-1))} aria-label="Previous Page">◀</button>
+          <button onClick={() => setCurrentPage(Math.min(totalPages-1, currentPage+1))} aria-label="Next Page">▶</button>
         </div>
       </div>
     );
@@ -600,9 +548,6 @@ const ConstraintManager: React.FC = () => {
     }, 500);
   };
 
-  const handleNavigatePlan = (delta: number) => {
-    setCurrentPage(prev => Math.max(0, Math.min(totalPages - 1, prev + delta)));
-  };
 
   const clearLongPressTimer = () => {
     if (longPressTimer) {
@@ -610,7 +555,14 @@ const ConstraintManager: React.FC = () => {
     }
   };
 
-  const handleToggleConstraint = (guest1: string, guest2: string) => {
+  const handleToggleConstraint = (guest1Id: string, guest2Id: string) => {
+    // Free-tier grid edit guard at >80 heads (no UI change)
+    const totalHeads = state.guests.reduce((s,g) => s + (g.count ?? 1), 0);
+    if (!isPremium && totalHeads > 80) { 
+      alert('Free plan limit: editing constraints above 80 total guests is blocked.'); 
+      return; 
+    }
+
     setSelectedGuest(null);
     setHighlightedPair(null);
     if (highlightTimeout) {
@@ -618,50 +570,63 @@ const ConstraintManager: React.FC = () => {
       setHighlightTimeout(null);
     }
 
-    const currentValue = state.constraints[guest1]?.[guest2] || '';
-    let nextValue: 'must' | 'cannot' | '';
+    if (guest1Id === guest2Id) return;
 
-    if (currentValue === '') {
-      nextValue = 'must';
-    } else if (currentValue === 'must') {
-      if (state.adjacents[guest1]?.includes(guest2)) {
-        dispatch({
-          type: 'REMOVE_ADJACENT',
-          payload: { guest1, guest2 }
-        });
-      }
-      nextValue = 'cannot';
+    const current = (state.constraints[guest1Id]?.[guest2Id] ?? '') as ''|'must'|'cannot';
+    const adj = !!state.adjacents[guest1Id]?.includes(guest2Id);
+
+    let next: ''|'must'|'cannot' = '';
+    if (!isPremium) {
+      next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
     } else {
-      nextValue = '';
+      if (current === '') {
+        next = 'must';
+      } else if (current === 'must' && !adj) {
+        dispatch({ type: 'SET_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
+        next = 'must';
+      } else if (current === 'must' && adj) {
+        dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
+        next = 'cannot';
+      } else if (current === 'cannot') {
+        next = '';
+      }
     }
-
-    dispatch({
-      type: 'SET_CONSTRAINT',
-      payload: { guest1, guest2, value: nextValue }
-    });
-
-    // Purge seating plans when constraints change
-    purgeSeatingPlans();
+    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guest1Id, guest2: guest2Id, value: next } });
+    // AppContext handles plan clearing on constraint changes
   };
 
   const handleGuestSelect = (guestName: string) => {
+    // Free-tier grid edit guard at >80 heads (no UI change)
+    const totalHeads = state.guests.reduce((s,g) => s + (g.count ?? 1), 0);
+    if (!isPremium && totalHeads > 80) { 
+      alert('Free plan limit: editing constraints above 80 total guests is blocked.'); 
+      return; 
+    }
+
+    if (!isPremium) { alert('Adjacency pairing is a premium feature.'); return; }
+    const guestId = nameToId.get(guestName);
+    if (!guestId) return;
+    
     if (selectedGuest === null) {
-      setSelectedGuest(guestName);
+      setSelectedGuest(guestName); // Keep name for UI display
     } else if (selectedGuest !== guestName) {
+      const selectedGuestId = nameToId.get(selectedGuest);
+      if (!selectedGuestId) return;
+      
       // Set constraint to 'must' when setting adjacency
       dispatch({
         type: 'SET_CONSTRAINT',
-        payload: { guest1: selectedGuest, guest2: guestName, value: 'must' }
+        payload: { guest1: selectedGuestId, guest2: guestId, value: 'must' }
       });
       
       // Then set the adjacency
       dispatch({
         type: 'SET_ADJACENT',
-        payload: { guest1: selectedGuest, guest2: guestName }
+        payload: { guest1: selectedGuestId, guest2: guestId }
       });
 
-      // Highlight the pair
-      setHighlightedPair({ guest1: selectedGuest, guest2: guestName });
+      // Highlight the pair (using IDs for internal state)
+      setHighlightedPair({ guest1: selectedGuestId, guest2: guestId });
       setSelectedGuest(null);
 
       // Clear highlight after 3 seconds
@@ -681,8 +646,6 @@ const ConstraintManager: React.FC = () => {
     }
   };
 
-  // Check if pagination should be shown (120+ guests)
-  const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
 
   return (
     <div className="space-y-6">
@@ -692,52 +655,55 @@ const ConstraintManager: React.FC = () => {
 
       </h1>
       
-      <Card>
-        <div className="space-y-4">
-          <div className="flex items-start space-x-4">
-            <Info className="text-[#586D78] mt-1 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <div className="text-gray-600 text-[17px] mt-2">
-                <div>Click a cell to cycle between constraints:</div>
-                <div className="mt-1 flex flex-wrap gap-4">
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="Must">
-                      &
-                    </span>
-                    <span>Must sit at the same table</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="Cannot">
-                      X
-                    </span>
-                    <span>Cannot sit at the same table</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="inline-flex items-center justify-center"
-                          style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
-                          aria-label="No constraint">
-                    </span>
-                    <span>No constraint</span>
+      {isPremium && (
+        <Card>
+          <div className="space-y-4">
+            <div className="flex items-start space-x-4">
+              <Info className="text-[#586D78] mt-1 flex-shrink-0" />
+              <div>
+                <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
+                <div className="text-gray-600 text-[17px] mt-2">
+                  <div>Click a cell to cycle between constraints:</div>
+                  <div className="mt-1 flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="Must">
+                        &
+                      </span>
+                      <span>Must sit at the same table</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="Cannot">
+                        X
+                      </span>
+                      <span>Cannot sit at the same table</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="inline-flex items-center justify-center"
+                            style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
+                            aria-label="No constraint">
+                      </span>
+                      <span>No constraint</span>
+                    </div>
                   </div>
                 </div>
+                <ul className="list-disc pl-5 mt-2">
+                  <li>To set "Adjacent Seating" (guests sit right next to each other):
+                    <ol className="list-decimal pl-5 mt-1">
+                      <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
+                      <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
+                    </ol>
+                  </li>
+                  <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
+                </ul>
               </div>
-                <li>To set "Adjacent Seating" (guests sit right next to each other):
-                  <ol className="list-decimal pl-5 mt-1">
-                    <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
-                    <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
-                  </ol>
-                </li>
-                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">*</span></li>
-              </ul>
             </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      )}
     
       <Card title="Constraint Grid">
         <div className="flex flex-col md:flex-row justify-between items-center mb-4 space-y-2 md:space-y-0">
@@ -747,66 +713,80 @@ const ConstraintManager: React.FC = () => {
               Sort by:
             </span>
             <div className="flex space-x-2">
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
-              <button
-                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('first-name')}
-              >
-                First Name
-              </button>
-              <button
-                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('last-name')}
-              >
-                Last Name
-              </button>
-              <button
-                className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
-                onClick={() => setSortOption('current-table')}
-                disabled={state.seatingPlans.length === 0}
-              >
-                Current Table
-              </button>
+              {allowedSortOptions.includes('first-name') && (
+                <button
+                  className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('first-name')}
+                >
+                  First Name
+                </button>
+              )}
+              {allowedSortOptions.includes('last-name') && (
+                <button
+                  className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('last-name')}
+                >
+                  Last Name
+                </button>
+              )}
+              {allowedSortOptions.includes('as-entered') && (
+                <button
+                  className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('as-entered')}
+                >
+                  As Entered
+                </button>
+              )}
+              {allowedSortOptions.includes('current-table') && (
+                <button
+                  className={`
+                    ${sortOption === 'current-table' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  `}
+                  onClick={() => setSortOption('current-table')}
+                  disabled={!state.seatingPlans || state.seatingPlans.length === 0}
+                  title={!state.seatingPlans || state.seatingPlans.length === 0 ? 'Generate plans to enable this sort' : ''}
+                >
+                  Current Table
+                </button>
+              )}
+              {allowedSortOptions.includes('party-size') && (
+                <button
+                  className={sortOption === 'party-size' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('party-size')}
+                >
+                  Party Size
+                </button>
+              )}
             </div>
           </div>
-          
-          {/* Navigation buttons above the grid - only shown for 120+ guests */}
-          {shouldShowPagination && state.guests.length > 0 && (
-            <div className="flex space-x-2">
-              <button
-                className="danstyle1c-btn"
-                onClick={() => handleNavigatePlan(-1)}
-                disabled={currentPage === 0}
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous
-              </button>
+        </div>
 
-              <button
-                className="danstyle1c-btn"
-                onClick={() => handleNavigatePlan(1)}
-                disabled={currentPage >= totalPages - 1}
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </button>
-            </div>
-          )}
+        <div ref={gridRef} className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
+          {constraintGrid}
         </div>
-        
-        <div ref={gridRef}>
-          {state.guests.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">No guests added yet. Add guests to create constraints.</p>
-          ) : (
-            constraintGrid
-          )}
-        </div>
+
+        {isPremium && (state.guests.length > GUEST_THRESHOLD) && (
+          <div className="flex items-center justify-center gap-3 mt-3">
+            <button
+              className="danstyle1c-btn"
+              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+              disabled={currentPage === 0}
+            >
+              <ChevronLeft className="w-4 h-4" /> Prev
+            </button>
+            <span className="text-sm text-[#586D78]">Page {currentPage + 1} / {totalPages}</span>
+            <button
+              className="danstyle1c-btn"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+              disabled={currentPage >= totalPages - 1}
+            >
+              Next <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </Card>
+
+      <SavedSettingsAccordion />
     </div>
   );
 };

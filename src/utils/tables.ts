@@ -7,12 +7,21 @@
  * @param t Table object with seats (number or array) or capacity property
  * @returns Normalized capacity as number
  */
-export const getCapacity = (t: { seats?: number | any[]; capacity?: number }) =>
-  Array.isArray(t.seats)
-    ? t.seats.length
-    : Number.isFinite(t.seats)
-      ? Number(t.seats)
-      : Number(t.capacity ?? 0);
+export const getCapacity = (t: { seats?: number | any[]; capacity?: number }) => {
+  if (Array.isArray(t.seats)) {
+    return t.seats.length;
+  }
+  
+  if (Number.isFinite(t.seats)) {
+    return Math.max(1, Math.floor(Number(t.seats)));
+  }
+  
+  if (Number.isFinite(t.capacity)) {
+    return Math.max(1, Math.floor(Number(t.capacity)));
+  }
+  
+  return 0;
+};
 
 /**
  * Calculate the minimum number of tables needed for a given number of guests

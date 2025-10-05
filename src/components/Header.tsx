@@ -28,10 +28,8 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
 
-  // Determine premium status from multiple sources to ensure accuracy
-  const isPremium = 
-    isPremiumSubscription(subscription) || 
-    isPremiumSubscription(state.subscription);
+  // Determine premium status - prioritize global state subscription
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
 
   useEffect(() => {
     // Initialize user from session

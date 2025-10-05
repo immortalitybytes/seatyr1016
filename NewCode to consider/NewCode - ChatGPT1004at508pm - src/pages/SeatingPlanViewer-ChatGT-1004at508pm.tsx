@@ -174,7 +174,7 @@ const SeatingPlanViewer: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   
   // Get premium status from subscription
-  const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  const isPremium = isPremiumSubscription(state.subscription);
 
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
 

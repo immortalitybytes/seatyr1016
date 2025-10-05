@@ -150,7 +150,7 @@ export async function generateSeatingPlans(
         const appTable = tables.find((at: Table) => String(at.id) === t.tableId);
         return {
           id: Number(t.tableId),
-          capacity: appTable ? getCapacity(appTable) : 0,
+          capacity: appTable?.seats ?? 0,
           seats: Array.isArray(t.seats) ? t.seats : [],
         };
       }).sort((a, b) => a.id - b.id),

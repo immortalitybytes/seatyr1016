@@ -280,10 +280,11 @@ function placeGroups(groups: GroupInfo[], tables: SafeTable[], cantMap: Map<ID, 
     for (const ts of state.tables) {
       if (!canPlaceGroup(gi, ts, cantMap)) continue;
       // Engine feasibility: check allowed tables
-      const allow = allowedTables[gi.members[0]]; // Use first member to check allowed tables
-      if (Array.isArray(allow) && allow.length && !allow.includes(String(ts.table.id))) {
-        continue; // infeasible table for this guest
-      }
+      const intersectsAll = gi.members.every(m => {
+        const allow = allowedTables[m];
+        return !Array.isArray(allow) || allow.length === 0 || allow.includes(String(ts.table.id));
+      });
+      if (!intersectsAll) continue;
       let overlap = 0; for (const occ of ts.occupants) if (partnerSet.has(occ)) overlap++;
       candidates.push({ ts, score: overlap * 10 - (ts.remaining - gi.size) });
     }

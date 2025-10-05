@@ -16,11 +16,11 @@ const AssignmentManager: React.FC = () => {
   const [sortOption, setSortOption] = useState<SortOption>('last-name');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
   
   // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    ? ['first-name', 'last-name', 'as-entered', 'current-table', 'party-size']
     : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely

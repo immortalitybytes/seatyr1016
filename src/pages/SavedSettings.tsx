@@ -207,8 +207,8 @@ const SavedSettings: React.FC = () => {
       setSavingSettings(true);
       
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const isPremium = isPremiumSubscription(state.subscription, state.trial);
+      const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -282,8 +282,8 @@ const SavedSettings: React.FC = () => {
       }
 
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const isPremium = isPremiumSubscription(state.subscription, state.trial);
+      const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -417,8 +417,8 @@ const SavedSettings: React.FC = () => {
   };
 
   // Check premium status from global state
-  const isPremium = isPremiumSubscription(subscription);
-  const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
   
   // Check if we have an effective user (either from context or session)
   const effectiveUser = user || sessionUser;

@@ -150,11 +150,11 @@ const TableManager: React.FC = () => {
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
 
   // Premium gating for sorting options
   const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size')[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
+    ? ['first-name', 'last-name', 'as-entered', 'current-table', 'party-size']
     : ['first-name', 'last-name', 'party-size'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
