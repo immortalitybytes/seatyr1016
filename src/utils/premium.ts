@@ -43,30 +43,45 @@ function isUnixTimestamp(value: string): boolean {
 /**
  * Get maximum number of guests allowed based on subscription status
  */
-export function getMaxGuestLimit(subscription: UserSubscription | null | undefined): number {
-  return isPremiumSubscription(subscription) ? Number.MAX_SAFE_INTEGER : 80;
+export function getMaxGuestLimit(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): number {
+  return isPremiumSubscription(subscription, trial) ? Number.MAX_SAFE_INTEGER : 80;
 }
 
 /**
  * Get maximum number of saved settings allowed based on subscription status
  */
-export function getMaxSavedSettingsLimit(subscription: UserSubscription | null | undefined): number {
-  return isPremiumSubscription(subscription) ? 50 : 5;
+export function getMaxSavedSettingsLimit(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): number {
+  return isPremiumSubscription(subscription, trial) ? 50 : 5;
 }
 
 /**
  * Check if user can add more guests
  */
-export function canAddGuests(subscription: UserSubscription | null | undefined, currentCount: number, addCount: number): boolean {
-  const maxLimit = getMaxGuestLimit(subscription);
+export function canAddGuests(
+  subscription: UserSubscription | null | undefined,
+  currentCount: number,
+  addCount: number,
+  trial?: TrialSubscription | null
+): boolean {
+  const maxLimit = getMaxGuestLimit(subscription, trial);
   return (currentCount + addCount) <= maxLimit;
 }
 
 /**
  * Check if user can save more settings
  */
-export function canSaveMoreSettings(subscription: UserSubscription | null | undefined, currentCount: number): boolean {
-  const maxLimit = getMaxSavedSettingsLimit(subscription);
+export function canSaveMoreSettings(
+  subscription: UserSubscription | null | undefined,
+  currentCount: number,
+  trial?: TrialSubscription | null
+): boolean {
+  const maxLimit = getMaxSavedSettingsLimit(subscription, trial);
   return currentCount < maxLimit;
 }
 
@@ -74,19 +89,27 @@ export function canSaveMoreSettings(subscription: UserSubscription | null | unde
  * Check if a saved setting is loadable based on the current subscription
  * Free users cannot load settings with more than 80 guests
  */
-export function isSettingLoadable(setting: any, subscription: UserSubscription | null | undefined): boolean {
+export function isSettingLoadable(
+  setting: any,
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): boolean {
   if (!setting?.data?.guests) return true;
   
-  if (isPremiumSubscription(subscription)) return true;
+  if (isPremiumSubscription(subscription, trial)) return true;
   
-  return setting.data.guests.length <= getMaxGuestLimit(subscription);
+  return setting.data.guests.length <= getMaxGuestLimit(subscription, trial);
 }
 
 /**
  * Get message for guest limits
  */
-export function getGuestLimitMessage(subscription: UserSubscription | null | undefined, currentCount: number): string {
-  const isPremium = isPremiumSubscription(subscription);
+export function getGuestLimitMessage(
+  subscription: UserSubscription | null | undefined,
+  currentCount: number,
+  trial?: TrialSubscription | null
+): string {
+  const isPremium = isPremiumSubscription(subscription, trial);
   if (isPremium) {
     return `${currentCount} guests`;
   } else {
