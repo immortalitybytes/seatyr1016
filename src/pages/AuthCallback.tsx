@@ -10,7 +10,8 @@ const AuthCallback: React.FC = () => {
     // Handle the auth callback
     const handleAuthCallback = async () => {
       try {
-        const { error } = await supabase.auth.getSession();
+        // Attempt to get session to complete the PKCE exchange
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) throw error;
         
         // Check if this is a password recovery flow
@@ -19,10 +20,10 @@ const AuthCallback: React.FC = () => {
         const isPasswordRecovery = type === 'recovery';
         
         // Store the recovery flag in sessionStorage if needed
-        if (isPasswordRecovery) {
-          console.log('Password reset detected, redirecting to account page');
-          sessionStorage.setItem('password_reset_redirect', 'true');
-          // Redirect to account page after successful password reset auth
+        if (isPasswordRecovery || session) { // C1 Fix: Also set flag on normal successful login
+          console.log('Login or Password reset detected, forcing session refresh on Account page.');
+          sessionStorage.setItem('password_reset_redirect', 'true'); // Flag will be cleared by Account.tsx
+          // Redirect to account page after successful auth/password reset
           navigate('/account', { replace: true });
         } else {
           // Normal flow - redirect to home page
