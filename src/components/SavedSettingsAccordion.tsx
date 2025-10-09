@@ -251,8 +251,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setSavingSettings(true);
       
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const isPremium = isPremiumSubscription(subscription, state.trial);
+      const maxSettings = getMaxSavedSettingsLimit(subscription, state.trial);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -331,8 +331,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       }
 
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const isPremium = isPremiumSubscription(subscription, state.trial);
+      const maxSettings = getMaxSavedSettingsLimit(subscription, state.trial);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -613,7 +613,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                     
                     {settings.map((setting) => {
                       // Check if this setting has more guests than allowed for free users
-                      const exceedsGuestLimit = !isPremiumSubscription(subscription) && 
+                      const exceedsGuestLimit = !isPremiumSubscription(subscription, state.trial) && 
                                              setting.data?.guests?.length > 80;
                       
                       // Check if this setting is the currently loaded one
