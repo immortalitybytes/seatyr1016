@@ -113,10 +113,10 @@ const GuestManager: React.FC = () => {
   const isPremium = isPremiumSubscription(state.subscription, state.trial);
   const maxGuests = getMaxGuestLimit(state.subscription, state.trial);
 
-  // Premium gating for sorting options - SSoT compliant order
-  const allowedSortOptions: SortOption[] = isPremium
-    ? ['as-entered', 'first-name', 'last-name', 'current-table']
-    : ['first-name', 'last-name'];
+  // SURGICAL TASK 4: Sort visibility by mode (Unsigned=2, Free & Premium=4)
+  const allowedSortOptions: SortOption[] = !state.user
+    ? ['first-name', 'last-name']
+    : ['as-entered', 'first-name', 'last-name', 'current-table'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {

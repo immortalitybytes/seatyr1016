@@ -251,8 +251,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setSavingSettings(true);
       
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription, state.trial);
-      const maxSettings = getMaxSavedSettingsLimit(subscription, state.trial);
+      const isPremium = isPremiumSubscription(subscription);
+      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -331,8 +331,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       }
 
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription, state.trial);
-      const maxSettings = getMaxSavedSettingsLimit(subscription, state.trial);
+      const isPremium = isPremiumSubscription(subscription);
+      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -551,8 +551,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                   <p className="text-gray-700">
                     Save and manage your seating arrangements.
                     {!isPremium 
-                      ? ` Free users can save up to ${maxSettings} configurations. Premium users can save up to 30.`
-                      : ` Premium users can save up to 30 configurations.`}
+                      ? ` Free users can save up to ${maxSettings} configurations. Premium users can save up to 50.`
+                      : ` Premium users can save up to 50 configurations.`}
                   </p>
                   
                   {isPremium && state.user && (
@@ -568,7 +568,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                 <button
                   className="danstyle1c-btn"
                   onClick={() => setShowSaveModal(true)}
-                  disabled={isPremium ? settings.length >= 30 : settings.length >= maxSettings}
+                  disabled={isPremium ? settings.length >= 50 : settings.length >= maxSettings}
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Save Current Settings
@@ -613,7 +613,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                     
                     {settings.map((setting) => {
                       // Check if this setting has more guests than allowed for free users
-                      const exceedsGuestLimit = !isPremiumSubscription(subscription, state.trial) && 
+                      const exceedsGuestLimit = !isPremiumSubscription(subscription) && 
                                              setting.data?.guests?.length > 80;
                       
                       // Check if this setting is the currently loaded one

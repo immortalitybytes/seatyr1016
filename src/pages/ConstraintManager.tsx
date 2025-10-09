@@ -1,15 +1,8 @@
-// File: src/pages/ConstraintManager.tsx
-// Purpose: Constraint grid with ⭐&⭐ for ADJACENT; click cycles CLEAR → & → ⭐&⭐ → X → CLEAR
-// Safety: No layout or file-structure changes; only removes "party-size" sort and fixes sort gating per SSoT.
-
 import React, { useMemo, useState } from 'react';
-import Card from '../components/Card';
-import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
-import FormatGuestName from '../components/FormatGuestName';
 import { useApp } from '../context/AppContext';
 import { deriveMode, type Mode } from '../utils/premium';
 
-// The only allowed sort options per SSoT (party-size removed)
+// The only allowed sort options per SSoT
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
 function firstNameOf(full: string): string {
@@ -22,10 +15,10 @@ function lastNameOf(full: string): string {
   return (parts.length ? parts[parts.length - 1] : '').toLowerCase();
 }
 
-const ConstraintManager: React.FC = () => {
+export default function ConstraintManager() {
   const { state, dispatch } = useApp();
 
-  // SURGICAL TASK 4: Trial-aware mode (Unsigned vs Free vs Premium)
+  // Trial-aware mode (Unsigned vs Free vs Premium)
   const userId = state.user?.id ?? null;
   const mode: Mode = useMemo(
     () => deriveMode(userId, state.subscription, state.trial),
@@ -38,8 +31,9 @@ const ConstraintManager: React.FC = () => {
       ? ['first-name', 'last-name']
       : ['as-entered', 'first-name', 'last-name', 'current-table'];
 
-  // SSoT: Default sort should be "last-name"
-  const [sortBy, setSortBy] = useState<SortOption>('last-name');
+  const [sortBy, setSortBy] = useState<SortOption>(
+    allowedSortOptions.includes('as-entered') ? 'as-entered' : 'first-name'
+  );
 
   const guests = state.guests || [];
   const assignments = state.assignments || {};
@@ -83,12 +77,12 @@ const ConstraintManager: React.FC = () => {
       default:
         return base; // keep original order
     }
-  }, [guests, sortBy, assignments]);
+  }, [guests, sortBy]);
 
   // Grid state helpers
   const isAdjacent = (a: string, b: string) => (state.adjacents[a] || []).includes(b);
-  const isMust = (a: string, b: string) => (state.constraints.must?.[a]?.[b] === 'must');
-  const isCannot = (a: string, b: string) => (state.constraints.cannot?.[a]?.[b] === 'cannot');
+  const isMust = (a: string, b: string) => (state.constraints.must?.[a] || []).includes(b);
+  const isCannot = (a: string, b: string) => (state.constraints.cannot?.[a] || []).includes(b);
 
   const labelFor = (a: string, b: string) => {
     if (a === b) return '';
@@ -98,13 +92,14 @@ const ConstraintManager: React.FC = () => {
     return '';
   };
 
-  // SURGICAL TASK 3: Single-dispatch atomic cycle via CYCLE_CONSTRAINT
+  // Single-dispatch atomic cycle handled by reducer (no multi-dispatch here)
+  // SURGICAL TASK 3: Cell click dispatches CYCLE_CONSTRAINT
   const onCellClick = (a: string, b: string) => {
     if (a === b) return;
     dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a, b } });
   };
 
-  // SURGICAL TASK 3: Premium-only double-click accelerator
+  // SURGICAL TASK 3: Premium-only double-click accelerator jumps to ADJACENT
   const onCellDoubleClick = (a: string, b: string) => {
     if (a === b) return;
     if (mode === 'premium') {
@@ -113,108 +108,62 @@ const ConstraintManager: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <Card title="Your Rules (Constraints)">
-        <div className="constraints-grid">
-          {/* Sort control — same footprint; only party-size removed */}
-          <div className="mb-4 text-sm flex items-center gap-2">
-            <span className="font-medium text-gray-700">Sort by:</span>
-            <select
-              className="border rounded px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#586D78]"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-            >
-              {allowedSortOptions.map(opt => (
-                <option key={opt} value={opt}>
-                  {opt === 'as-entered' ? 'As Entered'
-                    : opt === 'first-name' ? 'First Name'
-                    : opt === 'last-name' ? 'Last Name'
-                    : 'By Table'}
-                </option>
+    <div className="constraints-grid">
+      {/* Sort control — same footprint; only party-size removed */}
+      <div className="mb-2 text-sm flex items-center gap-2">
+        <span className="opacity-70">Sort:</span>
+        <select
+          className="border rounded px-2 py-1"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as SortOption)}
+        >
+          {allowedSortOptions.map(opt => (
+            <option key={opt} value={opt}>
+              {opt === 'as-entered' ? 'As Entered'
+                : opt === 'first-name' ? 'First Name'
+                : opt === 'last-name' ? 'Last Name'
+                : 'By Table'}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            <th className="px-2 py-1 text-left"></th>
+            {ids.map(id => (
+              <th key={id} className="px-2 py-1 text-left">{nameOf(id)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ids.map(a => (
+            <tr key={a}>
+              <td className="px-2 py-1 font-semibold">{nameOf(a)}</td>
+              {ids.map(b => (
+                <td
+                  key={`${a}::${b}`}
+                  className="px-2 py-1 text-center cursor-pointer select-none"
+                  title={
+                    a === b
+                      ? ''
+                      : (labelFor(a, b) || 'Click to cycle CLEAR → & → ⭐&⭐ → X → CLEAR')
+                  }
+                  onClick={() => onCellClick(a, b)}
+                  onDoubleClick={() => onCellDoubleClick(a, b)}
+                >
+                  {labelFor(a, b)}
+                </td>
               ))}
-            </select>
-          </div>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-          {guests.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No guests added yet. Add guests to create constraints.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse border border-[#586D78]">
-                <thead>
-                  <tr>
-                    <th className="px-2 py-2 text-left border border-[#586D78] bg-[#dde1e3] sticky left-0 z-10"></th>
-                    {ids.map(id => (
-                      <th key={id} className="px-2 py-2 text-center border border-[#586D78] bg-[#dde1e3] min-w-[80px]">
-                        <FormatGuestName name={nameOf(id)} />
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {ids.map(a => (
-                    <tr key={a}>
-                      <td className="px-2 py-2 font-semibold border border-[#586D78] bg-[#dde1e3] sticky left-0 z-10">
-                        <FormatGuestName name={nameOf(a)} />
-                      </td>
-                      {ids.map(b => {
-                        const content = labelFor(a, b);
-                        const isDiagonal = a === b;
-                        
-                        let cellClass = "px-2 py-3 text-center border border-[#586D78] ";
-                        
-                        if (isDiagonal) {
-                          cellClass += "bg-gray-200 cursor-not-allowed";
-                        } else {
-                          cellClass += "cursor-pointer select-none transition-colors ";
-                          if (content === '⭐&⭐') cellClass += "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-bold";
-                          else if (content === '&') cellClass += "bg-green-100 text-green-800 hover:bg-green-200 font-bold";
-                          else if (content === 'X') cellClass += "bg-red-100 text-red-800 hover:bg-red-200 font-bold";
-                          else cellClass += "hover:bg-gray-100";
-                        }
-                        
-                        return (
-                          <td
-                            key={`${a}::${b}`}
-                            className={cellClass}
-                            title={
-                              isDiagonal
-                                ? ''
-                                : (content || 'Click to cycle CLEAR → & → ⭐&⭐ → X → CLEAR')
-                            }
-                            onClick={() => !isDiagonal && onCellClick(a, b)}
-                            onDoubleClick={() => !isDiagonal && onCellDoubleClick(a, b)}
-                          >
-                            {content || (isDiagonal ? '—' : '')}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <div className="mt-4 text-xs text-gray-600 flex items-center gap-1">
-            <span className="font-semibold">Legend:</span>
-            <span className="px-2 py-1 bg-green-100 text-green-800 rounded">&</span> = Must sit together
-            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">⭐&⭐</span> = Adjacent (side-by-side)
-            <span className="px-2 py-1 bg-red-100 text-red-800 rounded">X</span> = Cannot sit together
-          </div>
-          
-          <div className="mt-2 text-xs text-gray-600">
-            Click any cell to cycle <strong>CLEAR → & → ⭐&⭐ → X → CLEAR</strong>. 
-            {mode === 'premium' && <span> Double-click to jump directly to ⭐&⭐.</span>}
-            {' '}Adjacency obeys the degree cap.
-          </div>
-        </div>
-      </Card>
-
-      <SavedSettingsAccordion />
+      <div className="mt-2 text-xs opacity-80">
+        Click any cell to cycle <strong>CLEAR → & → ⭐&⭐ → X → CLEAR</strong>. Adjacency obeys the degree cap.
+      </div>
     </div>
   );
-};
-
-export default ConstraintManager;
+}

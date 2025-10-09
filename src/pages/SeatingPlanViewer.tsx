@@ -7,11 +7,11 @@ import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription, getMaxSavedSettingsLimit } from '../utils/premium';
 import { generateSeatingPlans } from '../utils/seatingAlgorithm'; // Note: This should ideally not be called directly
-import { Table, SeatingPlan, ValidationError, PlanTable } from '../types';
+import { Table, SeatingPlan, ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { getCapacity } from '../utils/tables';
-import FormatGuestName from '../components/FormatGuestName';
 import { computePlanSignature } from '../utils/planSignature';
+import FormatGuestName from '../components/FormatGuestName';
 
 // NOTE: Since the full utility library is not provided, we must rely on the existing imported signature
 // The fix assumes isPremiumSubscription is updated to accept trial status, and we route through dispatch.
@@ -27,30 +27,6 @@ const SeatingPlanViewer: React.FC = () => {
   const isPremiumNow = useMemo(() => isPremiumSubscription(state.subscription, state.trial), [state.subscription, state.trial]);
   const maxPlans = isPremiumNow ? 30 : 10;
   
-  // SURGICAL TASK 1: Restore or clear plan index by signature
-  useEffect(() => {
-    const currentSig = computePlanSignature({
-      guests: state.guests,
-      tables: state.tables,
-      constraints: state.constraints,
-      adjacents: state.adjacents,
-      assignments: state.assignments,
-      isPremium: isPremiumNow
-    });
-    
-    const userKey = state.user?.id || 'unsigned';
-    const saved = localStorage.getItem(`seatyr_plan_${userKey}`);
-    const parsed = saved ? JSON.parse(saved) : null;
-    const matches = parsed?.sig && parsed.sig === currentSig;
-    
-    if (matches && parsed.index !== undefined) {
-      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: parsed.index });
-    } else if (!matches && state.seatingPlans.length > 0) {
-      // Signature mismatch - clear plans
-      dispatch({ type: 'SET_SEATING_PLANS', payload: { plans: [], planErrors: [], currentPlanIndex: 0 } });
-    }
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.user, isPremiumNow]);
-  
   useEffect(() => {
     // Sync errors from state after plan generation runs in AppContext
     setErrors(state.planErrors || []);
@@ -59,6 +35,28 @@ const SeatingPlanViewer: React.FC = () => {
         setIsGenerating(false);
     }
   }, [state.planErrors, plans.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // SURGICAL TASK 1: Persistence - restore index if signature unchanged, clear if mismatch
+  useEffect(() => {
+    const userKey = state.user?.id || 'unsigned';
+    const currentSig = computePlanSignature(
+      state.guests, state.tables, state.constraints, state.adjacents, state.assignments
+    );
+    const saved = localStorage.getItem(`seatyr_plan_${userKey}`);
+    
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.sig === currentSig && parsed.index != null && plans.length > 0) {
+          // Signature matches: restore index
+          dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: parsed.index });
+        } else if (parsed.sig !== currentSig && plans.length > 0) {
+          // Signature mismatch: clear plans
+          dispatch({ type: 'SET_SEATING_PLANS', payload: { plans: [], planErrors: [], currentPlanIndex: 0 } });
+        }
+      } catch {}
+    }
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleNextPlan = () => {
     if (plans.length > 0) {
@@ -78,23 +76,11 @@ const SeatingPlanViewer: React.FC = () => {
     }
   };
   
-  // CRUCIAL FIX A: Route plan generation through dispatch to enforce Guardrails (10/30 limits) centrally
+  // SURGICAL TASK 1: Generate button only dispatches GENERATE_PLANS (no payload needed)
   const handleGenerateSeatingPlan = () => {
     setIsGenerating(true);
-    setErrors([]); // Clear local errors
-    dispatch({ type: 'CLEAR_PLAN_ERRORS' });
-    
-    // RIVAL AI FIX: Dispatch action to trigger guarded generation in AppContext.
-    // AppContext will handle the actual generateSeatingPlans call, apply limits, and dispatch SET_PLANS.
-    dispatch({ 
-      type: 'GENERATE_PLANS', 
-      payload: { 
-        isPremium: isPremiumNow, 
-        maxPlans: maxPlans 
-      } 
-    });
-    
-    // Note: We leave setIsGenerating(false) to be handled by the useEffect watching state.planErrors/plans.length
+    setErrors([]);
+    dispatch({ type: 'GENERATE_PLANS' });
   };
   
   const currentPlan = plans[state.currentPlanIndex] || null;

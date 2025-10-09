@@ -102,4 +102,10 @@ export interface AppState {
   warnings: string[]; // Non-blocking warnings for display
   lastGeneratedSignature: string | null; // Signature of last generated plan
   lastGeneratedPlanSig: string | null; // Plan signature of last generated plan
+  _generateRequested?: boolean; // SURGICAL TASK 1: Flag to trigger async generation
+  pendingMax?: number; // SURGICAL TASK 1: Max plans to generate
+  uiState?: {
+    accordionOpen?: Record<string, boolean>;
+    sortSelections?: Record<string, string>;
+  }; // SURGICAL TASK 8: UI state persistence
 }

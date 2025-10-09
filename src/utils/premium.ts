@@ -1,11 +1,14 @@
 /**
  * Utility functions for handling premium status and features
  * Implements C3 Fix (robust date parsing with UTC fallback)
- * SSoT-compliant with Mode derivation
  */
 
 import type { UserSubscription, TrialSubscription } from '../types';
 
+export type UserSubscription = any; // keep flexible to match existing DB row shape
+export type TrialSubscription = any; // idem
+
+// SURGICAL TASK 2: Mode type for 3-state logic
 export type Mode = 'unsigned' | 'free' | 'premium';
 
 /** Parse ISO string, seconds(10), ms(13+), Date, or numberlike string; default ambiguous ISO to UTC.
@@ -96,12 +99,8 @@ export function isPremiumSubscription(
   return false;
 }
 
-/** SSoT-compliant mode derivation: unsigned | free | premium */
-export function deriveMode(
-  userId: string | null,
-  subscription: UserSubscription | null | undefined,
-  trial?: TrialSubscription | null
-): Mode {
+// SURGICAL TASK 2: deriveMode function for 3-state logic
+export function deriveMode(userId: string | null, subscription: any, trial: any): Mode {
   if (!userId) return 'unsigned';
   return isPremiumSubscription(subscription, trial) ? 'premium' : 'free';
 }
@@ -113,11 +112,9 @@ export function getMaxGuestLimit(
   return isPremiumSubscription(subscription, trial) ? Number.MAX_SAFE_INTEGER : 80;
 }
 
-export function getMaxSavedSettingsLimit(
-  subscription: UserSubscription | null | undefined,
-  trial?: TrialSubscription | null
-): number {
-  return isPremiumSubscription(subscription, trial) ? 30 : 5;
+// SURGICAL TASK 2: Updated signature - takes isPremium boolean, returns 30 for premium (not 50)
+export function getMaxSavedSettingsLimit(isPremium: boolean): number {
+  return isPremium ? 30 : 5;
 }
 
 export function canAddGuests(
@@ -161,16 +158,13 @@ export function getGuestLimitMessage(
     : `${currentCount}/80 guests used`;
 }
 
-export function getFeatures(
-  subscription: UserSubscription | null | undefined,
-  trial?: TrialSubscription | null
-): Record<string, boolean | number> {
-  const isPremium = isPremiumSubscription(subscription, trial);
+export function getFeatures(subscription: UserSubscription | null | undefined): Record<string, boolean | number> {
+  const isPremium = isPremiumSubscription(subscription);
 
   return {
     isPremium,
-    maxGuests: getMaxGuestLimit(subscription, trial),
-    maxSavedSettings: getMaxSavedSettingsLimit(subscription, trial),
+    maxGuests: getMaxGuestLimit(subscription),
+    maxSavedSettings: getMaxSavedSettingsLimit(subscription),
     unlimitedExports: isPremium,
     prioritySupport: isPremium,
     advancedConstraints: isPremium

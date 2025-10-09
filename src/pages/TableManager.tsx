@@ -9,6 +9,7 @@ import { getLastNameForSorting } from '../utils/formatters';
 import { normalizeAssignmentInputToIdsWithWarnings } from '../utils/assignments';
 import { getCapacity } from '../utils/tables';
 import { Table, GuestID } from '../types';
+import { deriveMode, isPremiumSubscription, type Mode } from '../utils/premium';
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -123,7 +124,15 @@ const ConstraintChipsInput: React.FC<{
 
 const TableManager: React.FC = () => {
   // SSoT #2 Fix: Get derived isPremium from context
-  const { state, dispatch, isPremium } = useApp();
+  const { state, dispatch } = useApp();
+  
+  // SURGICAL TASK 5 & 7: Derive mode for assignment gating and table naming
+  const mode: Mode = useMemo(
+    () => deriveMode(state.user?.id ?? null, state.subscription, state.trial),
+    [state.user?.id, state.subscription, state.trial]
+  );
+  const isPremium = mode === 'premium';
+  
   const [tables, setTables] = useState(state.tables);
   const [editingTable, setEditingTable] = useState<number | null>(null);
   const [newTableSeats, setNewTableSeats] = useState<number>(8);
@@ -132,6 +141,7 @@ const TableManager: React.FC = () => {
   const [editingName, setEditingName] = useState<string>('');
   const [guestListOpen, setGuestListOpen] = useState(true); 
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [assignmentWarnings, setAssignmentWarnings] = useState<string[]>([]);
   
   useEffect(() => {
     setTables(state.tables);
@@ -142,22 +152,41 @@ const TableManager: React.FC = () => {
     return [...state.guests].sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
   }, [state.guests]);
 
-  // RESTORED: This is the core logic for the multi-assignment input
+  // SURGICAL TASK 5: Multi-assignment with mode-gated name resolution
   const handleUpdateAssignment = useCallback((guestId: GuestID, rawAssignment: string) => {
-    // Multi-Table Assignment UI Feature: Use normalizeAssignmentInputToIdsWithWarnings
     const result = normalizeAssignmentInputToIdsWithWarnings(rawAssignment, state.tables);
     
-    // Dispatch assignment update (this uses the standard SET_ASSIGNMENTS action)
+    // Mode-gating: Unsigned/Free accept IDs only; Premium accepts IDs or names
+    let finalIdCsv = result.idCsv;
+    const warnings: string[] = [];
+    
+    if (mode !== 'premium') {
+      // For Unsigned/Free: filter out any name-based assignments, keep only numeric IDs
+      const tokens = rawAssignment.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      const numericOnly = tokens.filter(t => /^\d+$/.test(t));
+      const hasNames = tokens.some(t => !/^\d+$/.test(t));
+      
+      if (hasNames) {
+        warnings.push('Table names are a Premium feature. Only numeric IDs accepted.');
+        finalIdCsv = numericOnly.join(',');
+      }
+    } else {
+      // Premium: use all warnings from normalizer
+      warnings.push(...result.warnings);
+    }
+    
+    // Dispatch assignment update
     dispatch({ 
         type: 'SET_ASSIGNMENTS',
-        payload: { ...state.assignments, [guestId]: result.idCsv }
+        payload: { ...state.assignments, [guestId]: finalIdCsv }
     });
     
-    // NOTE: Warnings are surfaced via console.warn here, but the main error display relies on C7 validator
-    if (result.warnings.length > 0) {
-        result.warnings.forEach(w => console.warn(`Assignment Warning: ${w}`));
+    // SURGICAL TASK 5: User-visible warnings (not console-only)
+    if (warnings.length > 0) {
+      setAssignmentWarnings(warnings);
+      setTimeout(() => setAssignmentWarnings([]), 5000); // Clear after 5s
     }
-  }, [state.tables, dispatch, state.assignments]);
+  }, [state.tables, dispatch, state.assignments, mode]);
   
   // Helper to update constraints (must/cannot)
   const updateConstraints = useCallback((guestId: GuestID, names: string[], type: 'must' | 'cannot') => {
@@ -232,14 +261,19 @@ const TableManager: React.FC = () => {
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row gap-2 items-end">
             <div className="flex-grow">
-              <label htmlFor="newTableName" className="block text-sm font-medium text-gray-700">Table Name (Optional)</label>
+              <label htmlFor="newTableName" className="block text-sm font-medium text-gray-700">
+                Table Name (Optional)
+                {!isPremium && <span className="text-xs text-gray-500 ml-2">(Premium only)</span>}
+              </label>
               <input
                 id="newTableName"
                 type="text"
                 value={newTableName}
                 onChange={(e) => setNewTableName(e.target.value)}
-                placeholder="e.g., VIP, College"
+                placeholder={isPremium ? "e.g., VIP, College" : "Premium feature"}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                disabled={!isPremium}
+                aria-disabled={!isPremium}
               />
             </div>
       <div>
@@ -265,13 +299,17 @@ const TableManager: React.FC = () => {
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">ID: {table.id}</label>
                     <div>
-                        <label htmlFor={`editName-${table.id}`} className="block text-xs font-medium text-gray-500">Name</label>
+                        <label htmlFor={`editName-${table.id}`} className="block text-xs font-medium text-gray-500">
+                          Name {!isPremium && <span className="text-gray-400">(Premium)</span>}
+                        </label>
                             <input
                           id={`editName-${table.id}`}
                               type="text"
                               value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
                           className="w-full px-2 py-1 border rounded-md text-sm"
+                          disabled={!isPremium}
+                          aria-disabled={!isPremium}
                         />
                           </div>
                     <div>
@@ -318,6 +356,14 @@ const TableManager: React.FC = () => {
             
       {/* Guest Assignments & Constraints */}
       <Card title="Guest Assignments & Constraints">
+        {/* SURGICAL TASK 5: User-visible assignment warnings */}
+        {assignmentWarnings.length > 0 && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            {assignmentWarnings.map((warn, idx) => (
+              <p key={idx} className="text-sm text-yellow-800">{warn}</p>
+            ))}
+          </div>
+        )}
         {state.guests.length === 0 ? (
           <p className="text-gray-500 text-center py-4">Add guests on the Guests page to set assignments and constraints.</p>
         ) : (
