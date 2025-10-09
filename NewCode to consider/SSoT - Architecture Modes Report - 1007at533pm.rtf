@@ -1,0 +1,215 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Bold;\f1\fswiss\fcharset0 Helvetica;\f2\froman\fcharset0 Times-Roman;
+\f3\fnil\fcharset0 AppleColorEmoji;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\csgray\c0\c0;}
+{\info
+{\author a\uc0\u8776  }}\margl1440\margr1440\vieww16240\viewh14080\viewkind0
+\deftab720
+\pard\tx555\tx583\pardeftab720\li583\fi-48\ri-2029\sa373\partightenfactor0
+
+\f0\b\fs31\fsmilli15667 \cf2 \cb3 \expnd0\expndtw0\kerning0
+Review the ARCHITECTURE: MODES Report below (as of 10.07 at 5:33pm) 
+\f1\b0\fs26 \
+\pard\tx555\tx583\pardeftab720\li583\fi-48\ri-2029\partightenfactor0
+
+\f2 \cf2 \
+PROMPT for AI: Review the other code files attached and then review this \'93Architecture: Modes\'94 Report below as the newest SSoT. Identify deficiencies and problematic aspects in the current codebase (files I uploaded that you reviewed and complemented by previous Rival AI Red Teams\'92 reports and CursorAI chat threads).\
+\
+Then devise viable strategies to succeed, and, surgically improving on the existing code, rewrite and ultimately output your own, improved, \'93BEST OF ALL\'94, feature-maximized, 100% complete, fully functional, production-ready code (with no redactions, truncations, omissions, ellipses, or regreassions of any kind) in the canvas (side window) so that I can easily download it, one file at a time, separately, and then simply paste/swap into the codebase folder. \
+THEN craft an accompanying handoff document that articulates all of the strategies and solutions in sophisticated, completely thorough detail (including everything helpful, omitting nothing that is relevant) for CursorAI to 100% understand everything and be able to execute all of the fixes perfectly to solve all of the problems.
+\f1 \
+
+\f2 \
+\'a0
+\f1 \
+\pard\tx555\tx583\pardeftab720\li583\fi-48\ri-2029\sa320\partightenfactor0
+
+\f3 \cf2 \uc0\u9888 \u65039 
+\f2  UNIVERSAL SAFETY HEADER (MUST FOLLOW except as specifically directed in order to INCREASE functionality)
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u10060 
+\f2  Do NOT redesign, restructure, rename, or reorganize any files, code, or logic except as I describe. When I specify something then that takes priority, but you should never refactor to reduce functionality and features unless you ask me in advance for permission.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u10060 
+\f2  Do NOT touch the layout whatsoever, except when I specify a particular instruction, in which case what I say takes priority.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u10060 
+\f2  Do NOT weaken, bypass, reduce or remove any functioning premium logic, fallback, or functionality, nor change any aspect of UX/UI, except as I describe or specify.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u9989 
+\f2  Only perform the absolutely minimal, targeted, surgical changes in order to follow my objectives. Preserve everything else not addressed.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u9989 
+\f2 \'a0 All logic must be backward-compatible.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u9989 
+\f2 \'a0 Confirm that all existing app functionality (login, logout, modals, saved settings, premium checks, guest add/remove, table/constraint management) is preserved exactly as before, except for the changes I describe. Any error or new condition must show a clear user-facing message, not just a console log.
+\f1 \
+
+\f2 \'95 
+\f3 \uc0\u9989 
+\f2 \'a0 CLARIFICATION: Everywhere I specify a change (including when I say preserve or maximize functionality based on old code), that overrules the universal safety header. The universal safety header exists to prevent all AI systems from refactoring or making other changes without my explicit instructions. We can't risk losing ANY functionality. The goal is to maximize features.
+\fs24 \cf0 \
+\pard\pardeftab720\li730\fi1\ri-2169\sa240\partightenfactor0
+\cf0 \
+PROBLEM: There is a persistent problem with the Seatyr app. It\'92s having trouble distinguishing how to present pages and features according who is using it (unsigned-in/new users, signed-in free users, and signed-in premium users). There was an earlier version of the codebase that seemed to handle this problem better (and has since regressed/lost functionality). For reference, perhaps the old \'93sessionSettings0822at837pm.ts\'94 file (attached) can provide insight or inspiration.\
+\
+OBJECTIVE: There should be 3 "modes" based on the user, and pages should be presented accordingly.\
+The 3 modes are for:\
+	1) Unsigned-in/New users\
+	2) Signed-in Free Members\
+	3) Signed-in Premium Members (note: trial members, using a viable coupon code, should be treated as Premium members and get full Premium features until the expiration of their trial memberships).\
+NOTE: The web app must be able to stably preserve a mode throughout a session (even when the browser is reloaded). \
+This should also include whichever accordion sections are user-set (toggled) open or closed. So when the user closes an accordion section that should stay closed for the duration of the session. Also to be preserved is the user-set \'93sort by\'94 setting. So that when a user, for example, prefers to sort by \'93First Name\'94 that will be consistent until the user selects a different one. By default the \'93sort by\'94 setting should be by \'93Last Name\'94.\
+Here are the distinctions between the modes:\
+
+\f0\b \ul \ulc0 1.) MODE#1: Unsigned-in/New users
+\f2\b0 \ulnone \
+	
+\f0\b - 1.a.) On the \'93Guests\'94 (main) page: 
+\f2\b0 \
+		\'95\'a01.a.-I.) The Vimeo accordion should be open and autoplaying by default.\
+		\'95 1.a.-II.) The \'93Instructions\'94 box should be displayed.\
+		\'95 1.a.-III.) In the \'93Add Guest Names\'94 box: the only two buttons should be \'93Load Test Guest List\'94 (with its arrows as currently implemented) and \'93+ Add Guests\'94 (the plus sign should be visible on the button). \
+		\'95\'a01.a.-IV.)  In the \'93Guest List\'94 section: only 2 sort buttons should be visible \'93First Name\'94 and \'93Last Name\'94.\
+		\'95\'a01.a.-V.)  In the \'93Saved Settings\'94 section: since this kind of user (unsigned-in/new users) has no saved settings available, the message: \'93You need to be logged in to access saved settings.\'94 with the \'93Log In or Sign Up\'94 button should be displayed.\
+\
+	
+\f0\b - 1.b.) On the \'93Your Rules\'94 (constraints) page: 
+\f2\b0 \
+		\'95 1.b.-I.) in the \'93How to Use Constraints\'94 (which, since it\'92s a section heading, it should be bolded and the consistent font size for such headings), the \'93Adjacent Seating\'94 instructions should NOT be displayed (and shorten the height of the section accordingly).\
+		\'95 1.b.-II.) In the \'93Constraint Grid\'94 section: only 2 sort buttons should be visible \'93First Name\'94 and \'93Last Name\'94.\
+		\'95 1.b.-III.) In the \'93Constraint Grid\'94 grid itself: The click-cycling should be the 3-click cycling, begining by default CLEAR>MUST (\'93&\'94)>CANNOT(\'93X\'94)>CLEAR.\
+		\'95 1.b.-IV.)  In the \'93Constraint Grid\'94 grid itself: Adjacent-pairing should be disabled (even double-clicking on two GuestUnit names in succession should not do anything).\
+		\'95\'a01.b.-V.)  In the \'93Saved Settings\'94 section: since this kind of user (unsigned-in/new users) has no saved settings available, the message: \'93You need to be logged in to access saved settings.\'94 with the \'93Log In or Sign Up\'94 button should be displayed.\
+\
+	
+\f0\b - 1.c.) On the \'93Tables\'94 page: \
+
+\f2\b0 		\'95 1.c.-I.) In the \'93Guest Assignments\'94 section: the instructions should remain the same (>>:\'94You can specify which tables each guest can be assigned to.\
+\
+Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").\
+\
+Simply, enter table numbers separated by commas, or leave blank for automatic assignment.\
+\
+This means the seating algorithm will place them at one of these tables.\'94:<<) and not mention table naming.\
+		\'95 1.c.-II.) In the \'93Guest Assignments\'94 section: only 2 sort buttons should be visible \'93First Name\'94 and \'93Last Name\'94.\
+		\'95 1.c.-III.) In the \'93Saved Settings\'94 section: since this kind of user (unsigned-in/new users) has no saved settings available, the message: \'93You need to be logged in to access saved settings.\'94 with the \'93Log In or Sign Up\'94 button should be displayed.\
+	\
+	
+\f0\b - 1.d.) On the \'93Seating\'94 page: 
+\f2\b0 \
+		\'95 1.d.-I.) In the \'93Current Plan\'94 section, the current settings (user specifications for constraints, tables, and assignments) should automatically generate 10 seating plans if logically possible (displaying the first such plan upon loading of the page). If no constraint changes are made, then those should be preserved across the site for user navigation such that upon returning to the \'93Seating\'94 page, the same current seating plan (whichever was last displayed of the same 10) should be displayed. However, as soon as the user changes any specifications, a fresh set of 10 seating plans should be generated. Whenever the user arrives at the \'93Seating\'94 page, there should be a current seating plan displayed if logically possible.\
+		\'95 1.d.-II.) In the \'93Saved Settings\'94 section: since this kind of user (unsigned-in/new users) has no saved settings available, the message: \'93You need to be logged in to access saved settings.\'94 with the \'93Log In or Sign Up\'94 button should be displayed.\
+_____________________\
+\
+
+\f0\b \ul 2.) MODE#2: Signed-in Free users
+\f2\b0 \ulnone \
+	
+\f0\b - 2.a.) On the \'93Guests\'94 (main) page: 
+\f2\b0 \
+		\'95\'a02.a.-I.) The Vimeo accordion should be closed (and therefore not autoplaying) by default.\
+		\'95 2.a.-II.) The \'93Instructions\'94 box should NOT be displayed (instead, expand the \'93Add Guest Names\'94 box wider to occupy the total width of the browser window).\
+		\'95 2.a.-III.) In the \'93Add Guest Names\'94 box: the only two buttons should be \'93Upload Settings\'94 (with the upload chevron/character/emoji) and \'93+ Add Guests\'94 (the plus sign should be visible on the button). \
+		\'95\'a02.a.-IV.)  In the \'93Guest List\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94, \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95\'a02.a.-V.)  In the \'93Saved Settings\'94 section: all of the Free user\'92s saved configurations (up to a maximum of 5) should be displayed. Note: The 80-guest limit still applies.\
+\
+	
+\f0\b - 2.b.) On the \'93Your Rules\'94 (constraints) page: 
+\f2\b0 \
+		\'95 2.b.-I.) in the \'93How to Use Constraints\'94 (which, since it\'92s a section heading, should be bolded and the right font size), the \'93Adjacent Seating\'94 instructions should indeed be displayed in full.\
+		\'95 2.b.-II.) In the \'93Constraint Grid\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94, \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95 2.b.-III.) In the \'93Constraint Grid\'94 grid itself: The click-cycling should be changed to the 4-click cycle, default CLEAR>MUST (\'93&\'94)>ADJACENT-PAIRED (\'93
+\f3 \uc0\u11088 
+\f2 &
+\f3 \uc0\u11088 
+\f2 \'94)>CANNOT(\'93X\'94)>CLEAR.\
+		In the \'93Constraint Grid\'94 grid itself: Adjacent-pairing should be fully enabled. So that to set adjacent-pairing, the users can click cycle to that or use the advanced method of adjacent-pairing: double-click on two GuestUnit names in succession should work, too).\
+		\'95\'a02.b.-IV.)  In the \'93Saved Settings\'94 section: all of the Free user\'92s saved configurations (up to a maximum of 5) should be displayed. Note: The 80-guest limit still applies.\
+\
+	
+\f0\b - 2.c.) On the \'93Tables\'94 page: 
+\f2\b0 \
+		\'95 2.c.-I.) In the \'93Tables\'94 section: the number of tables and number of seats per table should be changeable, but not the naming of tables feauture (table name changing is only for Premium members).\
+		\'95 2.c.-II.) In the \'93Guest Assignments\'94 section: the instructions should remain the same (>>:\'94You can specify which tables each guest can be assigned to.\
+\
+Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").\
+\
+Simply, enter table numbers separated by commas, or leave blank for automatic assignment.\
+\
+This means the seating algorithm will place them at one of these tables.\'94:<<) and not mention table naming.\
+		\'95 2.c.-III.) In the \'93Guest Assignments\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94, \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95 2.c.-IV.) In the \'93Saved Settings\'94 section: all of the Free user\'92s saved configurations (up to a maximum of 5) should be displayed. Note: The 80-guest limit still applies.\
+	\
+	
+\f0\b - 2.d.) On the \'93Seating\'94 page: 
+\f2\b0 \
+		\'95 2.d.-I.) In the \'93Current Plan\'94 section, the current settings (user specifications for constraints, tables, and assignments) should automatically generate 10 seating plans if logically possible (displaying the first). If no changes are made, those should be preserved across the site in user navigation such that upon returning to the \'93Seating\'94 page, the same current seating plan (whichever was last displayed of the same 10) should be displayed. As soon as the user changes any specifications, a fresh set of 10 seating plans should be generated if logically possible. Whenever the user arrives at the \'93Seating\'94 page, there should be a current seating plan displayed if logically possible.\
+		\'95 2.d.-II.)  In the \'93Saved Settings\'94 section: all of the Free user\'92s saved configurations (up to a maximum of 5) should be displayed. Note: the 80 guest limit still applies.\
+\
+_____________________\
+\
+
+\f0\b \ul 3.) MODE#3: Signed-in Premium users
+\f2\b0 \ulnone \
+	
+\f0\b - 3.a.) On the \'93Guests\'94 (main) page: 
+\f2\b0 \
+		\'95\'a03.a.-I.) The Vimeo accordion should be closed (and therefore not autoplaying) by default.\
+		\'95 3.a.-II.) The \'93Instructions\'94 box should NOT be displayed (instead, expand the \'93Add Guest Names\'94 box wider to occupy the total width of the browser window).\
+		\'95 3.a.-III.) In the \'93Add Guest Names\'94 box: the only two buttons should be \'93Upload Settings\'94 (with the upload chevron/character/emoji) and \'93+ Add Guests\'94 (the plus sign should be visible on the button). \
+		\'95\'a03.a.-IV.)  In the \'93Guest List\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94. \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95\'a03.a.-V.)  In the \'93Saved Settings\'94 section: all of the Premium user\'92s saved configurations (up to a maximum of 30) should be displayed. Note: There is \'93no limit\'94 on the number of guests (but the actual limit should be 100 tables \'97 up to 20 guests per table, so there is a hard-cap on 2000 guests seats \'97 which would be crazy rare).\
+	
+\f0\b - 3.b.) On the \'93Your Rules\'94 (constraints) page: 
+\f2\b0 \
+		\'95 3.b.-I.) in the \'93How to Use Constraints\'94 (which, since it\'92s a section heading, should be bolded and the right font size), the \'93Adjacent Seating\'94 instructions should indeed be displayed in full.\
+		\'95 3.b.-II.) In the \'93Constraint Grid\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94, \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95 3.b.-III.) In the \'93Constraint Grid\'94 grid itself: The click-cycling should be changed to the 4-click cycle, default CLEAR>MUST (\'93&\'94)>ADJACENT-PAIRED (\'93
+\f3 \uc0\u11088 
+\f2 &
+\f3 \uc0\u11088 
+\f2 \'94)>CANNOT(\'93X\'94)>CLEAR.\
+		In the \'93Constraint Grid\'94 grid itself: Adjacent-pairing should be fully enabled. So that to set adjacent-pairing, the user can click cycle to that or use the advanced method of adjacent-pairing: double-click on two GuestUnit names in succession should work, too).\
+		\'95\'a03.b.-IV.)  In the \'93Saved Settings\'94 section: all of the Premium user\'92s saved configurations (up to a maximum of 30) should be displayed. Note: There is \'93no limit\'94 on the number of guests (but the actual limit should be 100 tables \'97 up to 20 guests per table, so there is a hard-cap on 2000 guests seats \'97 which would be crazy rare).\
+\
+	
+\f0\b - 3.c.) On the \'93Tables\'94 page: 
+\f2\b0 \
+		\'95 3.c.-I.) In the \'93Tables\'94 section: the number of tables and number of seats should be fully changeable, including the \'93name tables\'94 feauture (table name changing is only for Premium members).\
+		\'95 3.c.-II.) In the \'93Guest Assignments\'94 section: the instructions should *CHANGE* to describe the added feature of assigning tables by table name(>>:\'94You can specify which tables each guest can be assigned to.\
+\
+Tip: You can assign a guest to a range of tables by entering comma-separated numbers or table names (e.g., "1,3,5" or \'931, College Friends, 5\'94).\
+\
+Simply, enter table numbers or names separated by commas, or leave blank for automatic assignment.\
+\
+This means the seating algorithm will place them at one of these tables.\'94:<<).\
+		\'95 3.c.-III.) In the \'93Guest Assignments\'94 section: all sort buttons should be visible and functional: \'93As Entered\'94, \'93First Name\'94, \'93Last Name\'94, and \'93By Table\'94.\
+		\'95 3.c.-IV.)  In the \'93Saved Settings\'94 section: all of the Premium user\'92s saved configurations (up to a maximum of 30) should be displayed. Note: There is \'93no limit\'94 on the number of guests (but the actual limit should be 100 tables \'97 up to 20 guests per table, so there is a hard-cap on 2000 guests seats \'97 which would be crazy rare).\
+	\
+	
+\f0\b - 3.d.) On the \'93Seating\'94 page: 
+\f2\b0 \
+		\'95 3.d.-I.) In the \'93Current Plan\'94 section, the current settings (user specifications for constraints, tables, and assignments) should automatically generate 30 seating plans if logically possible (displaying the first). If no changes are made, those should be preserved across the site in user navigation such that upon returning to the \'93Seating\'94 page, the same current seating plan (whichever was last displayed of the same 30) should be displayed. As soon as the user changes any specifications, a fresh set of 30 seating plans should be generated, if logically possible. Whenever the user arrives at the \'93Seating\'94 page, there should be a current seating plan displayed if logically possible.\
+		\'95 3.d.-II.)  In the \'93Saved Settings\'94 section: all of the Premium user\'92s saved configurations (up to a maximum of 30) should be displayed. Note: There is \'93no limit\'94 on the number of guests (but the actual limit should be 100 tables \'97 up to 20 guests per table, so there is a hard-cap on 2000 guests seats \'97 which would be crazy rare).\
+\
+
+\f0\b \ul IN CLOSING: \
+
+\f2\b0 \ulnone Do not write code from scratch. Please ask to see existing code from the codebase and/or previous versions\'92 code files so that you can make surgical improvements. If you believe code must be written from scratch, first ask me, describe why in sophisticated detail for rival AI red teams to vet, and then describe the solutions. Be sure to note potentially problematic ramifications of such a change and how you\'92re inoculating against regressions or other losses of functionality and/or unrequested changes to UI/UX.\
+\
+}

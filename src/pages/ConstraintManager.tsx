@@ -7,7 +7,7 @@ import Card from '../components/Card';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { useApp } from '../context/AppContext';
-import { isPremiumSubscription } from '../utils/premium';
+import { deriveMode, type Mode } from '../utils/premium';
 
 // The only allowed sort options per SSoT (party-size removed)
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -23,17 +23,23 @@ function lastNameOf(full: string): string {
 }
 
 const ConstraintManager: React.FC = () => {
-  const { state, dispatch, isPremium } = useApp();
+  const { state, dispatch } = useApp();
 
-  // D4 SURGICAL EDIT: Per SSoT, Unsigned gets First/Last only; Free & Premium get all four
-  // Trial-aware mode: if user is signed in (Free or Premium), show all four sorts
-  const allowedSortOptions: SortOption[] = !state.user
-    ? ['first-name', 'last-name']
-    : ['as-entered', 'first-name', 'last-name', 'current-table'];
-
-  const [sortBy, setSortBy] = useState<SortOption>(
-    allowedSortOptions.includes('as-entered') ? 'as-entered' : 'first-name'
+  // SURGICAL TASK 4: Trial-aware mode (Unsigned vs Free vs Premium)
+  const userId = state.user?.id ?? null;
+  const mode: Mode = useMemo(
+    () => deriveMode(userId, state.subscription, state.trial),
+    [userId, state.subscription, state.trial]
   );
+
+  // Per SSoT: Unsigned gets First/Last only; Free & Premium get all four
+  const allowedSortOptions: SortOption[] =
+    mode === 'unsigned'
+      ? ['first-name', 'last-name']
+      : ['as-entered', 'first-name', 'last-name', 'current-table'];
+
+  // SSoT: Default sort should be "last-name"
+  const [sortBy, setSortBy] = useState<SortOption>('last-name');
 
   const guests = state.guests || [];
   const assignments = state.assignments || {};
@@ -81,8 +87,8 @@ const ConstraintManager: React.FC = () => {
 
   // Grid state helpers
   const isAdjacent = (a: string, b: string) => (state.adjacents[a] || []).includes(b);
-  const isMust = (a: string, b: string) => (state.constraints.must?.[a] || []).includes(b);
-  const isCannot = (a: string, b: string) => (state.constraints.cannot?.[a] || []).includes(b);
+  const isMust = (a: string, b: string) => (state.constraints.must?.[a]?.[b] === 'must');
+  const isCannot = (a: string, b: string) => (state.constraints.cannot?.[a]?.[b] === 'cannot');
 
   const labelFor = (a: string, b: string) => {
     if (a === b) return '';
@@ -92,10 +98,18 @@ const ConstraintManager: React.FC = () => {
     return '';
   };
 
-  // D4 SURGICAL EDIT: Single-dispatch atomic cycle handled by reducer (no multi-dispatch here)
+  // SURGICAL TASK 3: Single-dispatch atomic cycle via CYCLE_CONSTRAINT
   const onCellClick = (a: string, b: string) => {
     if (a === b) return;
-    dispatch({ type: 'SET_ADJACENT', payload: { a, b } });
+    dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a, b } });
+  };
+
+  // SURGICAL TASK 3: Premium-only double-click accelerator
+  const onCellDoubleClick = (a: string, b: string) => {
+    if (a === b) return;
+    if (mode === 'premium') {
+      dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a, b, force: 'adjacent' } });
+    }
   };
 
   return (
@@ -170,6 +184,7 @@ const ConstraintManager: React.FC = () => {
                                 : (content || 'Click to cycle CLEAR → & → ⭐&⭐ → X → CLEAR')
                             }
                             onClick={() => !isDiagonal && onCellClick(a, b)}
+                            onDoubleClick={() => !isDiagonal && onCellDoubleClick(a, b)}
                           >
                             {content || (isDiagonal ? '—' : '')}
                           </td>
@@ -190,7 +205,9 @@ const ConstraintManager: React.FC = () => {
           </div>
           
           <div className="mt-2 text-xs text-gray-600">
-            Click any cell to cycle <strong>CLEAR → & → ⭐&⭐ → X → CLEAR</strong>. Adjacency obeys the degree cap.
+            Click any cell to cycle <strong>CLEAR → & → ⭐&⭐ → X → CLEAR</strong>. 
+            {mode === 'premium' && <span> Double-click to jump directly to ⭐&⭐.</span>}
+            {' '}Adjacency obeys the degree cap.
           </div>
         </div>
       </Card>

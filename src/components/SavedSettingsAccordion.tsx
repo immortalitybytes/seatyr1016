@@ -189,7 +189,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       }
       
       // Check if this setting is loadable based on subscription status
-      if (!isSettingLoadable(setting, state.subscription, state.trial)) {
+      if (!isSettingLoadable(setting, state.subscription)) {
         throw new Error(`This setting contains ${setting.data.guests.length} guests, which exceeds the free account limit of 80 guests. Upgrade to Premium to load this setting.`);
       }
       
@@ -216,6 +216,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
       dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
       dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+      dispatch({ type: 'AUTO_RECONCILE_TABLES' });
       
       // Update the setting's last_accessed timestamp
       await supabase
@@ -250,8 +251,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setSavingSettings(true);
       
       // Check if user is premium
-      const isPremium = isPremiumSubscription(state.subscription, state.trial);
-      const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
+      const isPremium = isPremiumSubscription(subscription);
+      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -330,8 +331,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       }
 
       // Check if user is premium
-      const isPremium = isPremiumSubscription(state.subscription, state.trial);
-      const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
+      const isPremium = isPremiumSubscription(subscription);
+      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -487,8 +488,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   };
 
   // Check premium status from global state
-  const isPremium = isPremiumSubscription(state.subscription, state.trial);
-  const maxSettings = getMaxSavedSettingsLimit(state.subscription, state.trial);
+  const isPremium = isPremiumSubscription(subscription);
+  const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
   
   // Check if we have an effective user (either from context or session)
   const effectiveUser = user || sessionUser;
@@ -612,22 +613,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                     
                     {settings.map((setting) => {
                       // Check if this setting has more guests than allowed for free users
-                      const isPremiumForSetting = isPremiumSubscription(state.subscription, state.trial);
-                      const maxGuestsForSetting = getMaxGuestLimit(state.subscription, state.trial);
-                      const exceedsGuestLimit = !isPremiumForSetting && 
-                                             setting.data?.guests?.length > maxGuestsForSetting;
-                      
-                      // Debug logging for saved settings
-                      console.log('[SAVED SETTINGS DEBUG] Setting check:', {
-                        settingName: setting.name,
-                        guestCount: setting.data?.guests?.length,
-                        isPremiumForSetting,
-                        maxGuestsForSetting,
-                        exceedsGuestLimit,
-                        subscription: state.subscription,
-                        trial: state.trial,
-                        userId: state.user?.id
-                      });
+                      const exceedsGuestLimit = !isPremiumSubscription(subscription) && 
+                                             setting.data?.guests?.length > 80;
                       
                       // Check if this setting is the currently loaded one
                       const isCurrentSetting = setting.name === currentSettingName;

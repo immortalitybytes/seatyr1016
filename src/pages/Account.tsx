@@ -264,7 +264,7 @@ const Account: React.FC = () => {
   };
 
   const effectiveUser = user || state.user;
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
 
   const toggleAccountInfo = () => {
     setIsAccountInfoOpen(!isAccountInfoOpen);

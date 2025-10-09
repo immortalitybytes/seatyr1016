@@ -11,6 +11,7 @@ import { Table, SeatingPlan, ValidationError, PlanTable } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { getCapacity } from '../utils/tables';
 import FormatGuestName from '../components/FormatGuestName';
+import { computePlanSignature } from '../utils/planSignature';
 
 // NOTE: Since the full utility library is not provided, we must rely on the existing imported signature
 // The fix assumes isPremiumSubscription is updated to accept trial status, and we route through dispatch.
@@ -25,6 +26,30 @@ const SeatingPlanViewer: React.FC = () => {
   // We rely on the enhanced isPremium in useApp(), but if calling generatePlans locally, must ensure it's passed.
   const isPremiumNow = useMemo(() => isPremiumSubscription(state.subscription, state.trial), [state.subscription, state.trial]);
   const maxPlans = isPremiumNow ? 30 : 10;
+  
+  // SURGICAL TASK 1: Restore or clear plan index by signature
+  useEffect(() => {
+    const currentSig = computePlanSignature({
+      guests: state.guests,
+      tables: state.tables,
+      constraints: state.constraints,
+      adjacents: state.adjacents,
+      assignments: state.assignments,
+      isPremium: isPremiumNow
+    });
+    
+    const userKey = state.user?.id || 'unsigned';
+    const saved = localStorage.getItem(`seatyr_plan_${userKey}`);
+    const parsed = saved ? JSON.parse(saved) : null;
+    const matches = parsed?.sig && parsed.sig === currentSig;
+    
+    if (matches && parsed.index !== undefined) {
+      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: parsed.index });
+    } else if (!matches && state.seatingPlans.length > 0) {
+      // Signature mismatch - clear plans
+      dispatch({ type: 'SET_SEATING_PLANS', payload: { plans: [], planErrors: [], currentPlanIndex: 0 } });
+    }
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.user, isPremiumNow]);
   
   useEffect(() => {
     // Sync errors from state after plan generation runs in AppContext

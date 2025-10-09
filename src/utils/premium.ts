@@ -1,12 +1,12 @@
 /**
  * Utility functions for handling premium status and features
  * Implements C3 Fix (robust date parsing with UTC fallback)
+ * SSoT-compliant with Mode derivation
  */
 
 import type { UserSubscription, TrialSubscription } from '../types';
 
-export type UserSubscription = any; // keep flexible to match existing DB row shape
-export type TrialSubscription = any; // idem
+export type Mode = 'unsigned' | 'free' | 'premium';
 
 /** Parse ISO string, seconds(10), ms(13+), Date, or numberlike string; default ambiguous ISO to UTC.
  * Implements C3 date robustness fix.
@@ -96,6 +96,16 @@ export function isPremiumSubscription(
   return false;
 }
 
+/** SSoT-compliant mode derivation: unsigned | free | premium */
+export function deriveMode(
+  userId: string | null,
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): Mode {
+  if (!userId) return 'unsigned';
+  return isPremiumSubscription(subscription, trial) ? 'premium' : 'free';
+}
+
 export function getMaxGuestLimit(
   subscription: UserSubscription | null | undefined,
   trial?: TrialSubscription | null
@@ -151,13 +161,16 @@ export function getGuestLimitMessage(
     : `${currentCount}/80 guests used`;
 }
 
-export function getFeatures(subscription: UserSubscription | null | undefined): Record<string, boolean | number> {
-  const isPremium = isPremiumSubscription(subscription);
+export function getFeatures(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): Record<string, boolean | number> {
+  const isPremium = isPremiumSubscription(subscription, trial);
 
   return {
     isPremium,
-    maxGuests: getMaxGuestLimit(subscription),
-    maxSavedSettings: getMaxSavedSettingsLimit(subscription),
+    maxGuests: getMaxGuestLimit(subscription, trial),
+    maxSavedSettings: getMaxSavedSettingsLimit(subscription, trial),
     unlimitedExports: isPremium,
     prioritySupport: isPremium,
     advancedConstraints: isPremium
