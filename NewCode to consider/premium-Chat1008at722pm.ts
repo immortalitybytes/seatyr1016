@@ -107,7 +107,7 @@ export function getMaxSavedSettingsLimit(
   subscription: UserSubscription | null | undefined,
   trial?: TrialSubscription | null
 ): number {
-  return isPremiumSubscription(subscription, trial) ? 30 : 5;
+  return isPremiumSubscription(subscription, trial) ? 50 : 5;
 }
 
 export function canAddGuests(

@@ -7,7 +7,7 @@ import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription, getMaxSavedSettingsLimit } from '../utils/premium';
 import { generateSeatingPlans } from '../utils/seatingAlgorithm'; // Note: This should ideally not be called directly
-import { Table, SeatingPlan, ValidationError, PlanTable } from '../types';
+import { Table, SeatingPlan, ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { getCapacity } from '../utils/tables';
 import FormatGuestName from '../components/FormatGuestName';

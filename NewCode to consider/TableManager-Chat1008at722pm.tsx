@@ -123,7 +123,7 @@ const ConstraintChipsInput: React.FC<{
 
 const TableManager: React.FC = () => {
   // SSoT #2 Fix: Get derived isPremium from context
-  const { state, dispatch, isPremium } = useApp();
+  const { state, dispatch } = useApp();
   const [tables, setTables] = useState(state.tables);
   const [editingTable, setEditingTable] = useState<number | null>(null);
   const [newTableSeats, setNewTableSeats] = useState<number>(8);
@@ -232,16 +232,14 @@ const TableManager: React.FC = () => {
         <div className="space-y-4">
           <div className="flex flex-col md:flex-row gap-2 items-end">
             <div className="flex-grow">
-              <label htmlFor="newTableName" className="block text-sm font-medium text-gray-700">Table Name (Optional - Premium Only)</label>
+              <label htmlFor="newTableName" className="block text-sm font-medium text-gray-700">Table Name (Optional)</label>
               <input
                 id="newTableName"
                 type="text"
                 value={newTableName}
                 onChange={(e) => setNewTableName(e.target.value)}
-                placeholder={isPremium ? "e.g., VIP, College" : "Premium feature"}
+                placeholder="e.g., VIP, College"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                disabled={!isPremium}
-                aria-disabled={!isPremium}
               />
             </div>
       <div>
@@ -267,15 +265,13 @@ const TableManager: React.FC = () => {
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">ID: {table.id}</label>
                     <div>
-                        <label htmlFor={`editName-${table.id}`} className="block text-xs font-medium text-gray-500">Name (Premium Only)</label>
+                        <label htmlFor={`editName-${table.id}`} className="block text-xs font-medium text-gray-500">Name</label>
                             <input
                           id={`editName-${table.id}`}
                               type="text"
                               value={editingName}
                           onChange={(e) => setEditingName(e.target.value)}
                           className="w-full px-2 py-1 border rounded-md text-sm"
-                          disabled={!isPremium}
-                          aria-disabled={!isPremium}
                         />
                           </div>
                     <div>

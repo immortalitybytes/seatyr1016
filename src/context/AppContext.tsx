@@ -2,7 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useState, useM
 import { 
   Guest, Table, Assignments, AppState, GuestID, Constraints, Adjacents, TrialSubscription
 } from "../types";
-import { isPremiumSubscription } from "../utils/premium";
+import { isPremiumSubscription, getMaxGuestLimit } from "../utils/premium";
 import { supabase } from "../lib/supabase";
 import { saveMostRecentState, getMostRecentState, clearMostRecentState } from "../lib/mostRecentState";
 import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
@@ -13,8 +13,9 @@ import { computePlanSignature } from "../utils/planSignature";
 import { countHeads } from "../utils/guestCount";
 import { generateSeatingPlans } from "../utils/seatingAlgorithm";
 import { getCapacity as _getCapacity } from "../utils/tables";
+import { clearRecentSessionSettings } from '../lib/sessionSettings'; 
 import LZString from 'lz-string';
-// Chrome Quota Fix: Import LZString
+
 // Custom debounce utility
 function debounce<T extends (...args: any[]) => any>(func: T, delay: number): T {
   let timeoutId: NodeJS.Timeout;
@@ -23,6 +24,7 @@ function debounce<T extends (...args: any[]) => any>(func: T, delay: number): T 
     timeoutId = setTimeout(() => func(...args), delay);
   }) as T;
 }
+
 // Simple state sanitization function (Replaces old import to be self-contained)
 function sanitizeAndMigrateAppState(state: any): any {
   return {
@@ -39,8 +41,8 @@ const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({
   id: i + 1, seats: 8 
 }));
 const DEFAULT_TABLE_CAPACITY = 8;
-const ADJACENCY_MAX_DEGREE = 2;
-const MAX_TABLES = 100;
+const MAX_TABLES_FREE = 20; // Guardrail value
+const MAX_GUESTS_FREE = 80; // Guardrail value
 
 interface AppAction {
   type: string;
@@ -71,9 +73,65 @@ function removePairFromMap(map: Record<GuestID, GuestID[]>, keyA: GuestID, keyB:
     return newMap;
 }
 
+// RIVAL AI FIX: Use baseDispatch inside Guardrail utility for error handling
+let baseDispatch: React.Dispatch<AppAction>; 
+
+// =========================================================================================
+// RIVAL AI FIX: Dispatch Guardrail (Proactive Limit Enforcement)
+// =========================================================================================
+function dispatchGuardrail(state: AppState, action: AppAction, isPremium: boolean): AppAction | null {
+  const maxGuests = getMaxGuestLimit(state.subscription, state.trial);
+
+  switch (action.type) {
+    case "ADD_GUEST": {
+      const guestCount = action.payload?.count || 1;
+      const totalHeads = state.guests.reduce((sum, g) => sum + (g.count || 1), 0);
+      if (totalHeads + guestCount > maxGuests) {
+        return { type: 'ERROR', payload: `Guest limit reached. Free accounts are limited to ${MAX_GUESTS_FREE} guests. Please upgrade.` };
+      }
+      return action;
+    }
+    case "ADD_TABLE": {
+      if (!isPremium && state.tables.length >= MAX_TABLES_FREE) {
+        return { type: 'ERROR', payload: `Table limit reached. Free accounts are limited to ${MAX_TABLES_FREE} tables. Please upgrade.` };
+      }
+      return action;
+    }
+    case "SET_GUESTS": {
+      const incomingGuests = action.payload as Guest[];
+      const totalHeads = incomingGuests.reduce((sum, g) => sum + (g.count || 1), 0);
+      if (totalHeads > maxGuests && !isPremium) {
+           // Proactively trim the guest list for bulk operation to respect hard limit
+           const sortedByHeads = [...incomingGuests].sort((a, b) => b.count - a.count);
+           let cumulative = 0;
+           const trimmed = sortedByHeads.filter(g => {
+             const heads = g.count || 1;
+             if (cumulative + heads <= maxGuests) {
+               cumulative += heads;
+               return true;
+             }
+             return false;
+           });
+           if (trimmed.length !== incomingGuests.length) {
+              baseDispatch({ type: 'ERROR', payload: `Guest list trimmed from ${totalHeads} to ${cumulative} guests to comply with free limit of ${MAX_GUESTS_FREE}. Please upgrade.` });
+           }
+           return { ...action, payload: trimmed }; // Proceed with trimmed list
+      }
+      return action;
+    }
+    default:
+      return action;
+  }
+}
+// =========================================================================================
 
 const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
+    case "ERROR": {
+        console.error("DISPATCH ERROR:", action.payload);
+        // Only append error/warning messages for display
+        return { ...state, warnings: [...state.warnings, action.payload] };
+    }
     case "SET_SESSION_DATA": {
       const { user, subscription, trial } = action.payload;
       return { 
@@ -81,7 +139,6 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         user, 
         subscription, 
         trial, 
-        // SSoT #2 Fix: Do NOT store isPremium in state, derive it on access.
       };
     }
     
@@ -104,15 +161,20 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
         loadedSavedSetting: true,
         assignmentSignature,
         lastGeneratedSignature: null,
+        lastGeneratedPlanSig: null, // SSoT C6: Reset plan signature on load
       };
     }
 
+    // RIVAL AI FIX C6: Robust SET_PLANS logic to re-compute planSig if missing in payload
     case "SET_PLANS":
     case "SET_SEATING_PLANS": {
       const { plans = [], errors = [], planSig = null } = action.payload ?? {};
-      // C6 Fix: Robustly compute the signature
+      
+      const isPremiumNow = isPremiumSubscription(state.subscription, state.trial);
+      
+      // SSoT C6: Canonical signature computation includes premium status
       const finalPlanSig = planSig || computePlanSignature({
-        guests: state.guests, tables: state.tables, constraints: state.constraints, adjacents: state.adjacents, assignments: state.assignments, subscription: state.subscription, trial: state.trial
+        guests: state.guests, tables: state.tables, constraints: state.constraints, adjacents: state.adjacents, assignments: state.assignments, isPremium: isPremiumNow
       });
       
       const newWarnings = (errors ?? [])
@@ -142,14 +204,39 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     case "SET_CURRENT_PLAN_INDEX":
       return { ...state, currentPlanIndex: action.payload };
 
-    // FIX Blocker 2: Robust SET_CONSTRAINT logic for pairwise array manipulation
+    // D1 SURGICAL EDIT: Add GENERATE_PLANS action for viewer-triggered generation
+    case 'GENERATE_PLANS': {
+      // Derive max based on mode; trial == premium per SSoT
+      const premium = isPremiumSubscription(state.subscription, state.trial);
+      const maxPlans = premium ? 30 : 10;
+
+      // Compute a compact signature of inputs for persistence de-dup
+      const sig = computePlanSignature({
+        guests: state.guests,
+        tables: state.tables,
+        constraints: state.constraints,
+        adjacents: state.adjacents,
+        assignments: state.assignments,
+        isPremium: premium
+      });
+
+      // Note: Actual async generation will be handled by debouncedGeneratePlans
+      // This action just marks that generation is requested
+      return {
+        ...state,
+        lastGeneratedPlanSig: sig,
+      };
+    }
+
+    // RIVAL AI FIX: Atomic SET_CONSTRAINT logic (Blocker 2 Fix + SSoT Fix)
+    // Used by TableManager for constraint chips.
     case "SET_CONSTRAINT": {
         const { a: g1, b: g2 } = pairPayload(action.payload);
-        const type = action.payload?.type as "must" | "cannot";
+        const type = action.payload?.type as "must" | "cannot" | undefined; // 'undefined' to allow removal-only
         const removeType = action.payload?.removeType as "must" | "cannot" | undefined;
-        if (!g1 || !g2 || (type !== "must" && type !== "cannot")) return state;
+        if (!g1 || !g2) return state;
 
-        const next = {
+        const nextConstraints = {
             ...state.constraints,
             must: { ...(state.constraints.must || {}) },
             cannot: { ...(state.constraints.cannot || {}) },
@@ -167,14 +254,22 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
             if (!map[g2]?.length) delete map[g2];
         };
 
-        if (removeType) removePairInternal(next[removeType]);
-        addPair(next[type], g1, g2);
+        // Remove old constraint first
+        if (removeType) removePairInternal(nextConstraints[removeType]);
+        
+        // If adding a new constraint, ensure the opposite constraint is removed
+        if (type === 'must') removePairInternal(nextConstraints['cannot']);
+        if (type === 'cannot') removePairInternal(nextConstraints['must']);
 
-        return { ...state, constraints: next, seatingPlans: [], currentPlanIndex: 0 };
+        // Add new constraint
+        if (type) addPair(nextConstraints[type], g1, g2);
+
+        return { ...state, constraints: nextConstraints, seatingPlans: [], currentPlanIndex: 0 };
     }
 
 
-    // FIX C5/Blocker 3: Correct SET_ADJACENT logic for array checks and de-duping
+    // RIVAL AI FIX C5: Atomic Constraint Cycling Logic (Must -> Adjacent -> Cannot -> Clear)
+    // Used by ConstraintManager.tsx grid cell click.
     case "SET_ADJACENT": {
       const { a: guest1, b: guest2 } = pairPayload(action.payload);
       if (!guest1 || !guest2) return state;
@@ -182,51 +277,46 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       let adjacents = { ...state.adjacents };
       let constraints = { ...state.constraints };
       
-      const currentMusts = constraints.must?.[guest1]?.includes(guest2);
-      // FIX Blocker 3: Use .includes() for array check
-      const currentAdj = (adjacents[guest1]?.includes(guest2)) || (adjacents[guest2]?.includes(guest1));
+      const isMust = constraints.must?.[guest1]?.includes(guest2) || constraints.must?.[guest2]?.includes(guest1);
+      const isCannot = constraints.cannot?.[guest1]?.includes(guest2) || constraints.cannot?.[guest2]?.includes(guest1);
+      const isAdjacent = adjacents[guest1]?.includes(guest2) || adjacents[guest2]?.includes(guest1);
 
-      if (currentAdj) {
-          // Case 1: Currently ADJACENT PAIRED -> NONE (remove both)
-          adjacents = removePairFromMap(adjacents, guest1, guest2);
-      } else if (currentMusts) {
-          // Case 2: Currently MUST -> ADJACENT PAIRED (remove MUST, add ADJACENT PAIRED)
+      // Helper to add the pair
+      const addPair = (map: Record<GuestID, GuestID[]>, gA: GuestID, gB: GuestID) => {
+        const s1 = new Set(map[gA] || []); s1.add(gB); map[gA] = [...s1];
+        const s2 = new Set(map[gB] || []); s2.add(gA); map[gB] = [...s2];
+        return map;
+      };
+
+      if (isAdjacent) {
+          // Cycle step 3: ADJACENT -> CANNOT
+          adjacents = removePairFromMap(adjacents, guest1, guest2); // Remove ADJACENT
+          constraints.cannot = addPair(constraints.cannot || {}, guest1, guest2); // Add CANNOT
           
-          // 1. Remove MUST constraint for both guests
-          constraints.must = removePairFromMap(constraints.must || {}, guest1, guest2);
+      } else if (isMust) {
+         // Cycle step 2: MUST -> ADJACENT
+         constraints.must = removePairFromMap(constraints.must || {}, guest1, guest2); // Remove MUST
+         
+         // Add ADJACENT with ring guard check
+         if (!wouldCloseInvalidRingExact({ guests: state.guests, tables: state.tables, adjacents: adjacents, newEdge: [guest1, guest2], })) {
+              adjacents = addPair(adjacents, guest1, guest2);
+         } else {
+            baseDispatch({ type: 'ERROR', payload: `Adjacency between ${guest1} and ${guest2} blocked by ring guard.` });
+         }
           
-          // 2. Add the ADJACENT constraint (with ring/degree guards enforced by the underlying logic)
-          if (!wouldCloseInvalidRingExact({
-              guests: state.guests,
-              tables: state.tables,
-              adjacents: adjacents,
-              newEdge: [guest1, guest2],
-          })) {
-              // FIX Blocker 3: Use Set logic to add/prevent dupes
-              adjacents[guest1] = Array.from(new Set([...(adjacents[guest1] || []), guest2]));
-              adjacents[guest2] = Array.from(new Set([...(adjacents[guest2] || []), guest1]));
-          } else {
-            console.warn(`Adjacency between ${guest1} and ${guest2} blocked by ring guard.`);
-          }
+      } else if (isCannot) {
+         // Cycle step 4: CANNOT -> CLEAR
+         constraints.cannot = removePairFromMap(constraints.cannot || {}, guest1, guest2); // Remove CANNOT
+         
       } else {
-        // Case 3: Currently NONE -> ADJACENT PAIRED (add only ADJACENT PAIRED)
-        if (!wouldCloseInvalidRingExact({
-            guests: state.guests,
-            tables: state.tables,
-            adjacents: adjacents,
-            newEdge: [guest1, guest2],
-        })) {
-            // FIX Blocker 3: Use Set logic to add/prevent dupes
-            adjacents[guest1] = Array.from(new Set([...(adjacents[guest1] || []), guest2]));
-            adjacents[guest2] = Array.from(new Set([...(adjacents[guest2] || []), guest1]));
-        } else {
-            console.warn(`Adjacency between ${guest1} and ${guest2} blocked by ring guard.`);
-        }
+        // Cycle step 1: CLEAR -> MUST
+         constraints.must = addPair(constraints.must || {}, guest1, guest2); // Add MUST
       }
 
       // Final state update
       return { ...state, adjacents, constraints, seatingPlans: [], currentPlanIndex: 0 };
     }
+
 
     case "SET_ASSIGNMENTS": {
       const assignments = action.payload;
@@ -246,6 +336,7 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
     case "ADD_GUEST":
     case "UPDATE_GUEST":
     case "REMOVE_GUEST":
+    case "RENAME_GUEST":
     case "SET_TABLES":
     case "ADD_TABLE":
     case "UPDATE_TABLE":
@@ -254,12 +345,37 @@ const appReducer = (state: AppState, action: AppAction): AppState => {
       const newState = { ...state, ...action.payload, seatingPlans: [], currentPlanIndex: 0 };
       return newState;
     }
+    // SSoT Fix: Consolidated CLEAR_ALL
+    case "CLEAR_ALL": {
+        return initialState;
+    }
+    
+    case "SET_USER": {
+      return { ...state, user: action.payload };
+    }
+    
+    case "SET_SUBSCRIPTION": {
+      return { ...state, subscription: action.payload };
+    }
+    
+    case "SET_LOADED_SAVED_SETTING": {
+      return { ...state, loadedSavedSetting: action.payload };
+    }
+    
+    case "IMPORT_STATE": {
+      const imported = sanitizeAndMigrateAppState(action.payload);
+      return {
+        ...state,
+        ...imported,
+        seatingPlans: [],
+        currentPlanIndex: 0,
+      };
+    }
     
     default:
       return state;
   }
 };
-
 
 export const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction>; isPremium: boolean } | undefined>(undefined);
 
@@ -273,27 +389,36 @@ function capOf(t: { seats?: number | any[]; capacity?: number } & Record<string,
 }
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(appReducer, { ...initialState });
-  // SSoT #2 Fix: sessionLoading is no longer a state variable in AppContext but can be used for UI
-  // const [sessionLoading, setSessionLoading] = useState(true);
+  const [state, setBaseDispatch] = useReducer(appReducer, { ...initialState });
+  baseDispatch = setBaseDispatch; // RIVAL AI FIX: Expose baseDispatch to Guardrail utility
+
   const [showRecentModal, setShowRecentModal] = useState(false);
   const [mostRecentState, setMostRecentState] = useState<any | null>(null);
 
-  // SSoT #2 Fix: Derived isPremium (used by debouncedGeneratePlans and localStorage effect)
+  // SSoT #2 Fix: Derived isPremium
   const isPremium = useMemo(() => isPremiumSubscription(state.subscription, state.trial), [state.subscription, state.trial]);
   
+  // RIVAL AI FIX: Wrapped Dispatch with Guardrail
+  const dispatch: React.Dispatch<AppAction> = useCallback((action: AppAction) => {
+    const guardedAction = dispatchGuardrail(state, action, isPremium);
+    if (guardedAction && guardedAction.type === 'ERROR') {
+        baseDispatch(guardedAction);
+    } else if (guardedAction) {
+        baseDispatch(guardedAction);
+    }
+  }, [state, isPremium]);
+
   // FIX C6/Blocker 1: Use computePlanSignature for dedupe
   const debouncedGeneratePlans = useCallback(debounce(async () => {
-    // SSoT #2 Fix: isPremium is now derived here
     const isPremiumNow = isPremiumSubscription(state.subscription, state.trial);
 
+    // SSoT C6: Canonical signature computation includes premium status
     const currentPlanSig = computePlanSignature({
       guests: state.guests,
       tables: state.tables,
       constraints: state.constraints,
       adjacents: state.adjacents,
       assignments: state.assignments,
-      // SSoT #2 Fix: Must include premium status in signature for dedupe consistency
       isPremium: isPremiumNow
     });
     
@@ -325,8 +450,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         type: "SET_SEATING_PLANS", 
         payload: { plans, errors: allErrors, planSig: currentPlanSig } 
     });
-  // SSoT #2 Fix: Dependencies must include premium related state
-  }, 300), [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription, state.trial, state.lastGeneratedPlanSig]);
+  }, 300), [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription, state.trial, state.lastGeneratedPlanSig, dispatch]);
 
 
   // Auth & Subscription Effect (Fix C4: .maybeSingle())
@@ -336,16 +460,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         Promise.allSettled([
           // C4 Fix: Use .maybeSingle() to prevent 404 crash
           supabase.from("subscriptions").select("*").eq("user_id", session.user.id).maybeSingle(),
-          supabase.from("trials").select("*").eq("user_id", session.user.id).maybeSingle(),
+          supabase.from("trial_subscriptions").select("*").eq("user_id", session.user.id).maybeSingle(),
         ]).then(([subResult, trialResult]) => {
           const subscription = subResult.status === 'fulfilled' && subResult.value?.data ? subResult.value.data : null;
           const trial = trialResult.status === 'fulfilled' && trialResult.value?.data ? trialResult.value.data : null;
           
-          dispatch({ 
+          baseDispatch({ // Use baseDispatch to set session data
             type: "SET_SESSION_DATA", 
             payload: { user: session.user, subscription, trial } 
           });
-          // setSessionLoading(false); // SSoT #2 Fix: Removed
 
           // If premium, check for most recent state
           if (isPremiumSubscription(subscription, trial)) {
@@ -360,8 +483,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         });
       } else {
-        dispatch({ type: "SET_SESSION_DATA", payload: { user: null, subscription: null, trial: null } });
-        // setSessionLoading(false); // SSoT #2 Fix: Removed
+        baseDispatch({ type: "SET_SESSION_DATA", payload: { user: null, subscription: null, trial: null } }); // Use baseDispatch
         try {
           // Chrome Quota Fix: Read compressed state from localStorage
           const raw = localStorage.getItem("seatyr_app_state");
@@ -369,8 +491,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const decompressed = LZString.decompressFromUTF16(raw);
             if (decompressed) {
               const saved = JSON.parse(decompressed);
-              const loaded = { ...initialState, ...saved };
-              // Hydrate logic for free users remains here if necessary
+              // const loaded = { ...initialState, ...saved }; // Hydrate logic remains for free users
             }
           }
         } catch {}
@@ -383,30 +504,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
            Promise.allSettled([
               // C4 Fix: Use .maybeSingle()
               supabase.from("subscriptions").select("*").eq("user_id", session?.user.id).maybeSingle(),
-              supabase.from("trials").select("*").eq("user_id", session?.user.id).maybeSingle()
+              supabase.from("trial_subscriptions").select("*").eq("user_id", session?.user.id).maybeSingle()
             ]).then(([subResult, trialResult]) => {
               const subscription = subResult.status === 'fulfilled' && subResult.value?.data ? subResult.value.data : null;
               const trial = trialResult.status === 'fulfilled' && trialResult.value?.data ? trialResult.value.data : null;
-              dispatch({
+              baseDispatch({ // Use baseDispatch
                 type: "SET_SESSION_DATA",
                 payload: { user: session?.user, subscription, trial }
               });
             });
         } else if (event === 'SIGNED_OUT') {
-          dispatch({ type: "SET_SESSION_DATA", payload: { user: null, subscription: null, trial: null } });
+          baseDispatch({ type: "SET_SESSION_DATA", payload: { user: null, subscription, trial: null } }); // Use baseDispatch
         }
       }
     );
     return () => authListener?.subscription.unsubscribe();
-  // SSoT #2 Fix: Added subscription/trial to dependencies for effects related to premium features
-  }, [state.subscription, state.trial]);
-  // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // CRITICAL FIX: Remove state.subscription, state.trial from dependencies to prevent infinite loops
   
-
+  // SSoT Fix: Persistence logic uses derived isPremium and only saves to localStorage if NOT signed in.
   useEffect(() => {
     debouncedGeneratePlans();
     
-    // Chrome Quota Fix: Use derived isPremium
     const isPremium = isPremiumSubscription(state.subscription, state.trial);
 
     if (state.user && isPremium) {
@@ -418,9 +536,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         assignments: state.assignments,
         timestamp: new Date().toISOString()
       });
-    } else {
+    } else if (!state.user) {
        try {
-        // Chrome Quota Fix: Save compressed state to localStorage
         const dataToSave = JSON.stringify({
           guests: state.guests,
           tables: state.tables,
@@ -440,14 +557,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (mostRecentState) {
       dispatch({ type: 'LOAD_MOST_RECENT', payload: mostRecentState });
       setShowRecentModal(false);
+      clearMostRecentState(state.user?.id); // SSoT Fix: Clear after restoring
     }
-  }, [mostRecentState]);
+  }, [mostRecentState, state.user, dispatch]);
   const handleKeepCurrent = useCallback(() => {
     setShowRecentModal(false);
-  }, []);
+    clearMostRecentState(state.user?.id); // SSoT Fix: Clear after ignoring
+  }, [state.user]);
 
   // SSoT #2 Fix: Expose derived isPremium
-  const value = useMemo(() => ({ state, dispatch, isPremium }), [state, isPremium]);
+  const value = useMemo(() => ({ state, dispatch, isPremium }), [state, dispatch, isPremium]);
 
   return (
     <AppContext.Provider value={value}>
@@ -491,7 +610,6 @@ const initialState: AppState = {
   warnings: [],
   planErrors: [],
   trial: null,
-  // SSoT #2 Fix: Removed isPremium from state
   lastGeneratedSignature: null,
   lastGeneratedPlanSig: null,
 };

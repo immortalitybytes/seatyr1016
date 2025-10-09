@@ -110,13 +110,12 @@ const GuestManager: React.FC = () => {
   const pulsingArrowTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // D3 SURGICAL EDIT: Make sort/premium checks trial-aware
-  const isPremium = isPremiumSubscription(state.subscription, state.trial);
-  const maxGuests = getMaxGuestLimit(state.subscription, state.trial);
+  const isPremium = isPremiumSubscription(state.subscription);
+  const maxGuests = getMaxGuestLimit(state.subscription);
 
-  // Premium gating for sorting options - Trial = Premium per SSoT
+  // Premium gating for sorting options
   const allowedSortOptions: SortOption[] = isPremium
-    ? ['as-entered', 'first-name', 'last-name', 'current-table']
+    ? ['first-name', 'last-name', 'as-entered', 'current-table']
     : ['first-name', 'last-name'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely

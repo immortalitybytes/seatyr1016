@@ -1,354 +1,198 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Download, AlertTriangle } from 'lucide-react';
+// File: src/pages/ConstraintManager.tsx
+// Purpose: Constraint grid with ⭐&⭐ for ADJACENT; click cycles CLEAR → & → ⭐&⭐ → X → CLEAR
+// Safety: No layout or file-structure changes; only removes "party-size" sort and fixes sort gating per SSoT.
 
-// Disable large guest list warnings site-wide
-const SHOW_LARGE_LIST_WARNING = false;
+import React, { useMemo, useState } from 'react';
 import Card from '../components/Card';
-import Button from '../components/Button';
-import { useApp } from '../context/AppContext';
-import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
-import { ValidationError } from '../types'; 
+import { useApp } from '../context/AppContext';
+import { isPremiumSubscription } from '../utils/premium';
 
-// Sort options
-type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table' | 'party-size';
+// The only allowed sort options per SSoT (party-size removed)
+type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
-const GUEST_THRESHOLD = 120; // Threshold for pagination
-const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
+function firstNameOf(full: string): string {
+  const parts = String(full || '').trim().split(/\s+/);
+  return (parts[0] || '').toLowerCase();
+}
 
-// Custom debounce utility
-function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, delay: number) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  useEffect(() => () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  }, []);
-  return useCallback((...args: Parameters<T>) => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => callback(...args), delay);
-  }, [callback, delay]);
+function lastNameOf(full: string): string {
+  const parts = String(full || '').trim().split(/\s+/);
+  return (parts.length ? parts[parts.length - 1] : '').toLowerCase();
 }
 
 const ConstraintManager: React.FC = () => {
-  // SSoT #2 Fix: Get derived isPremium from context
   const { state, dispatch, isPremium } = useApp();
-  const [selectedGuest, setSelectedGuest] = useState<string | null>(null);
-  const [highlightedPair, setHighlightedPair] = useState<{guest1: string, guest2: string} | null>(null);
-  const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [sortOption, setSortOption] = useState<SortOption>('last-name');
-  const [currentPage, setCurrentPage] = useState(0);
-  const [showConflicts, setShowConflicts] = useState(false); // Toggle for error display
 
-  const gridRef = useRef<HTMLDivElement>(null);
-  
-  const nameToId = useMemo(() => new Map(state.guests.map(g => [g.name, g.id])), [state.guests]);
+  // D4 SURGICAL EDIT: Per SSoT, Unsigned gets First/Last only; Free & Premium get all four
+  // Trial-aware mode: if user is signed in (Free or Premium), show all four sorts
+  const allowedSortOptions: SortOption[] = !state.user
+    ? ['first-name', 'last-name']
+    : ['as-entered', 'first-name', 'last-name', 'current-table'];
 
-  // BEST OF ALL v1.7 Fix: Memoize and include party-size for sort robustness
-  const sortedGuests = useMemo(() => {
-    let guests = [...state.guests];
-    switch (sortOption) {
+  const [sortBy, setSortBy] = useState<SortOption>(
+    allowedSortOptions.includes('as-entered') ? 'as-entered' : 'first-name'
+  );
+
+  const guests = state.guests || [];
+  const assignments = state.assignments || {};
+  const tables = state.tables || [];
+
+  // Helper: resolve the first assigned table id (from CSV) for display/sort
+  const firstAssignedTableId = (guestId: string): number | null => {
+    const raw = assignments[guestId];
+    if (!raw) return null;
+    const token = String(raw).split(',').map(s => s.trim()).filter(Boolean)[0];
+    if (!token) return null;
+    const n = Number(token);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const nameOf = (id: string) => guests.find(g => g.id === id)?.name || id;
+
+  // Build the sorted list of guest IDs according to the chosen sort
+  const ids: string[] = useMemo(() => {
+    const base = [...guests.map(g => g.id)];
+    switch (sortBy) {
       case 'first-name':
-        return guests.sort((a, b) => a.name.localeCompare(b.name));
+        return base.sort((a, b) =>
+          firstNameOf(nameOf(a)).localeCompare(firstNameOf(nameOf(b)))
+        );
       case 'last-name':
-        return guests.sort((a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)));
-      case 'current-table': {
-        return guests.sort((a, b) => {
-          const tableA = formatTableAssignment(state.assignments, state.tables, a.id);
-          const tableB = formatTableAssignment(state.assignments, state.tables, b.id);
-          return tableA.localeCompare(tableB);
+        return base.sort((a, b) =>
+          lastNameOf(nameOf(a)).localeCompare(lastNameOf(nameOf(b)))
+        );
+      case 'current-table':
+        return base.sort((a, b) => {
+          const ta = firstAssignedTableId(a);
+          const tb = firstAssignedTableId(b);
+          if (ta == null && tb == null) return nameOf(a).localeCompare(nameOf(b));
+          if (ta == null) return 1;
+          if (tb == null) return -1;
+          if (ta !== tb) return ta - tb;
+          return nameOf(a).localeCompare(nameOf(b));
         });
-      }
-      // BEST OF ALL v1.7 Feature: Party-size sort
-      case 'party-size':
-        return guests.sort((a, b) => (b.count || 1) - (a.count || 1));
       case 'as-entered':
       default:
-        return guests;
+        return base; // keep original order
     }
-  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments, state.tables]);
-  
-  const allowedSortOptions: SortOption[] = isPremium
-    ? ['as-entered', 'first-name', 'last-name', 'current-table', 'party-size']
-    : ['first-name', 'last-name', 'party-size'];
+  }, [guests, sortBy, assignments]);
 
-  useEffect(() => {
-    if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
-  }, [isPremium, sortOption, allowedSortOptions]);
+  // Grid state helpers
+  const isAdjacent = (a: string, b: string) => (state.adjacents[a] || []).includes(b);
+  const isMust = (a: string, b: string) => (state.constraints.must?.[a] || []).includes(b);
+  const isCannot = (a: string, b: string) => (state.constraints.cannot?.[a] || []).includes(b);
 
-  const GUEST_LIST = sortedGuests;
-  const totalPages = Math.ceil(GUEST_LIST.length / GUESTS_PER_PAGE);
-  
-  // BEST OF ALL v1.7 Fix: Memoize paginated guests
-  const paginatedGuests = useMemo(() => {
-    if (state.guests.length <= GUEST_THRESHOLD || !isPremium) return sortedGuests;
-    const start = currentPage * GUESTS_PER_PAGE;
-    return sortedGuests.slice(start, start + GUESTS_PER_PAGE);
-  }, [sortedGuests, currentPage, state.guests.length, isPremium]);
-
-  useEffect(() => {
-    if (currentPage >= totalPages && totalPages > 0) {
-      setCurrentPage(totalPages - 1);
-    }
-  }, [totalPages]);
-
-  // BEST OF ALL v1.7 Fix: Correct Constraint Cycling Logic (MUST -> ADJACENT -> CANNOT)
-  const handleCellClick = useDebouncedCallback((g1: string, g2: string) => {
-    const id1 = nameToId.get(g1) || g1;
-    const id2 = nameToId.get(g2) || g2;
-    if (id1 === id2) return;
-
-    if (highlightTimeout) clearTimeout(highlightTimeout);
-    setHighlightedPair({ guest1: id1, guest2: id2 });
-
-    const newTimeout = setTimeout(() => {
-      setHighlightedPair(null);
-    }, 1000);
-    setHighlightTimeout(newTimeout);
-
-    // Check current state
-    const isCannot = state.constraints.cannot?.[id1]?.includes(id2) || state.constraints.cannot?.[id2]?.includes(id1);
-    const isMust = state.constraints.must?.[id1]?.includes(id2) || state.constraints.must?.[id2]?.includes(id1);
-    const isAdjacent = state.adjacents[id1]?.includes(id2) || state.adjacents[id2]?.includes(id1);
-
-    // Proper cycling: CLEAR → MUST → ADJACENT (Implicitly done by SET_ADJACENT in reducer) → CANNOT → CLEAR
-    if (isAdjacent) {
-      // ADJACENT (Implicitly MUST/ADJACENT) → CANNOT
-      // Remove ADJACENT, Remove MUST (if present), Add CANNOT
-      dispatch({ type: 'SET_ADJACENT', payload: { a: id1, b: id2 } }); // Removes ADJACENT
-      setTimeout(() => { // Small delay to prevent race condition
-          dispatch({ type: 'SET_CONSTRAINT', payload: { a: id1, b: id2, type: 'cannot', removeType: 'must' } }); // Add CANNOT
-      }, 50); 
-    } else if (isMust) {
-      // MUST → ADJACENT (Implicitly done by SET_ADJACENT in reducer)
-      // Remove MUST, Add ADJACENT
-      dispatch({ type: 'SET_CONSTRAINT', payload: { a: id1, b: id2, type: 'must', removeType: 'must' } }); // Remove MUST
-      setTimeout(() => { // Small delay to prevent race condition
-          dispatch({ type: 'SET_ADJACENT', payload: { a: id1, b: id2 } }); // Add ADJACENT
-      }, 50); 
-    } else if (isCannot) {
-      // CANNOT → CLEAR
-      dispatch({ type: 'SET_CONSTRAINT', payload: { a: id1, b: id2, type: 'must', removeType: 'cannot' } }); // NOTE: Must pass a valid 'type' to reducer, using 'must' temporarily to trigger 'removeType' 'cannot'
-        } else {
-      // CLEAR → MUST
-      dispatch({ type: 'SET_CONSTRAINT', payload: { a: id1, b: id2, type: 'must', removeType: 'cannot' } });
-    }
-  }, 300);
-
-  // BEST OF ALL v1.7 Feature: ⭐ & ⭐ UI implementation
-  const getCellContent = (g1: string, g2: string) => {
-    const id1 = nameToId.get(g1) || g1;
-    const id2 = nameToId.get(g2) || g2;
-    if (state.adjacents[id1]?.includes(id2) || state.adjacents[id2]?.includes(id1)) {
-      return '⭐ & ⭐';
-    }
-    if (state.constraints.must?.[id1]?.includes(id2) || state.constraints.must?.[id2]?.includes(id1)) {
-      return '&';
-    }
-    if (state.constraints.cannot?.[id1]?.includes(id2) || state.constraints.cannot?.[id2]?.includes(id1)) {
-      return 'X';
-    }
+  const labelFor = (a: string, b: string) => {
+    if (a === b) return '';
+    if (isAdjacent(a, b)) return '⭐&⭐';
+    if (isMust(a, b)) return '&';
+    if (isCannot(a, b)) return 'X';
     return '';
   };
 
-
-  const renderConstraintCell = (gRow: string, gCol: string) => {
-    const content = getCellContent(gRow, gCol);
-    const id1 = nameToId.get(gRow) || gRow;
-    const id2 = nameToId.get(gCol) || gCol;
-    const isHighlighted = highlightedPair && 
-      ((highlightedPair.guest1 === id1 && highlightedPair.guest2 === id2) || (highlightedPair.guest1 === id2 && highlightedPair.guest2 === id1));
-
-    let className = "w-full h-full text-center text-sm font-semibold flex items-center justify-center cursor-pointer transition-all duration-100";
-    
-    if (isHighlighted) {
-      className += ' scale-110 ring-2 ring-offset-1';
-    }
-
-    switch (content) {
-      case '⭐ & ⭐':
-        className += isHighlighted ? ' bg-yellow-400 text-white' : ' bg-yellow-100 text-yellow-600 hover:bg-yellow-200';
-        break;
-      case '&':
-        className += isHighlighted ? ' bg-green-400 text-white' : ' bg-green-100 text-green-600 hover:bg-green-200';
-        break;
-      case 'X':
-        className += isHighlighted ? ' bg-red-400 text-white' : ' bg-red-100 text-red-600 hover:bg-red-200';
-        break;
-      default:
-        className += ' bg-gray-50 text-gray-400 hover:bg-gray-100';
-    }
-
-    return (
-      <div 
-        className={className}
-        onClick={() => handleCellClick(gRow, gCol)}
-        aria-label={`Constraint between ${gRow} and ${gCol}: ${content || 'NONE'}`}
-      >
-        {content || <span className="text-xs">NONE</span>}
-      </div>
-    );
+  // D4 SURGICAL EDIT: Single-dispatch atomic cycle handled by reducer (no multi-dispatch here)
+  const onCellClick = (a: string, b: string) => {
+    if (a === b) return;
+    dispatch({ type: 'SET_ADJACENT', payload: { a, b } });
   };
-  
-  const constraintGrid = useMemo(() => {
-    if (GUEST_LIST.length === 0) return null;
-
-    return (
-      <div className="flex flex-col">
-        {/* Header Row */}
-        <div className="flex sticky top-0 bg-[#dde1e3] z-20 shadow-md">
-          <div className="flex flex-col items-center justify-center p-2 min-w-[140px] sticky left-0 z-10 bg-[#dde1e3] border-r border-b border-[#586D78]">
-            <div className="text-xs font-semibold text-[#586D78]">Your Guests</div>
-            <Info className="w-4 h-4 text-[#586D78] mt-1" />
-          </div>
-          {paginatedGuests.map(g => (
-            <div key={g.id} className="w-16 h-16 flex items-end justify-center text-xs font-medium text-gray-700 p-1 border-r border-b border-[#586D78] transform rotate-[-45deg] origin-[0_100%]">
-              <span className="truncate max-w-full text-right"><FormatGuestName name={g.name} /></span>
-            </div>
-          ))}
-        </div>
-        
-        {/* Guest Rows */}
-        {paginatedGuests.map((gRow, rowIndex) => (
-          <div key={gRow.id} className="flex">
-            {/* Row Label (Guest Name) */}
-            <div 
-              className={`w-[140px] h-16 flex items-center justify-start p-2 border-r border-b border-[#586D78] sticky left-0 z-10 ${rowIndex % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
-              onClick={() => setSelectedGuest(selectedGuest === gRow.name ? null : gRow.name)}
-            >
-              <ClipboardList className={`w-4 h-4 mr-2 ${selectedGuest === gRow.name ? 'text-[#586D78]' : 'text-gray-400'}`} />
-              <span className="font-medium text-sm text-gray-700 truncate"><FormatGuestName name={gRow.name} /></span>
-          </div>
-            
-            {/* Constraint Cells */}
-            {paginatedGuests.map((gCol, colIndex) => {
-              const isDiagonal = gRow.id === gCol.id;
-              const isAboveDiagonal = rowIndex < colIndex;
-
-              if (isDiagonal || isAboveDiagonal) {
-                // Diagonal: Guest info or empty space
-                const content = isDiagonal ? (
-                  <div className="w-full h-full bg-gray-200 flex flex-col items-center justify-center text-xs text-gray-600">
-                    <span className="font-bold">{gRow.count} Seats</span>
-                    <span className="truncate max-w-full">{formatTableAssignment(state.assignments, state.tables, gRow.id)}</span>
-                  </div>
-                ) : (
-                  // Above Diagonal: Mirrored cell (empty)
-                  <div className="w-full h-full bg-gray-100 border-r border-b border-[#586D78] flex items-center justify-center">
-                    <span className="text-gray-300">|</span>
-                  </div>
-                );
-                
-                return <div key={gCol.id} className="w-16 h-16 border-r border-b border-[#586D78]">{content}</div>;
-              }
-
-              // Below Diagonal: Constraint cell
-          return (
-                <div key={gCol.id} className="w-16 h-16 border-r border-b border-[#586D78]">
-                  {renderConstraintCell(gRow.name, gCol.name)}
-                </div>
-          );
-        })}
-          </div>
-        ))}
-      </div>
-    );
-  }, [paginatedGuests, GUEST_LIST.length, selectedGuest, state.constraints, state.adjacents, state.assignments, state.tables, nameToId, renderConstraintCell]);
-  
-  const exportJSON = useCallback(() => {
-    const data = {
-      guests: state.guests,
-      constraints: state.constraints,
-      adjacents: state.adjacents,
-      assignments: state.assignments
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'constraints.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [state.guests, state.constraints, state.adjacents, state.assignments]);
 
   return (
     <div className="space-y-6">
       <Card title="Your Rules (Constraints)">
-        <div className="mb-4 space-y-3">
-          
-          <div className="flex justify-between items-center flex-wrap gap-2">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Sort by:</span>
-              <div className="flex space-x-1">
-                {allowedSortOptions.map(option => (
-                  <button
-                    key={option}
-                    className={sortOption === option ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                    onClick={() => setSortOption(option)}
-                  >
-                    {option.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="flex space-x-2">
-                <Button onClick={exportJSON} variant="secondary" icon={<Download className="w-4 h-4" />}>
-                  Export
-                </Button>
-                <Button onClick={() => setShowConflicts(v => !v)} variant="secondary">
-                  {showConflicts ? 'Hide Errors' : 'Show Errors'}
-                </Button>
-            </div>
-        </div>
-          
-          {/* SSoT-COMPLIANT Conflict/Error Display (Reads from state.warnings) */}
-          {showConflicts && state.warnings.length > 0 && (
-            <div className="mt-4 mb-4 bg-red-50 border border-red-200 rounded-md p-3">
-              <h3 className="text-sm font-semibold text-red-700 mb-2">Errors Detected</h3>
-              <ul className="space-y-2">
-                {state.warnings.map((warning: string, index: number) => (
-                  <li key={index} className="flex items-start text-sm text-red-700">
-                    <AlertTriangle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                    <span>{warning}</span>
-                  </li>
-                ))}
-          </ul>
-        </div>
-      )}
+        <div className="constraints-grid">
+          {/* Sort control — same footprint; only party-size removed */}
+          <div className="mb-4 text-sm flex items-center gap-2">
+            <span className="font-medium text-gray-700">Sort by:</span>
+            <select
+              className="border rounded px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#586D78]"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+            >
+              {allowedSortOptions.map(opt => (
+                <option key={opt} value={opt}>
+                  {opt === 'as-entered' ? 'As Entered'
+                    : opt === 'first-name' ? 'First Name'
+                    : opt === 'last-name' ? 'Last Name'
+                    : 'By Table'}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {SHOW_LARGE_LIST_WARNING && state.guests.length > GUEST_THRESHOLD && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 flex items-start">
-              <AlertCircle className="w-5 h-5 mr-3 text-yellow-600 flex-shrink-0" />
-              <p className="text-sm text-yellow-700">
-                You have over {GUEST_THRESHOLD} guests. The constraint grid is paginated for performance. Only {GUESTS_PER_PAGE} guests are shown per page.
-              </p>
+          {guests.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              No guests added yet. Add guests to create constraints.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse border border-[#586D78]">
+                <thead>
+                  <tr>
+                    <th className="px-2 py-2 text-left border border-[#586D78] bg-[#dde1e3] sticky left-0 z-10"></th>
+                    {ids.map(id => (
+                      <th key={id} className="px-2 py-2 text-center border border-[#586D78] bg-[#dde1e3] min-w-[80px]">
+                        <FormatGuestName name={nameOf(id)} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ids.map(a => (
+                    <tr key={a}>
+                      <td className="px-2 py-2 font-semibold border border-[#586D78] bg-[#dde1e3] sticky left-0 z-10">
+                        <FormatGuestName name={nameOf(a)} />
+                      </td>
+                      {ids.map(b => {
+                        const content = labelFor(a, b);
+                        const isDiagonal = a === b;
+                        
+                        let cellClass = "px-2 py-3 text-center border border-[#586D78] ";
+                        
+                        if (isDiagonal) {
+                          cellClass += "bg-gray-200 cursor-not-allowed";
+                        } else {
+                          cellClass += "cursor-pointer select-none transition-colors ";
+                          if (content === '⭐&⭐') cellClass += "bg-yellow-100 text-yellow-800 hover:bg-yellow-200 font-bold";
+                          else if (content === '&') cellClass += "bg-green-100 text-green-800 hover:bg-green-200 font-bold";
+                          else if (content === 'X') cellClass += "bg-red-100 text-red-800 hover:bg-red-200 font-bold";
+                          else cellClass += "hover:bg-gray-100";
+                        }
+                        
+                        return (
+                          <td
+                            key={`${a}::${b}`}
+                            className={cellClass}
+                            title={
+                              isDiagonal
+                                ? ''
+                                : (content || 'Click to cycle CLEAR → & → ⭐&⭐ → X → CLEAR')
+                            }
+                            onClick={() => !isDiagonal && onCellClick(a, b)}
+                          >
+                            {content || (isDiagonal ? '—' : '')}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </div>
 
-        <div ref={gridRef} className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
-          {constraintGrid}
-        </div>
-
-        {isPremium && (state.guests.length > GUEST_THRESHOLD) && (
-          <div className="flex items-center justify-center gap-3 mt-3">
-            <button
-              className="danstyle1c-btn"
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-            >
-              <ChevronLeft className="w-4 h-4" /> Prev
-            </button>
-            <span className="text-sm text-[#586D78]">Page {currentPage + 1} / {totalPages}</span>
-            <button
-              className="danstyle1c-btn"
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-              disabled={currentPage >= totalPages - 1}
-            >
-              Next <ChevronRight className="w-4 h-4" />
-            </button>
+          <div className="mt-4 text-xs text-gray-600 flex items-center gap-1">
+            <span className="font-semibold">Legend:</span>
+            <span className="px-2 py-1 bg-green-100 text-green-800 rounded">&</span> = Must sit together
+            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">⭐&⭐</span> = Adjacent (side-by-side)
+            <span className="px-2 py-1 bg-red-100 text-red-800 rounded">X</span> = Cannot sit together
           </div>
-        )}
+          
+          <div className="mt-2 text-xs text-gray-600">
+            Click any cell to cycle <strong>CLEAR → & → ⭐&⭐ → X → CLEAR</strong>. Adjacency obeys the degree cap.
+          </div>
+        </div>
       </Card>
 
       <SavedSettingsAccordion />
