@@ -669,19 +669,67 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => subscription.unsubscribe();
   }, [state.user]) ;
 
-  // Most recent state handling
+  // Most recent state handling - fetch on mount OR auth change for premium users
   useEffect(() => {
-    if (authChanged && state.user && isPremiumSubscription(state.subscription)) {
+    // Fetch if: (new sign-in OR already signed in on mount) AND premium
+    const shouldFetch = state.user && isPremiumSubscription(state.subscription) && !recentFetched;
+    
+    if (shouldFetch) {
       getMostRecentState(state.user.id).then(setMostRecentState).catch(setRecentError).finally(() => {
         setRecentFetched(true);
         setSessionLoading(false);
       });
     }
-  }, [authChanged, state.user, state.subscription]);
+  }, [state.user, state.subscription, recentFetched]);
 
   useEffect(() => {
     if (mostRecentState) setShowRecentModal(true);
   }, [mostRecentState]);
+
+  // Auto-save state for premium users to Supabase (debounced to avoid excessive saves)
+  useEffect(() => {
+    if (!state.user || !isPremiumSubscription(state.subscription)) return;
+    
+    // Skip save if state is essentially empty/initial
+    if (state.guests.length === 0 && state.seatingPlans.length === 0) return;
+    
+    const timer = setTimeout(() => {
+      saveMostRecentState(state.user.id, state, true).catch(err => {
+        console.error('Auto-save to Supabase failed:', err);
+      });
+    }, 2000); // Debounce 2 seconds
+    
+    return () => clearTimeout(timer);
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.seatingPlans, state.user, state.subscription]);
+
+  // Auto-save state for unsigned users to localStorage (debounced)
+  useEffect(() => {
+    if (state.user) return; // Signed-in users use Supabase, not localStorage
+    
+    // Skip save if state is essentially empty/initial
+    if (state.guests.length === 0 && state.constraints && Object.keys(state.constraints).length === 0) return;
+    
+    const timer = setTimeout(() => {
+      try {
+        const stateToSave = {
+          guests: state.guests,
+          tables: state.tables,
+          constraints: state.constraints,
+          adjacents: state.adjacents,
+          assignments: state.assignments,
+          seatingPlans: state.seatingPlans,
+          currentPlanIndex: state.currentPlanIndex,
+          userSetTables: state.userSetTables,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
+      } catch (err) {
+        console.error('Auto-save to localStorage failed:', err);
+      }
+    }, 1000); // Debounce 1 second for unsigned (local is faster)
+    
+    return () => clearTimeout(timer);
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.seatingPlans, state.user]);
 
   const handleKeepCurrent = async () => {
     setShowRecentModal(false);
