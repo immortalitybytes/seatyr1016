@@ -34,7 +34,7 @@ const BetaCodeModal: React.FC<BetaCodeModalProps> = ({ onClose, onSuccess }) => 
         .from('valid_beta_codes_ui')
         .select('*')
         .eq('code', code)
-        .single();
+        .maybeSingle();
 
       if (!validCode || codeError) {
         console.warn("Beta code validation failed:", codeError?.message);

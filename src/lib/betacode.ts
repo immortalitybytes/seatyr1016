@@ -33,7 +33,7 @@ export const activateBetaCode = async (userId: string, code: string) => {
         .from('valid_beta_codes_ui')
         .select('code')
         .eq('code', code)
-        .single();
+        .maybeSingle();
         
       if (validCodeError || !validCode) {
         throw new Error('Invalid beta code');
@@ -44,7 +44,7 @@ export const activateBetaCode = async (userId: string, code: string) => {
         .from('beta_codes')
         .select('*')
         .eq('code', code)
-        .single();
+        .maybeSingle();
 
       if (codeError || !betaCode) {
         throw new Error('Invalid beta code');
@@ -92,7 +92,7 @@ export const activateBetaCode = async (userId: string, code: string) => {
           expires_on: expiresOn.toISOString()
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (insertError) {
         throw new Error('Failed to create trial subscription');

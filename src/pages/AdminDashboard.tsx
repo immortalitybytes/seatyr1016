@@ -51,7 +51,7 @@ const AdminDashboard: React.FC = () => {
       const { data: summaryData, error: summaryError } = await supabase
         .from('daily_metrics_summary')
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (summaryError) {
         console.error('Error fetching metrics summary:', summaryError);

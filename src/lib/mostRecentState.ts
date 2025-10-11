@@ -72,8 +72,8 @@ export async function saveMostRecentState(userId: string, state: AppState, isPre
     console.log('Most recent state saved successfully for user:', userId);
     return true;
   } catch (error) {
-    console.error('Error saving most recent state:', error);
-    throw error;
+    console.warn('Failed to save most recent state (non-blocking):', error);
+    return false; // Don't throw, just return false
   }
 }
 
@@ -123,8 +123,8 @@ export async function getMostRecentState(userId: string): Promise<AppState | nul
     console.log('Successfully retrieved most recent state with timestamp:', data.data.timestamp);
     return data.data;
   } catch (error) {
-    console.error('Error retrieving most recent state:', error);
-    throw error; // Re-throw to handle in UI
+    console.warn('Failed to retrieve most recent state (non-blocking):', error);
+    return null; // Don't throw, just return null
   }
 }
 

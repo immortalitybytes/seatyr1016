@@ -522,14 +522,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Debounced plan generation
   const generationIdRef = useRef(0);
+  const genTimerRef = useRef<number | null>(null);
   
   const debouncedGeneratePlans = useMemo(() => {
-    let timeout: NodeJS.Timeout;
     return () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(async () => {
+      // Clear any existing timer
+      if (genTimerRef.current != null) {
+        clearTimeout(genTimerRef.current);
+        genTimerRef.current = null;
+      }
+      
+      // Set new timer
+      genTimerRef.current = window.setTimeout(async () => {
         const currentGen = ++generationIdRef.current;
-        console.time("SeatingGeneration");
+        const startTime = performance.now();
         
         // Pre-engine validation: detect unsatisfiable MUST groups
         // const mustGroupErrors = detectUnsatisfiableMustGroups({
@@ -568,8 +574,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             dispatch({ type: "SET_PLANS", payload: { plans: [], errors, planSig: computePlanSignature(state) } });
           }
         } // else: stale; ignore
-        console.timeEnd("SeatingGeneration");
+        
+        const duration = performance.now() - startTime;
+        console.log(`SeatingGeneration: ${duration.toFixed(3)}ms`);
       }, 500);
+      
+      genTimerRef.current = null;
     };
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription]);
 
@@ -579,21 +589,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.loadedSavedSetting, debouncedGeneratePlans]);
 
-  // Fetch subscription whenever user changes (no extra flags)
+  // Cleanup timer on unmount
   useEffect(() => {
-    let active = true;
-    const fetchSub = async () => {
-      if (!state.user) { dispatch({ type: "SET_SUBSCRIPTION", payload: null }); return; }
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("user_id", state.user.id)
-        .single();
-      if (active) dispatch({ type: "SET_SUBSCRIPTION", payload: data || null });
+    return () => {
+      if (genTimerRef.current != null) {
+        clearTimeout(genTimerRef.current);
+        genTimerRef.current = null;
+      }
     };
-    fetchSub().catch(console.error);
-    return () => { active = false; };
-  }, [state.user]);
+  }, []);
+
 
   // Hydrate state on mount for unsigned users only - AFTER session resolution
   useEffect(() => {
@@ -652,43 +657,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Pre-seed session on mount to eliminate premium flicker
   useEffect(() => {
-    console.log('[PRE-SEED] Starting session check...');
     let alive = true;
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session;
         
-        console.log('[PRE-SEED] Session result:', session ? 'FOUND' : 'NOT FOUND');
-        
         if (!alive) return;
         
         if (!session) {
-          // No session = unsigned user - critical: unblock localStorage hydration
-          console.log('[PRE-SEED] No session → setting sessionLoading=false (CRITICAL)');
-          setSessionLoading(false);
+          // Unsigned user - no further setup needed
+          console.log('[PRE-SEED] No session (unsigned user)');
           return;
         }
 
-        console.log('[PRE-SEED] Session found, setting user...');
-        // Set user if we have a session
+        // Set user immediately so UI can proceed
+        const uid = session.user.id;
         dispatch({ type: 'SET_USER', payload: session.user });
+        console.log('[PRE-SEED] User set:', uid);
         
-        // Fetch subscription for the user
-        const { data: subData } = await supabase
+        // Fetch subscription - .maybeSingle() returns null for 0 rows (no 406)
+        const { data: sub } = await supabase
           .from("subscriptions")
           .select("*")
-          .eq("user_id", session.user.id)
-          .single();
+          .eq("user_id", uid)
+          .maybeSingle();
         
         if (alive) {
-          dispatch({ type: "SET_SUBSCRIPTION", payload: subData || null });
+          dispatch({ type: "SET_SUBSCRIPTION", payload: sub || null });
+          console.log('[PRE-SEED] Subscription:', sub ? 'FOUND' : 'NULL (free user)');
         }
+        
+        // Fetch trial subscription
+        const { data: trial } = await supabase
+          .from("trial_subscriptions")
+          .select("expires_on, expires_at")
+          .eq("user_id", uid)
+          .maybeSingle();
+        
+        if (alive) {
+          dispatch({ type: "SET_TRIAL", payload: trial || null });
+          console.log('[PRE-SEED] Trial:', trial ? 'ACTIVE' : 'NONE');
+        }
+        
       } catch (error) {
-        // Silently handle errors - this is just pre-seeding
-        console.debug('Pre-seed session failed:', error);
-        // Critical: unblock hydration even on error
-        if (alive) setSessionLoading(false);
+        console.warn('[PRE-SEED] Error during session setup:', error);
+      } finally {
+        // CRITICAL: Always unblock other effects, regardless of success/failure
+        if (alive) {
+          setSessionLoading(false);
+          console.log('[PRE-SEED] Complete - sessionLoading set to false');
+        }
       }
     })();
     return () => { alive = false; };
