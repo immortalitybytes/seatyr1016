@@ -12,6 +12,7 @@ import { isPremiumSubscription, getMaxGuestLimit } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
 import { getDisplayName, countHeads } from '../utils/guestCount';
+import { formatGuestUnitName } from '../utils/formatGuestName';
 
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
@@ -74,7 +75,8 @@ const parseGuestLine = (line: string) => {
     const hasSpace = m.trim() !== m;
     return hasSpace ? ' plus One' : 'plus One';
   });
-  return { name, count };
+  // Apply automatic formatting to ensure consistent spacing and connection characters
+  return { name: formatGuestUnitName(name), count };
 };
 
 // Polyfill for older browsers (RFC4122 v4 compliant)
@@ -375,7 +377,7 @@ const GuestManager: React.FC = () => {
     if (editingGuestId && editingGuestName.trim()) {
       dispatch({
         type: 'RENAME_GUEST',
-        payload: { id: editingGuestId, name: editingGuestName },
+        payload: { id: editingGuestId, name: formatGuestUnitName(editingGuestName) },
       });
     }
     setEditingGuestId(null);
@@ -816,8 +818,6 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           </p>
         </div>
       </div>
-
-      {state.user && <SavedSettingsAccordion />}
 
       <div className="w-full mt-10 bg-[#fff4cd] border-2 border-[#586D78] rounded-xl p-6">
         <h2 className="text-lg font-bold text-[#586D78] mb-4">Seatyr's Favorite 

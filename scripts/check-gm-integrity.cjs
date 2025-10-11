@@ -13,8 +13,8 @@ const sha = createHash('sha256').update(buf).digest('hex');
 
 const EXPECT = {
   loc: 951,
-  bytes: 37806,
-  sha: 'a35e4d99b205f773b979dfc12256877ca80aa2d8d8f35e63727d5d81be0abee0'
+  bytes: 37955,
+  sha: '289f32aa7d3973fe340e66cdca1a1d9db89c5e601d8066e4fe38536b15e93030'
 };
 
 if (loc !== EXPECT.loc || bytes !== EXPECT.bytes || sha !== EXPECT.sha) {

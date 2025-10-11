@@ -515,38 +515,7 @@ const ConstraintManager: React.FC = () => {
       return pageButtons;
     };
     
-    // For large guest lists, include pagination controls
-    const paginationControls = needsPagination && (
-      <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
-        <div className="flex items-center w-full justify-between">
-          <div className="pl-[140px]"> {/* This aligns with the left column width */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Previous
-            </button>
-          </div>
-          
-          <div className="flex flex-wrap justify-center">
-            {renderPageNumbers()}
-          </div>
-          
-          <div className="pr-[10px]"> {/* Small padding to ensure not cut off */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
-              disabled={currentPage >= totalPages - 1}
-              className="danstyle1c-btn transform scale-[1.4] h-auto"
-            >
-              Next
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    // Pagination controls removed from grid rendering (moved outside)
     
     // Performance warning for large but not pagination-level guest lists
     const showPerformanceWarning = !isPremium && state.guests.length > 100 && state.guests.length <= GUEST_THRESHOLD;
@@ -611,8 +580,6 @@ const ConstraintManager: React.FC = () => {
             <tbody>{grid}</tbody>
           </table>
         </div>
-        
-        {needsPagination && paginationControls}
       </div>
     );
   }, [state.guests, state.constraints, state.adjacents, selectedGuest, highlightedPair, currentPage, totalPages, sortOption, isPremium, state.seatingPlans, state.assignments, state.tables, state.currentPlanIndex, isWarningExpanded, initialWarningShown]);
@@ -820,28 +787,51 @@ const ConstraintManager: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Upper-right: Simple 2-button Previous/Next */}
+          {isPremium && (state.guests.length > GUEST_THRESHOLD) && (
+            <div className="flex items-center gap-2">
+              <button
+                className="danstyle1c-btn"
+                onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                disabled={currentPage === 0}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+              </button>
+              <button
+                className="danstyle1c-btn"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                disabled={currentPage >= totalPages - 1}
+              >
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </button>
+            </div>
+          )}
         </div>
 
         <div ref={gridRef} className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
           {constraintGrid}
         </div>
 
+        {/* Below grid (centered): 3-button Previous/Page#/Next */}
         {isPremium && (state.guests.length > GUEST_THRESHOLD) && (
-          <div className="flex items-center justify-center gap-3 mt-3">
+          <div className="flex items-center justify-center gap-3 mt-4">
             <button
               className="danstyle1c-btn"
               onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
               disabled={currentPage === 0}
             >
-              <ChevronLeft className="w-4 h-4" /> Prev
+              <ChevronLeft className="w-4 h-4 mr-1" /> Previous
             </button>
-            <span className="text-sm text-[#586D78]">Page {currentPage + 1} / {totalPages}</span>
+            <button className="danstyle1c-btn selected">
+              {currentPage + 1}
+            </button>
             <button
               className="danstyle1c-btn"
               onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
               disabled={currentPage >= totalPages - 1}
             >
-              Next <ChevronRight className="w-4 h-4" />
+              Next <ChevronRight className="w-4 h-4 ml-1" />
             </button>
           </div>
         )}
