@@ -597,19 +597,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Hydrate state on mount for unsigned users only - AFTER session resolution
   useEffect(() => {
+    console.log('[HYDRATION CHECK] sessionLoading:', sessionLoading, 'state.user:', !!state.user);
+    
     // Skip if we haven't resolved session yet (pre-seed runs first)
-    if (sessionLoading) return;
+    if (sessionLoading) {
+      console.log('[HYDRATION BLOCKED] Session still loading...');
+      return;
+    }
     
     // Skip if user is signed in (they use Supabase mostRecentState)
-    if (state.user) return;
+    if (state.user) {
+      console.log('[HYDRATION SKIP] User is signed in, using Supabase');
+      return;
+    }
     
     try {
       const raw = localStorage.getItem('seatyr_app_state');
+      console.log('[HYDRATION] localStorage raw:', raw ? `${raw.length} chars` : 'NOT FOUND');
+      
       if (!raw) return;
       const saved = JSON.parse(raw);
       
       // Validate saved data has the expected structure
-      if (!saved.guests && !saved.tables) return;
+      if (!saved.guests && !saved.tables) {
+        console.log('[HYDRATION SKIP] No guests or tables in saved data');
+        return;
+      }
+      
+      console.log('[HYDRATION] Restoring:', {
+        guests: saved.guests?.length || 0,
+        tables: saved.tables?.length || 0,
+        constraints: Object.keys(saved.constraints || {}).length,
+        assignments: Object.keys(saved.assignments || {}).length
+      });
       
       // Heal guest counts using canonical countHeads
       const healedGuests = (saved.guests || []).map((g: any) => ({
@@ -624,27 +644,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       
       dispatch({ type: 'IMPORT_STATE', payload: sanitized });
+      console.log('[HYDRATION SUCCESS] State restored from localStorage');
     } catch (err) {
-      console.error('Failed to hydrate localStorage:', err);
+      console.error('[HYDRATION ERROR] Failed to hydrate localStorage:', err);
     }
   }, [sessionLoading, state.user]);
 
   // Pre-seed session on mount to eliminate premium flicker
   useEffect(() => {
+    console.log('[PRE-SEED] Starting session check...');
     let alive = true;
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session;
         
+        console.log('[PRE-SEED] Session result:', session ? 'FOUND' : 'NOT FOUND');
+        
         if (!alive) return;
         
         if (!session) {
           // No session = unsigned user - critical: unblock localStorage hydration
+          console.log('[PRE-SEED] No session → setting sessionLoading=false (CRITICAL)');
           setSessionLoading(false);
           return;
         }
 
+        console.log('[PRE-SEED] Session found, setting user...');
         // Set user if we have a session
         dispatch({ type: 'SET_USER', payload: session.user });
         
@@ -729,7 +755,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (state.user) return; // Signed-in users use Supabase, not localStorage
     
     // Skip save if state is essentially empty/initial
-    if (state.guests.length === 0 && state.constraints && Object.keys(state.constraints).length === 0) return;
+    if (state.guests.length === 0 && state.constraints && Object.keys(state.constraints).length === 0) {
+      console.log('[AUTO-SAVE] Skipping save (empty state)');
+      return;
+    }
+    
+    console.log('[AUTO-SAVE] Scheduling save for unsigned user in 1s...', {
+      guests: state.guests.length,
+      tables: state.tables.length
+    });
     
     const timer = setTimeout(() => {
       try {
@@ -745,8 +779,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           timestamp: new Date().toISOString()
         };
         localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
+        console.log('[AUTO-SAVE SUCCESS] Saved to localStorage:', {
+          guests: stateToSave.guests.length,
+          tables: stateToSave.tables.length,
+          size: JSON.stringify(stateToSave).length
+        });
       } catch (err) {
-        console.error('Auto-save to localStorage failed:', err);
+        console.error('[AUTO-SAVE ERROR] Failed to save to localStorage:', err);
       }
     }, 1000); // Debounce 1 second for unsigned (local is faster)
     
