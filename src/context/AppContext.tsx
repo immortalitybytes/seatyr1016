@@ -603,33 +603,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => { active = false; };
   }, [state.user]);
 
-  // Persist guests for unsigned/free users only
+  // Hydrate state on mount for unsigned users only - AFTER session resolution
   useEffect(() => {
-    if (state.user) return; // Premium signed-in uses existing mostRecent flow
-    try {
-      const payload = { guests: state.guests };
-      localStorage.setItem('seatyr_app_state', JSON.stringify(payload));
-    } catch {}
-  }, [state.user, state.guests]);
-
-  // Hydrate guests on mount for unsigned/free users only
-  useEffect(() => {
-    if (state.user) return; // Premium signed-in uses existing mostRecent flow
+    // Skip if we haven't resolved session yet (pre-seed runs first)
+    if (sessionLoading) return;
+    
+    // Skip if user is signed in (they use Supabase mostRecentState)
+    if (state.user) return;
+    
     try {
       const raw = localStorage.getItem('seatyr_app_state');
       if (!raw) return;
       const saved = JSON.parse(raw);
-      if (Array.isArray(saved?.guests) && saved.guests.length > 0) {
-        // Heal guest counts using canonical countHeads
-        const healedGuests = saved.guests.map((g: any) => ({
-          ...g,
-          count: countHeads(g.name || ''),
-        }));
-        const sanitized = sanitizeAndMigrateAppState({ ...initialState, ...saved, guests: healedGuests });
-        dispatch({ type: 'IMPORT_STATE', payload: sanitized });
-      }
-    } catch {}
-  }, []);
+      
+      // Validate saved data has the expected structure
+      if (!saved.guests && !saved.tables) return;
+      
+      // Heal guest counts using canonical countHeads
+      const healedGuests = (saved.guests || []).map((g: any) => ({
+        ...g,
+        count: countHeads(g.name || ''),
+      }));
+      
+      const sanitized = sanitizeAndMigrateAppState({ 
+        ...initialState, 
+        ...saved, 
+        guests: healedGuests 
+      });
+      
+      dispatch({ type: 'IMPORT_STATE', payload: sanitized });
+    } catch (err) {
+      console.error('Failed to hydrate localStorage:', err);
+    }
+  }, [sessionLoading, state.user]);
 
   // Pre-seed session on mount to eliminate premium flicker
   useEffect(() => {
@@ -669,18 +675,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => subscription.unsubscribe();
   }, [state.user]) ;
 
-  // Most recent state handling - fetch on mount OR auth change for premium users
+  // Most recent state handling - fetch ONLY when BOTH user AND subscription are resolved
   useEffect(() => {
-    // Fetch if: (new sign-in OR already signed in on mount) AND premium
-    const shouldFetch = state.user && isPremiumSubscription(state.subscription) && !recentFetched;
+    // Skip if session still loading or no user
+    if (sessionLoading || !state.user) return;
     
-    if (shouldFetch) {
-      getMostRecentState(state.user.id).then(setMostRecentState).catch(setRecentError).finally(() => {
+    // Skip if subscription not yet loaded (avoid race condition)
+    if (state.subscription === undefined) return;
+    
+    // Skip if already fetched this session
+    if (recentFetched) return;
+    
+    // Only fetch for premium users
+    if (!isPremiumSubscription(state.subscription)) {
+      setRecentFetched(true); // Mark as complete for non-premium
+      setSessionLoading(false);
+      return;
+    }
+    
+    // Fetch most recent state
+    getMostRecentState(state.user.id)
+      .then(setMostRecentState)
+      .catch(setRecentError)
+      .finally(() => {
         setRecentFetched(true);
         setSessionLoading(false);
       });
-    }
-  }, [state.user, state.subscription, recentFetched]);
+  }, [state.user, state.subscription, recentFetched, sessionLoading]);
 
   useEffect(() => {
     if (mostRecentState) setShowRecentModal(true);

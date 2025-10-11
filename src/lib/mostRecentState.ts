@@ -13,19 +13,9 @@ export async function saveMostRecentState(userId: string, state: AppState, isPre
   try {
     console.log('Saving most recent state for user:', userId);
     
-    // Check for valid session first
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    // Trust that AppContext has already validated session before calling this
+    // If session is invalid, Supabase will return 401 which we handle below
     
-    if (sessionError) {
-      console.error('Session error when saving most recent state:', sessionError);
-      throw new Error('Your session has expired. Please log in again.');
-    }
-    
-    if (!sessionData.session) {
-      console.log('No active session, skipping most recent state save');
-      throw new Error('No active session. Please log in to save your state.');
-    }
-
     // Create a copy of the state without subscription and user info
     const stateToSave = { 
       version: "1.0",
@@ -98,18 +88,8 @@ export async function getMostRecentState(userId: string): Promise<AppState | nul
   try {
     console.log('Retrieving most recent state for user:', userId);
     
-    // Check for valid session first
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('Session error when retrieving most recent state:', sessionError);
-      throw new Error('Your session has expired. Please log in again.');
-    }
-    
-    if (!sessionData.session) {
-      console.log('No active session, skipping most recent state fetch');
-      throw new Error('No active session. Please log in to access your recent state.');
-    }
+    // Trust that AppContext has already validated session before calling this
+    // If session is invalid, Supabase will return 401 which we handle below
     
     const { data, error } = await supabase
       .from('recent_session_states')
@@ -159,18 +139,8 @@ export async function clearMostRecentState(userId: string): Promise<boolean> {
   try {
     console.log('Clearing most recent state for user:', userId);
     
-    // Check for valid session first
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError) {
-      console.error('Session error when clearing most recent state:', sessionError);
-      return false;
-    }
-    
-    if (!sessionData.session) {
-      console.log('No active session, skipping most recent state clear');
-      return false;
-    }
+    // Trust that AppContext has already validated session before calling this
+    // If session is invalid, Supabase will return 401 which we handle below
     
     const { error } = await supabase
       .from('recent_session_states')
