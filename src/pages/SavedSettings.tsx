@@ -26,72 +26,16 @@ const SavedSettings: React.FC = () => {
   const [newSettingName, setNewSettingName] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [sessionUser, setSessionUser] = useState<any | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Get user and subscription from global app state
+  // Get user and subscription from global app state (AppContext is SSoT)
   const { user, subscription } = state;
 
-  // Try to get session user if context user is not available
+  // Load settings when user is available from AppContext (trust AppContext session handling)
   useEffect(() => {
-    const checkSession = async () => {
-      if (!user) {
-        try {
-          setSessionLoading(true);
-          setSessionError(null);
-          
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Error fetching session:', error);
-            setSessionError('Failed to verify authentication. Please try again or log in.');
-            return;
-          }
-          
-          const sessionUser = data?.session?.user;
-          if (sessionUser) {
-            console.log('Found authenticated user in session:', sessionUser.id);
-            setSessionUser(sessionUser);
-            
-            // Also dispatch to context so other components can use it
-            dispatch({ type: 'SET_USER', payload: sessionUser });
-            
-            // Fetch subscription data for this user
-            try {
-              const { data: subData, error: subError } = await supabase
-                .from('subscriptions')
-                .select('*')
-                .eq('user_id', sessionUser.id)
-                .order('current_period_end', { ascending: false })
-                .limit(1);
-
-              if (!subError && subData && subData.length > 0) {
-                dispatch({ type: 'SET_SUBSCRIPTION', payload: subData[0] });
-              }
-            } catch (err) {
-              console.error('Error fetching subscription data:', err);
-            }
-          } else {
-            console.log('No authenticated user found in session');
-          }
-        } catch (err) {
-          console.error('Error checking session:', err);
-          setSessionError('Failed to verify your session. Please try again later.');
-        } finally {
-          setSessionLoading(false);
-        }
-      }
-    };
-    
-    checkSession();
-  }, [user, dispatch]);
-
-  // Load settings when user is available (either from context or session)
-  useEffect(() => {
-    const effectiveUser = user || sessionUser;
+    const effectiveUser = user;
     
     if (effectiveUser) {
       loadSettings();
@@ -99,11 +43,11 @@ const SavedSettings: React.FC = () => {
       setSettings([]);
       setLoading(false);
     }
-  }, [user, sessionUser]);
+  }, [user]);
 
   const loadSettings = async () => {
     try {
-      const effectiveUser = user || sessionUser;
+      const effectiveUser = user;
       
       if (!effectiveUser) {
         setSettings([]);
@@ -117,7 +61,7 @@ const SavedSettings: React.FC = () => {
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
-        .eq('user_id', (user || sessionUser).id)
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
       if (error) {
