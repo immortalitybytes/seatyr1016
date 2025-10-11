@@ -494,14 +494,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Ref for tracking table capacity changes
   const prevTablesSignature = useRef<string>('');
 
-  // Sanitize on mount
-  useEffect(() => {
-    const sanitized = sanitizeAndMigrateAppState(state);
-    if (JSON.stringify(sanitized) !== JSON.stringify(state)) {
-      dispatch({ type: 'LOAD_MOST_RECENT', payload: sanitized });
-    }
-  }, []);
-
   // Reconcile tables on guest/assignment change
   useEffect(() => {
     const reconciled = reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables);
@@ -644,7 +636,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const { data } = await supabase.auth.getSession();
         const session = data?.session;
-        if (!alive || !session) return;
+        
+        if (!alive) return;
+        
+        if (!session) {
+          // No session = unsigned user - critical: unblock localStorage hydration
+          setSessionLoading(false);
+          return;
+        }
 
         // Set user if we have a session
         dispatch({ type: 'SET_USER', payload: session.user });
@@ -662,6 +661,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch (error) {
         // Silently handle errors - this is just pre-seeding
         console.debug('Pre-seed session failed:', error);
+        // Critical: unblock hydration even on error
+        if (alive) setSessionLoading(false);
       }
     })();
     return () => { alive = false; };
