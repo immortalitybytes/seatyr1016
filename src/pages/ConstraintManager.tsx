@@ -130,8 +130,8 @@ const ConstraintManager: React.FC = () => {
   
   // Function to get sorted guests
   const getSortedGuests = () => {
-    if (!isPremium && (sortOption === 'as-entered' || sortOption === 'current-table')) {
-      // Free/unsigned: only First/Last are allowed. Fall back to 'last-name'.
+    if (mode === 'unsigned' && (sortOption === 'as-entered' || sortOption === 'current-table')) {
+      // Unsigned: only First/Last are allowed. Fall back to 'last-name'.
       return [...state.guests].sort((a, b) => {
         const lnA = getLastNameForSorting(a.name.split('&')[0].trim()).toLowerCase();
         const lnB = getLastNameForSorting(b.name.split('&')[0].trim()).toLowerCase();
@@ -666,7 +666,14 @@ const ConstraintManager: React.FC = () => {
       return; 
     }
 
-    if (!isPremium) { alert('Adjacency pairing is a premium feature.'); return; }
+    if (mode === 'unsigned') { 
+      dispatch({ type: 'SHOW_MODAL', payload: { 
+        title: 'Premium Feature', 
+        body: 'Adjacent pairing is available for signed-in users. Sign in to access this feature.' 
+      }}); 
+      return; 
+    }
+    
     const guestId = nameToId.get(guestName);
     if (!guestId) return;
     
@@ -676,17 +683,16 @@ const ConstraintManager: React.FC = () => {
       const selectedGuestId = nameToId.get(selectedGuest);
       if (!selectedGuestId) return;
       
-      // Set constraint to 'must' when setting adjacency
-      dispatch({
-        type: 'SET_CONSTRAINT',
-        payload: { guest1: selectedGuestId, guest2: guestId, value: 'must' }
-      });
+      // SSoT: Cycle to adjacent state (must be on 'must' already for adjacent to work in 4-state)
+      // First ensure it's 'must', then double-click will cycle to adjacent
+      const currentConstraint = state.constraints[selectedGuestId]?.[guestId] ?? '';
       
-      // Then set the adjacency
-      dispatch({
-        type: 'SET_ADJACENT',
-        payload: { guest1: selectedGuestId, guest2: guestId }
-      });
+      if (currentConstraint !== 'must') {
+        // Set to must first
+        dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
+      }
+      // Then cycle again to get to adjacent
+      dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
 
       // Highlight the pair (using IDs for internal state)
       setHighlightedPair({ guest1: selectedGuestId, guest2: guestId });

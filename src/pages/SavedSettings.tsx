@@ -4,7 +4,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
-import { isPremiumSubscription, getMaxSavedSettingsLimit, canSaveMoreSettings } from '../utils/premium';
+import { isPremiumSubscription, getMaxSavedSettingsLimit, getMaxSavedSettingsLimitByMode, canSaveMoreSettings } from '../utils/premium';
 import AuthModal from '../components/AuthModal';
 import { useNavigate } from 'react-router-dom';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
@@ -18,7 +18,7 @@ interface SavedSetting {
 }
 
 const SavedSettings: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [settings, setSettings] = useState<SavedSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -209,7 +209,7 @@ const SavedSettings: React.FC = () => {
       
       // Check if user is premium
       const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const maxSettings = getMaxSavedSettingsLimitByMode(mode);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -284,7 +284,7 @@ const SavedSettings: React.FC = () => {
 
       // Check if user is premium
       const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+      const maxSettings = getMaxSavedSettingsLimitByMode(mode);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {

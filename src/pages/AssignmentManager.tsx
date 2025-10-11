@@ -42,20 +42,31 @@ const AssignmentManager: React.FC = () => {
   const handleUpdateAssignment = (guestId: string, value: string) => {
     setErrorMessage(null);
     try {
-      // SSoT: Check for name-based assignments (non-premium blocked)
-      const tokens = value.split(',').map(s => s.trim()).filter(Boolean);
-      const hasNames = tokens.some(t => isNaN(Number(t)));
-      
-      if (mode !== 'premium' && hasNames) {
-        dispatch({ type: 'SHOW_MODAL', payload: { 
-          title: 'Use Table IDs', 
-          body: 'Assigning tables by name is a Premium feature. Please use numeric IDs only (e.g., "1, 3, 5").' 
-        }});
-        return;
-      }
-      
       // SSoT: Normalize all assignments to ID-CSV format on input
       const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
+      
+      // SSoT: Check if non-premium user tried to use table names (not IDs)
+      if (mode !== 'premium' && value.trim()) {
+        const tokens = value.split(',').map(s => s.trim()).filter(Boolean);
+        const hasTableNames = tokens.some(t => {
+          if (isNaN(Number(t))) {
+            // This is not a number - check if it matches a table name
+            const matchesTableName = state.tables.some(table => 
+              table.name && table.name.toLowerCase() === t.toLowerCase()
+            );
+            return matchesTableName;
+          }
+          return false;
+        });
+        
+        if (hasTableNames) {
+          dispatch({ type: 'SHOW_MODAL', payload: { 
+            title: 'Use Table IDs', 
+            body: 'Assigning tables by name is a Premium feature. Please use numeric IDs only (e.g., "1, 3, 5").' 
+          }});
+          return;
+        }
+      }
       
       if (warnings.length > 0) {
         dispatch({

@@ -54,14 +54,28 @@ function isUnixTimestamp(value: string): boolean {
 }
 
 /**
- * Get maximum number of guests allowed based on subscription status
+ * Get maximum number of guests allowed based on mode (SSoT)
+ */
+export function getMaxGuestLimitByMode(mode: Mode): number {
+  return mode === 'premium' ? 2000 : 80;
+}
+
+/**
+ * Get maximum number of saved settings allowed based on mode (SSoT)
+ */
+export function getMaxSavedSettingsLimitByMode(mode: Mode): number {
+  return mode === 'premium' ? 30 : 5;
+}
+
+/**
+ * Get maximum number of guests allowed based on subscription status (legacy)
  */
 export function getMaxGuestLimit(subscription: UserSubscription | null | undefined): number {
   return isPremiumSubscription(subscription) ? Number.MAX_SAFE_INTEGER : 80;
 }
 
 /**
- * Get maximum number of saved settings allowed based on subscription status
+ * Get maximum number of saved settings allowed based on subscription status (legacy)
  */
 export function getMaxSavedSettingsLimit(subscription: UserSubscription | null | undefined): number {
   return isPremiumSubscription(subscription) ? 50 : 5;
