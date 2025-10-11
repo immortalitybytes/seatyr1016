@@ -2,7 +2,8 @@ import React, { createContext, useContext, useReducer, useEffect, useState, useM
 import { 
   Guest, Table, Assignments, AppState, GuestID, Constraints, Adjacents
 } from "../types";
-import { isPremiumSubscription } from "../utils/premium";
+import { isPremiumSubscription, deriveMode, Mode } from "../utils/premium";
+import { getConstraint, setConstraint, isAdjacent, addAdjacent, removeAdjacent, degree, closesCycle, ConstraintMap, AdjMap } from '../utils/constraints';
 import { supabase } from "../lib/supabase";
 import { getMostRecentState, clearMostRecentState, saveMostRecentState } from "../lib/mostRecentState";
 import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
@@ -403,12 +404,83 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     case "SET_DUPLICATE_GUESTS":
       return { ...state, duplicateGuests: action.payload };
+    
+    // SSoT Mode-Aware Actions
+    case "SHOW_MODAL":
+      return { ...state, ui: { ...state.ui, modal: action.payload } };
+    
+    case "CYCLE_CONSTRAINT": {
+      const { a, b, mode } = action.payload;
+      if (a === b) return state;
+      
+      const constraints = structuredClone(state.constraints || {}) as ConstraintMap;
+      const adjacents = structuredClone(state.adjacents || {}) as AdjMap;
+      
+      const current = getConstraint(constraints, a, b);
+      const currentAdj = isAdjacent(adjacents, a, b);
+      
+      if (mode === 'unsigned') {
+        // 3-state cycle: CLEAR → MUST → CANNOT → CLEAR
+        const next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
+        setConstraint(constraints, a, b, next);
+        return { ...state, constraints };
+      } else {
+        // 4-state cycle for Free & Premium: CLEAR → MUST → ADJACENT → CANNOT → CLEAR
+        if (!current && !currentAdj) {
+          // CLEAR → MUST
+          setConstraint(constraints, a, b, 'must');
+        } else if (current === 'must') {
+          // MUST → ADJACENT (with ring-guard)
+          if (degree(adjacents, a) >= 2 || degree(adjacents, b) >= 2) {
+            return { 
+              ...state, 
+              ui: { ...state.ui, modal: { title: 'Limit Reached', body: 'Each guest can have at most 2 adjacent links.' } } 
+            };
+          }
+          addAdjacent(adjacents, a, b);
+          const ring = closesCycle(adjacents, a, b);
+          if (ring) {
+            const needed = ring.reduce((sum, id) => sum + (state.guests.find(g => g.id === id)?.count || 1), 0);
+            if (!state.tables.some(t => getCapacity(t) >= needed)) {
+              removeAdjacent(adjacents, a, b);
+              return { 
+                ...state, 
+                ui: { ...state.ui, modal: { title: 'Ring Not Feasible', body: `This adjacency loop requires a table with at least ${needed} seats, which is unavailable.` } } 
+              };
+            }
+          }
+          setConstraint(constraints, a, b, '');
+        } else if (currentAdj) {
+          // ADJACENT → CANNOT
+          removeAdjacent(adjacents, a, b);
+          setConstraint(constraints, a, b, 'cannot');
+        } else {
+          // CANNOT → CLEAR
+          setConstraint(constraints, a, b, '');
+        }
+        return { ...state, constraints, adjacents };
+      }
+    }
+    
+    case "RENAME_TABLE": {
+      const { id, name } = action.payload;
+      const tables = state.tables.map(t => t.id === id ? { ...t, name } : t);
+      return { ...state, tables };
+    }
+    
+    case "SEATING_PAGE_MOUNTED":
+      // Auto-generate plans if data ready but no plans exist
+      if ((state.guests?.length || 0) > 0 && (state.tables?.length || 0) > 0 && !(state.seatingPlans?.length)) {
+        return { ...state, generatePlansRequested: true };
+      }
+      return state;
+    
     default:
       return state;
   }
 };
 
-const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction> } | undefined>(undefined);
+const AppContext = createContext<{ state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -639,7 +711,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const value = useMemo(() => ({ state, dispatch }), [state, dispatch]);
+  const mode = deriveMode(state.user, state.subscription, state.trial);
+  const value = useMemo(() => ({ state, dispatch, mode }), [state, dispatch, mode]);
 
   return (
     <AppContext.Provider value={value}>
@@ -657,12 +730,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           loading={!recentFetched && sessionLoading}
         />
       )}
+      {state.ui?.modal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-xl font-bold mb-4">{state.ui.modal.title}</h3>
+            <p className="text-gray-700 mb-6">{state.ui.modal.body}</p>
+            <div className="flex justify-end">
+              <button 
+                className="danstyle1c-btn bg-[#586D78] text-white px-4 py-2 rounded-md"
+                onClick={() => dispatch({ type: 'SHOW_MODAL', payload: null })}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppContext.Provider>
   );
 };
 
 // SEATYR-CANONICAL-IMPORT: Always import useApp from 'src/context/AppContext'
-export function useApp(): { state: AppState, dispatch: React.Dispatch<AppAction> } {
+export function useApp(): { state: AppState, dispatch: React.Dispatch<AppAction>, mode: Mode } {
   const context = useContext(AppContext);
   if (!context) throw new Error("useApp must be used within AppProvider");
   return context;

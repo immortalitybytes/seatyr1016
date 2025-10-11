@@ -12,16 +12,16 @@ import FormatGuestName from '../components/FormatGuestName';
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
 const AssignmentManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [sortOption, setSortOption] = useState<SortOption>('last-name');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const isPremium = isPremiumSubscription(state.subscription);
   
-  // Premium gating for sorting options
-  const allowedSortOptions: SortOption[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+  // Mode-aware sorting options (SSoT)
+  const allowedSortOptions: SortOption[] = mode === 'unsigned'
+    ? ['first-name', 'last-name']
+    : ['first-name', 'last-name', 'as-entered', 'current-table'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -42,6 +42,18 @@ const AssignmentManager: React.FC = () => {
   const handleUpdateAssignment = (guestId: string, value: string) => {
     setErrorMessage(null);
     try {
+      // SSoT: Check for name-based assignments (non-premium blocked)
+      const tokens = value.split(',').map(s => s.trim()).filter(Boolean);
+      const hasNames = tokens.some(t => isNaN(Number(t)));
+      
+      if (mode !== 'premium' && hasNames) {
+        dispatch({ type: 'SHOW_MODAL', payload: { 
+          title: 'Use Table IDs', 
+          body: 'Assigning tables by name is a Premium feature. Please use numeric IDs only (e.g., "1, 3, 5").' 
+        }});
+        return;
+      }
+      
       // SSoT: Normalize all assignments to ID-CSV format on input
       const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
       

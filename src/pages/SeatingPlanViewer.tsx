@@ -160,7 +160,7 @@ const GUEST_THRESHOLD = 120; // pagination threshold
 const GUESTS_PER_PAGE = 10;
 
 const SeatingPlanViewer: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   
@@ -174,6 +174,11 @@ const SeatingPlanViewer: React.FC = () => {
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
 
   // SEATYR: Viewer is passive; AppContext handles generation centrally.
+
+  // Mode-aware: Signal mount to trigger auto-generation (SSoT)
+  useEffect(() => {
+    dispatch({ type: 'SEATING_PAGE_MOUNTED' });
+  }, [dispatch]);
 
   // Guest pagination logic (matching Constraints page)
   useEffect(() => {
@@ -318,11 +323,11 @@ const SeatingPlanViewer: React.FC = () => {
     <div className="space-y-6">
       <Card>
           <h2 className="text-lg font-bold text-[#586D78] mb-4">Seating Plan</h2>
-          <p className="text-gray-700">Generate and review seating plans based on your guests, tables, and constraints.</p>
+          <p className="text-gray-700">Generate and review seating plans based on your guests, tables, and constraints. {mode === 'premium' ? 'Premium: up to 30 plans' : 'Free: up to 10 plans'}</p>
           <div className="flex flex-wrap gap-2 mt-4">
             <button className="danstyle1c-btn" onClick={handleGenerateSeatingPlan} disabled={isGenerating}>
               {isGenerating && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-              {isGenerating ? 'Generating...' : 'Generate Seating Plan'}
+              {isGenerating ? `Generating ${mode === 'premium' ? '30' : '10'} plans...` : `Generate ${mode === 'premium' ? '30' : '10'} Seating Plans`}
             </button>
           </div>
           {errors.length > 0 && (

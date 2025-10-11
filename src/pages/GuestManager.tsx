@@ -93,7 +93,7 @@ if (!crypto.randomUUID) {
 }
 
 const GuestManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [guestInput, setGuestInput] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -113,10 +113,10 @@ const GuestManager: React.FC = () => {
   const isPremium = isPremiumSubscription(state.subscription);
   const maxGuests = getMaxGuestLimit(state.subscription);
 
-  // Premium gating for sorting options
-  const allowedSortOptions: SortOption[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+  // Mode-aware sorting options (SSoT)
+  const allowedSortOptions: SortOption[] = mode === 'unsigned'
+    ? ['first-name', 'last-name']
+    : ['first-name', 'last-name', 'as-entered', 'current-table'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -184,16 +184,16 @@ const GuestManager: React.FC = () => {
   };
   const totalGuests = useMemo(() => state.guests.reduce((sum, g) => sum + countHeads(g.name), 0), [state.guests]);
 
+  // Mode-aware Vimeo accordion (SSoT)
   useEffect(() => {
-    const userIsLoggedIn = !!state.user;
-    const savedPreference = localStorage.getItem('seatyr_video_visible');
-    if (savedPreference !== null) {
-      setVideoVisible(JSON.parse(savedPreference));
+    if (mode === 'unsigned') {
+      const savedPreference = localStorage.getItem('seatyr_video_visible');
+      setVideoVisible(savedPreference !== null ? JSON.parse(savedPreference) : true);
     } else {
-      setVideoVisible(!userIsLoggedIn);
-      localStorage.setItem('seatyr_video_visible', JSON.stringify(!userIsLoggedIn));
+      // Signed-in (free/premium): closed by default
+      setVideoVisible(false);
     }
-  }, [state.user]);
+  }, [mode]);
   useEffect(() => {
     localStorage.setItem('seatyr_video_visible', JSON.stringify(videoVisible));
   }, [videoVisible]);
@@ -276,10 +276,13 @@ const GuestManager: React.FC = () => {
     };
   }, [showDuplicateWarning]);
 
+  // Toggle Vimeo video visibility (mode-aware localStorage)
   const toggleVideo = () => {
     const newVisible = !videoVisible;
     setVideoVisible(newVisible);
-    localStorage.setItem('seatyr_video_visible', JSON.stringify(newVisible));
+    if (mode === 'unsigned') {
+      localStorage.setItem('seatyr_video_visible', JSON.stringify(newVisible));
+    }
     if (newVisible && videoRef.current) {
       let src = videoRef.current.src;
       if (src.includes('autoplay=0')) {
@@ -290,6 +293,7 @@ const GuestManager: React.FC = () => {
       videoRef.current.src = src;
     }
   };
+
   const handleAddGuests = () => {
     const lines = guestInput.split(/[\n,]/).map(line => line.trim()).filter(line => line.length > 0);
     const seen = new Set(state.guests.map((g) => normalizeName(g.name)));
@@ -464,8 +468,8 @@ const GuestManager: React.FC = () => {
         )}
       </div>
 
-      {state.user ? (
-        // Signed-in users: Only show Add Guest Names box at full width
+      {mode === 'premium' ? (
+        // Premium users: Only show Add Guest Names box at full width (no instructions)
         <Card title="Add Guest Names" style={{ minHeight: '280px' }}>
           <div className="flex justify-between items-center w-full mb-4">
             <span></span>
@@ -557,7 +561,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
           )}
         </Card>
       ) : (
-        // Non-signed-in users: Show Instructions and Add Guest Names with 35%/60% ratio
+        // Unsigned/Free users: Show Instructions and Add Guest Names with 35%/60% ratio
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" style={{ gridTemplateColumns: '0.4fr 0.05fr 0.55fr' }}>
           <Card title="Instructions" className="lg:col-span-1" style={{ minHeight: '280px' }}>
             <div className="flex flex-col h-full" style={{ minHeight: '240px' }}>

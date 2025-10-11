@@ -5,6 +5,19 @@
 import type { UserSubscription, TrialSubscription } from '../types';
 
 /**
+ * Mode type for user gating (SSoT)
+ */
+export type Mode = 'unsigned' | 'free' | 'premium';
+
+/**
+ * Derive user mode from session state (SSoT)
+ */
+export function deriveMode(user: any, subscription: UserSubscription | null | undefined, trial?: TrialSubscription | null): Mode {
+  if (!user) return 'unsigned';
+  return isPremiumSubscription(subscription, trial) ? 'premium' : 'free';
+}
+
+/**
  * Determine if a subscription indicates premium status
  */
 export function isPremiumSubscription(subscription: UserSubscription | null | undefined, trial?: TrialSubscription | null): boolean {

@@ -140,7 +140,7 @@ const ConstraintChipsInput: React.FC<{
 };
 
 const TableManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -152,10 +152,10 @@ const TableManager: React.FC = () => {
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = isPremiumSubscription(state.subscription);
 
-  // Premium gating for sorting options
-  const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+  // Mode-aware sorting options (SSoT)
+  const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = mode === 'unsigned'
+    ? ['first-name', 'last-name']
+    : ['first-name', 'last-name', 'as-entered', 'current-table'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -204,7 +204,13 @@ const TableManager: React.FC = () => {
   };
   
   const handleTableNameDoubleClick = (id: number, currentName?: string | null) => {
-    if (!isPremium) return;
+    if (mode !== 'premium') {
+      dispatch({ type: 'SHOW_MODAL', payload: { 
+        title: 'Premium Feature', 
+        body: 'Table naming is available for Premium members only. Upgrade to name your tables.' 
+      }});
+      return;
+    }
     
     setEditingTableId(id);
     setEditingName(currentName || `Table ${id}`);

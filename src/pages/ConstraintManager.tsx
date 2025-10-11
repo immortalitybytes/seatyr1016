@@ -17,7 +17,7 @@ const GUEST_THRESHOLD = 120; // Threshold for pagination
 const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
 
 const ConstraintManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, mode } = useApp();
   const [selectedGuest, setSelectedGuest] = useState<string | null>(null);
   const [highlightedPair, setHighlightedPair] = useState<{guest1: string, guest2: string} | null>(null);
   const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
@@ -42,10 +42,10 @@ const ConstraintManager: React.FC = () => {
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
 
-  // Premium gating for sorting options
-  const allowedSortOptions: SortOption[] = isPremium
-    ? ['first-name', 'last-name', 'as-entered', 'current-table']
-    : ['first-name', 'last-name'];
+  // Mode-aware sorting options (SSoT)
+  const allowedSortOptions: SortOption[] = mode === 'unsigned'
+    ? ['first-name', 'last-name']
+    : ['first-name', 'last-name', 'as-entered', 'current-table'];
 
   // If current sort became disallowed (e.g., downgrade), coerce safely
   useEffect(() => {
@@ -398,18 +398,18 @@ const ConstraintManager: React.FC = () => {
             // Hard prohibition always wins
             bgColor = 'bg-[#e6130b]';
             cellContent = <span className="text-black font-bold">X</span>;
-          } else if (hasAdj && isPremium) {
-            // Premium-adjacent pairs: ⭐&⭐
+          } else if (hasAdj && mode !== 'unsigned') {
+            // Free/Premium-adjacent pairs: ⭐&⭐ (SSoT: unsigned doesn't show adjacents)
             bgColor = 'bg-[#22cf04]';
             cellContent = <span className="text-black font-bold">⭐&⭐</span>;
           } else if (constraintValue === 'must') {
             // Must without adjacency remains green with '&'
             bgColor = 'bg-[#22cf04]';
             cellContent = <span className="text-black font-bold">&</span>;
-          } else if (hasAdj && !isPremium) {
-            // Non-premium adjacency shows as read-only 'adj'
+          } else if (hasAdj && mode === 'unsigned') {
+            // Unsigned mode: adjacency shouldn't exist, but if it does, show nothing
             bgColor = '';
-            cellContent = <span className="text-gray-500 text-xs">adj</span>;
+            cellContent = null;
           }
           
           // Check if this cell should be highlighted
@@ -650,26 +650,9 @@ const ConstraintManager: React.FC = () => {
 
     if (guest1Id === guest2Id) return;
 
-    const current = (state.constraints[guest1Id]?.[guest2Id] ?? '') as ''|'must'|'cannot';
-    const adj = !!state.adjacents[guest1Id]?.includes(guest2Id);
-
-    let next: ''|'must'|'cannot' = '';
-    if (!isPremium) {
-      next = current === '' ? 'must' : current === 'must' ? 'cannot' : '';
-    } else {
-      if (current === '') {
-        next = 'must';
-      } else if (current === 'must' && !adj) {
-        dispatch({ type: 'SET_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
-        next = 'must';
-      } else if (current === 'must' && adj) {
-        dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1: guest1Id, guest2: guest2Id } });
-        next = 'cannot';
-      } else if (current === 'cannot') {
-        next = '';
-      }
-    }
-    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guest1Id, guest2: guest2Id, value: next } });
+    // SSoT: Use mode-aware CYCLE_CONSTRAINT action
+    dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: guest1Id, b: guest2Id, mode } });
+    
     // Auto-purge plans on change (keeps behavior consistent)
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
@@ -769,15 +752,17 @@ const ConstraintManager: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <ul className="list-disc pl-5 mt-2">
-                <li>To set "Adjacent Seating" (guests sit right next to each other):
-                  <ol className="list-decimal pl-5 mt-1">
-                    <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
-                    <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
-                  </ol>
-                </li>
-                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
-              </ul>
+              {mode !== 'unsigned' && (
+                <ul className="list-disc pl-5 mt-2">
+                  <li>To set "Adjacent Seating" (guests sit right next to each other):
+                    <ol className="list-decimal pl-5 mt-1">
+                      <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>
+                      <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
+                    </ol>
+                  </li>
+                  <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
+                </ul>
+              )}
             </div>
           </div>
         </div>
