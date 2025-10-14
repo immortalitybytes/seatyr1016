@@ -19,8 +19,8 @@ const Header: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showRecentChoice, setShowRecentChoice] = useState(false);
-  const [user, setUser] = useState(null);
-  const [subscription, setSubscription] = useState(null);
+  const [user, setUser] = useState<any>(null);
+  const [subscription, setSubscription] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [subscriptionSyncing, setSubscriptionSyncing] = useState(false);
   const [syncRequested, setSyncRequested] = useState(false);
@@ -74,14 +74,16 @@ const Header: React.FC = () => {
   }, [dispatch]);
 
   // Keep local state in sync with context state
+  // Note: AppContext is the source of truth for user and subscription
   useEffect(() => {
     if (state.user && state.user !== user) {
       setUser(state.user);
     }
-    if (state.subscription && state.subscription !== subscription) {
+    // Only sync subscription if it's actually different (avoid infinite loops)
+    if (state.subscription !== undefined && JSON.stringify(state.subscription) !== JSON.stringify(subscription)) {
       setSubscription(state.subscription);
     }
-  }, [state.user, state.subscription, user, subscription]);
+  }, [state.user, state.subscription]);
 
   // Throttled subscription syncing
   useEffect(() => {
@@ -122,10 +124,13 @@ const Header: React.FC = () => {
           .select('*')
           .eq('user_id', user.id)
           .order('current_period_end', { ascending: false })
-          .limit(1);
+          .maybeSingle();
 
         if (error) {
           console.error('Subscription fetch error:', error);
+          if (error.code === 'PGRST301' || error.status === 403) {
+            console.error('RLS policy blocking subscription access. Check Supabase policies.');
+          }
           return;
         }
 
@@ -142,17 +147,10 @@ const Header: React.FC = () => {
             .gt('expires_on', new Date().toISOString())
             .maybeSingle();
 
-          if (!trialError && trialData?.length > 0) {
-            const trialSubscription = {
-              id: `trial-${trialData[0].id}`,
-              user_id: user.id,
-              status: 'active',
-              current_period_start: trialData[0].start_date,
-              current_period_end: trialData[0].expires_on,
-              cancel_at_period_end: true
-            };
-            setSubscription(trialSubscription);
-            dispatch({ type: 'SET_SUBSCRIPTION', payload: trialSubscription });
+          if (!trialError && trialData) {
+            // Dispatch trial to context - AppContext will handle premium status via isPremiumSubscription()
+            dispatch({ type: 'SET_TRIAL', payload: trialData });
+            console.log('[HEADER] Trial subscription found, dispatched to context');
           } else {
             // Special case for VIP users - check only once on login, not repeatedly
             const { data: userData } = await supabase.auth.getUser();
@@ -242,16 +240,9 @@ const Header: React.FC = () => {
             .maybeSingle();
 
           if (!trialError && trialData) {
-            const trialSubscription = {
-              id: `trial-${trialData.id}`,
-              user_id: userId,
-              status: 'active',
-              current_period_start: trialData.start_date,
-              current_period_end: trialData.expires_on,
-              cancel_at_period_end: true
-            };
-            setSubscription(trialSubscription);
-            dispatch({ type: 'SET_SUBSCRIPTION', payload: trialSubscription });
+            // Dispatch trial to context - AppContext will handle premium status via isPremiumSubscription()
+            dispatch({ type: 'SET_TRIAL', payload: trialData });
+            console.log('[HEADER] Trial subscription found (forced fetch), dispatched to context');
           }
         }
       } catch (err) {
@@ -364,7 +355,7 @@ const Header: React.FC = () => {
                   Login/Join
                 </button>
               )}
-              {user && !isPremium && (
+              {user && !isPremium && !subscriptionSyncing && (
                 <button
                   className="danstyle1c-btn danstyle1c-premium"
                   onClick={handleUpgrade}
