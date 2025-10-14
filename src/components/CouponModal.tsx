@@ -55,17 +55,17 @@ const CouponModal: React.FC<CouponModalProps> = ({ onClose, onSuccess, onProceed
         return;
       }
 
-      // Create a free 30-day subscription
+      // Create or update a free 30-day subscription (UPSERT to prevent duplicate-key errors)
       const { error: subscriptionError } = await supabase
         .from('subscriptions')
-        .insert({
+        .upsert({
           user_id: user.id,
           status: 'active',
           quantity: 1,
           cancel_at_period_end: true,
           current_period_start: new Date().toISOString(),
           current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-        });
+        }, { onConflict: 'user_id' });
 
       if (subscriptionError) {
         setError('Error creating subscription');

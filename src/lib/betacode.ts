@@ -82,15 +82,15 @@ export const activateBetaCode = async (userId: string, code: string) => {
       const expiresOn = new Date();
       expiresOn.setDate(expiresOn.getDate() + 30);
 
-      // Create the trial subscription
+      // Create or update the trial subscription (UPSERT to prevent duplicate-key errors)
       const { data: trial, error: insertError } = await supabase
         .from('trial_subscriptions')
-        .insert({
+        .upsert({
           user_id: userId,
           trial_code: code,
           start_date: new Date().toISOString(),
           expires_on: expiresOn.toISOString()
-        })
+        }, { onConflict: 'user_id' })
         .select()
         .maybeSingle();
 

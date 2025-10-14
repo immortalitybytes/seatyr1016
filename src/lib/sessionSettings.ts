@@ -61,7 +61,7 @@ export const saveRecentSessionSettings = async (
       } else {
         const { error: insertError } = await supabase
           .from('recent_session_settings')
-          .insert([{ user_id: userId, data: tableData }]);
+          .upsert({ user_id: userId, data: tableData }, { onConflict: 'user_id' });
           
         if (insertError) {
           console.error('Error inserting recent session settings:', insertError);
