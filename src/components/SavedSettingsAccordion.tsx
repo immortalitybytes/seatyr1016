@@ -88,10 +88,10 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                 .select('*')
                 .eq('user_id', sessionUser.id)
                 .order('current_period_end', { ascending: false })
-                .limit(1);
+                .maybeSingle();
 
-              if (!subError && subData && subData.length > 0) {
-                dispatch({ type: 'SET_SUBSCRIPTION', payload: subData[0] });
+              if (!subError && subData) {
+                dispatch({ type: 'SET_SUBSCRIPTION', payload: subData });
               }
             } catch (err) {
               console.error('Error fetching subscription data:', err);

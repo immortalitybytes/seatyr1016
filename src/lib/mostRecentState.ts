@@ -1,165 +1,82 @@
-import { supabase } from './supabase';
-import { isPremiumSubscription } from '../utils/premium';
-import { AppState } from '../types';
+import { supabase } from "./supabase";
+import type { AppState } from "../types";
 
 /**
- * Saves the current application state as the most recent state for premium users
+ * Premium: persist most recent state (requires active session).
+ * All queries use maybeSingle()/upsert with onConflict to be robust.
  */
-export async function saveMostRecentState(userId: string, state: AppState, isPremium: boolean): Promise<boolean> {
-  if (!userId || !isPremium) {
-    return false;
-  }
 
-  try {
-    console.log('Saving most recent state for user:', userId);
-    
-    // Trust that AppContext has already validated session before calling this
-    // If session is invalid, Supabase will return 401 which we handle below
-    
-    // Create a copy of the state without subscription and user info
-    const stateToSave = { 
-      version: "1.0",
-      timestamp: new Date().toISOString(),
-      guests: state.guests,
-      tables: state.tables.map(table => ({
-        id: table.id,
-        seats: table.seats,
-        name: table.name
-      })),
-      constraints: state.constraints,
-      adjacents: state.adjacents,
-      assignments: state.assignments,
-      seatingPlans: state.seatingPlans,
-      currentPlanIndex: state.currentPlanIndex,
-      userSetTables: state.userSetTables
-    };
-    
-    // First check if a record already exists for this user
-    const { data: existingData, error: checkError } = await supabase
-      .from('recent_session_states')
-      .select('user_id')
-      .eq('user_id', userId)
-      .maybeSingle();
+export async function saveMostRecentState(
+  userId: string,
+  state: AppState,
+  isPremium: boolean,
+): Promise<boolean> {
+  if (!userId || !isPremium) return false;
 
-    if (checkError) {
-      if (checkError.status === 401) {
-        console.error('Unauthorized when checking for existing recent state (session expired)');
-        throw new Error('Your session has expired. Please log in again.');
-      }
-      console.error('Error checking for existing recent state:', checkError);
-      throw new Error('Failed to check for existing state: ' + checkError.message);
+  // trim user/subscription
+  const toSave = {
+    version: "1.0",
+    timestamp: new Date().toISOString(),
+    guests: state.guests,
+    tables: state.tables.map((t) => ({ id: t.id, seats: t.seats, name: t.name })),
+    constraints: state.constraints,
+    adjacents: state.adjacents,
+    assignments: state.assignments,
+    seatingPlans: state.seatingPlans,
+    currentPlanIndex: state.currentPlanIndex,
+    userSetTables: state.userSetTables,
+  };
+
+  // ensure row; upsert on user_id
+  const { error } = await supabase
+    .from("recent_session_states")
+    .upsert({ user_id: userId, data: toSave }, { onConflict: "user_id" });
+
+  if (error) {
+    if ((error as any).status === 401) {
+      throw new Error("Your session has expired. Please log in again.");
     }
-
-    // Use upsert to either update or insert
-    const { error } = await supabase
-      .from('recent_session_states')
-      .upsert({
-        user_id: userId,
-        data: stateToSave
-      }, {
-        onConflict: 'user_id'
-      });
-
-    if (error) {
-      if (error.status === 401) {
-        console.error('Unauthorized when saving recent state (session expired)');
-        throw new Error('Your session has expired. Please log in again.');
-      }
-      console.error('Error saving most recent state:', error);
-      throw new Error('Failed to save most recent state: ' + error.message);
-    }
-
-    console.log('Most recent state saved successfully for user:', userId);
-    return true;
-  } catch (error) {
-    console.warn('Failed to save most recent state (non-blocking):', error);
-    return false; // Don't throw, just return false
+    throw new Error("Failed to save most recent state: " + error.message);
   }
+  return true;
 }
 
-/**
- * Retrieves the most recently saved state for a user
- */
 export async function getMostRecentState(userId: string): Promise<AppState | null> {
-  if (!userId) {
-    return null;
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from("recent_session_states")
+    .select("data, updated_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    if ((error as any).status === 401) {
+      throw new Error("Session expired. Please log in again.");
+    }
+    throw new Error("Failed to retrieve your most recent state: " + error.message);
   }
 
-  try {
-    console.log('Retrieving most recent state for user:', userId);
-    
-    // Trust that AppContext has already validated session before calling this
-    // If session is invalid, Supabase will return 401 which we handle below
-    
-    const { data, error } = await supabase
-      .from('recent_session_states')
-      .select('data, updated_at')
-      .eq('user_id', userId)
-      .maybeSingle();
+  if (!data || !data.data) return null;
 
-    if (error) {
-      if (error.status === 401) {
-        console.error('Unauthorized when retrieving most recent state (session expired)');
-        throw new Error('Session expired. Please log in again to access your recent state.');
-      }
-      console.error('Error retrieving most recent state:', error);
-      throw new Error('Failed to retrieve your most recent state: ' + error.message);
-    }
-
-    if (!data || !data.data) {
-      console.log('No most recent state found for user:', userId);
-      return null;
-    }
-    
-    // Validate the retrieved data has the required fields
-    const requiredFields = ['guests', 'tables', 'constraints', 'adjacents', 'assignments'];
-    const missingFields = requiredFields.filter(field => !data.data[field]);
-    
-    if (missingFields.length > 0) {
-      console.error('Retrieved state is missing fields:', missingFields);
-      throw new Error('Your recent state data appears to be incomplete or corrupted.');
-    }
-    
-    console.log('Successfully retrieved most recent state with timestamp:', data.data.timestamp);
-    return data.data;
-  } catch (error) {
-    console.warn('Failed to retrieve most recent state (non-blocking):', error);
-    return null; // Don't throw, just return null
+  const required = ["guests", "tables", "constraints", "adjacents", "assignments"];
+  const missing = required.filter((k) => !(k in data.data));
+  if (missing.length) {
+    throw new Error("Your recent state data appears incomplete or corrupted.");
   }
+
+  return data.data as AppState;
 }
 
-/**
- * Clears the most recently saved state for a user
- */
-export async function clearMostRecentState(userId: string): Promise<boolean> {
-  if (!userId) {
-    return false;
+export async function clearMostRecentState(
+  userId: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId) return { success: false, error: "No user ID provided" };
+
+  const { error } = await supabase.from("recent_session_states").delete().eq("user_id", userId);
+  if (error) {
+    if ((error as any).status === 401) return { success: false, error: "Session expired" };
+    return { success: false, error: error.message };
   }
-
-  try {
-    console.log('Clearing most recent state for user:', userId);
-    
-    // Trust that AppContext has already validated session before calling this
-    // If session is invalid, Supabase will return 401 which we handle below
-    
-    const { error } = await supabase
-      .from('recent_session_states')
-      .delete()
-      .eq('user_id', userId);
-
-    if (error) {
-      if (error.status === 401) {
-        console.error('Unauthorized when clearing most recent state (session expired)');
-        return false;
-      }
-      console.error('Error clearing most recent state:', error);
-      return false;
-    }
-
-    console.log('Most recent state cleared for user:', userId);
-    return true;
-  } catch (error) {
-    console.error('Error clearing most recent state:', error);
-    return false;
-  }
+  return { success: true };
 }

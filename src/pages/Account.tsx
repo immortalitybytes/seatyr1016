@@ -138,11 +138,11 @@ const Account: React.FC = () => {
         .select('*')
         .eq('user_id', effectiveUser.id)
         .order('current_period_end', { ascending: false })
-        .limit(1);
+        .maybeSingle();
         
-      if (!error && data?.length > 0) {
-        console.log('Found subscription:', data[0]);
-        dispatch({ type: 'SET_SUBSCRIPTION', payload: data[0] });
+      if (!error && data) {
+        console.log('Found subscription:', data);
+        dispatch({ type: 'SET_SUBSCRIPTION', payload: data });
         return;
       } else if (error) {
         console.error('Error fetching subscription:', error);
@@ -155,19 +155,19 @@ const Account: React.FC = () => {
         .eq('user_id', effectiveUser.id)
         .gt('expires_on', new Date().toISOString())
         .order('expires_on', { ascending: false })
-        .limit(1);
+        .maybeSingle();
         
-      if (!trialError && trialData?.length > 0) {
-        console.log('Found trial subscription:', trialData[0]);
+      if (!trialError && trialData) {
+        console.log('Found trial subscription:', trialData);
         // Create a virtual subscription object from the trial
         const virtualSubscription = {
-          id: `trial-${trialData[0].id}`,
+          id: `trial-${trialData.id}`,
           user_id: effectiveUser.id,
           status: 'active',
-          current_period_start: trialData[0].start_date,
-          current_period_end: trialData[0].expires_on,
+          current_period_start: trialData.start_date,
+          current_period_end: trialData.expires_on,
           cancel_at_period_end: true,
-          trial_end: trialData[0].expires_on
+          trial_end: trialData.expires_on
         };
         dispatch({ type: 'SET_SUBSCRIPTION', payload: virtualSubscription });
       } else if (trialError) {

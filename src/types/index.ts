@@ -72,6 +72,7 @@ export interface TrialSubscription {
   trial_code: string;
   start_date: string;
   expires_on: string;
+  expires_at?: string;
 }
 
 export interface BetaCode {
@@ -89,7 +90,8 @@ export interface AppState {
   assignments: Assignments;
   seatingPlans: SeatingPlan[];
   currentPlanIndex: number;
-  subscription: UserSubscription | null;
+  subscription: UserSubscription | null | undefined;
+  trial: TrialSubscription | null;
   user: any | null;
   userSetTables: boolean;
   loadedSavedSetting: boolean;

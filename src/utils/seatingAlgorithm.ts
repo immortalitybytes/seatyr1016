@@ -1,7 +1,6 @@
 /*
- * src/utils/seatingAlgorithm.ts
- * Adapter: Dual arg compat, SSoT norm/allow, full nullish guards, timeEnd, unknown ValidationError.
- * Backward-compatible, crash-proof, passes premium/allowedTablesByGuest.
+ * Adapter over engine with backward-compatible args & app types.
+ * No UI changes; surfaces engine errors as {type,message}.
  */
 
 import {
@@ -21,155 +20,139 @@ import { countHeads } from "./guestCount";
 
 export type AdapterResult = { plans: SeatingPlan[]; errors: ValidationError[] };
 
-export async function generateSeatingPlans(
-  ...args: any[]
-): Promise<AdapterResult> {
+export async function generateSeatingPlans(...args: any[]): Promise<AdapterResult> {
   console.time("SeatingGeneration");
   try {
-    // Compat: Object or positional args
-    const params = (() => {
-      if (args.length === 1 && typeof args[0] === "object" && Array.isArray(args[0]?.guests)) {
-        const o = args[0];
-        return {
-          guests: o.guests ?? [] as Guest[],
-          tables: o.tables ?? [] as Table[],
-          constraints: o.constraints ?? {} as Constraints,
-          adjacents: o.adjacents ?? {} as Adjacents,
-          assignments: o.assignments ?? {} as Assignments,
-          isPremium: !!o.isPremium,
-        };
-      }
-      // Legacy positional
-      return {
-        guests: args[0] ?? [] as Guest[],
-        tables: args[1] ?? [] as Table[],
-        constraints: args[2] ?? {} as Constraints,
-        adjacents: args[3] ?? {} as Adjacents,
-        assignments: args[4] ?? {} as Assignments,
-        isPremium: !!args[5],
-      };
-    })();
+    const params =
+      args.length === 1 && typeof args[0] === "object" && Array.isArray(args[0]?.guests)
+        ? {
+            guests: (args[0].guests ?? []) as Guest[],
+            tables: (args[0].tables ?? []) as Table[],
+            constraints: (args[0].constraints ?? {}) as Constraints,
+            adjacents: (args[0].adjacents ?? {}) as Adjacents,
+            assignments: (args[0].assignments ?? {}) as Assignments,
+            isPremium: !!args[0].isPremium,
+          }
+        : {
+            guests: (args[0] ?? []) as Guest[],
+            tables: (args[1] ?? []) as Table[],
+            constraints: (args[2] ?? {}) as Constraints,
+            adjacents: (args[3] ?? {}) as Adjacents,
+            assignments: (args[4] ?? {}) as Assignments,
+            isPremium: !!args[5],
+          };
 
     const { guests, tables, constraints, adjacents, assignments, isPremium } = params;
 
-    // Name-to-ID map for constraints/adjacents
-    const nameToIdMap = new Map<string, GuestID>();
-    const idToNameMap = new Map<GuestID, string>();
-    guests.forEach((guest: Guest) => {
-      nameToIdMap.set(guest.name, guest.id);
-      idToNameMap.set(guest.id, guest.name);
-    });
+    const nameToId = new Map<string, GuestID>();
+    const idToName = new Map<GuestID, string>();
+    for (const g of guests) {
+      nameToId.set(g.name, g.id);
+      idToName.set(g.id, g.name);
+    }
 
-    // Helper function to normalize key (name or ID) to ID
-    const normalizeKeyToId = (key: string): GuestID | null => {
-      // First try as ID
-      if (idToNameMap.has(key as GuestID)) return key as GuestID;
-      // Then try as name
-      return nameToIdMap.get(key) || null;
+    const toId = (k: string): GuestID | null => {
+      if (idToName.has(k as GuestID)) return k as GuestID;
+      return nameToId.get(k) || null;
     };
 
-    // Constraints: Normalize keys from names to IDs
     const engineConstraints: Engine.ConstraintsMap = {};
-    Object.entries(constraints ?? {}).forEach(([key1, cons]) => {
-      const guestId1 = normalizeKeyToId(key1);
-      if (!guestId1 || !cons) return;
-      
-      engineConstraints[guestId1] = {};
-      Object.entries(cons ?? {}).forEach(([key2, value]) => {
-        const guestId2 = normalizeKeyToId(key2);
-        if (guestId2 && guestId2 !== guestId1) {
-          engineConstraints[guestId1][guestId2] = value as 'must' | 'cannot' | '';
-        }
+    Object.entries(constraints ?? {}).forEach(([k1, cons]) => {
+      const id1 = toId(k1);
+      if (!id1 || !cons) return;
+      engineConstraints[id1] = {};
+      Object.entries(cons ?? {}).forEach(([k2, v]) => {
+        const id2 = toId(k2);
+        if (id2 && id2 !== id1) engineConstraints[id1][id2] = v as "must" | "cannot" | "";
       });
     });
 
-    // Adjacents: Normalize keys from names to IDs
-    const engineAdjacents: Engine.AdjRecord = {};
-    Object.entries(adjacents ?? {}).forEach(([key1, adjIds]) => {
-      const guestId1 = normalizeKeyToId(key1);
-      if (!guestId1 || !adjIds) return;
-      
-      const normalizedAdjIds = (adjIds as string[])
-        .map(key2 => normalizeKeyToId(key2))
-        .filter(id => id !== null && id !== guestId1) as GuestID[];
-      
-      if (normalizedAdjIds.length > 0) {
-        engineAdjacents[guestId1] = normalizedAdjIds;
-      }
+    const engineAdj: Engine.AdjRecord = {};
+    Object.entries(adjacents ?? {}).forEach(([k1, list]) => {
+      const id1 = toId(k1);
+      if (!id1 || !list) return;
+      const ids = (list as string[])
+        .map((k2) => toId(k2))
+        .filter((id) => id && id !== id1) as string[];
+      if (ids.length) engineAdj[id1] = ids;
     });
 
-    // Normalize assignments via SSoT, surface unknown tokens
     const engineAssignments: Engine.AssignmentsIn = {};
     const unknownErrors: ValidationError[] = [];
-    Object.entries(assignments ?? {}).forEach(([key, raw]) => {
-      const guestId = normalizeKeyToId(key);
-      if (!guestId || !raw) return;
-      
+    Object.entries(assignments ?? {}).forEach(([guestKey, raw]) => {
+      const gid = toId(guestKey);
+      if (!gid || !raw) return;
       const norm = normalizeAssignmentInputToIdsWithWarnings(String(raw), tables);
-      engineAssignments[guestId] = norm.idCsv;
+      engineAssignments[gid] = norm.idCsv;
       if (norm.warnings.length > 0) {
-        const guestName = idToNameMap.get(guestId) || guestId;
+        const gname = idToName.get(gid) || gid;
         unknownErrors.push({
-          type: 'warn',
-          message: `Unknown tables for ${guestName}: ${norm.warnings.join(', ')}`,
+          type: "warn",
+          message: `Unknown tables for ${gname}: ${norm.warnings.join(", ")}`,
         });
         if (import.meta?.env?.DEV) {
-          console.warn(`Unknown assignment tokens for ${guestName}: ${norm.warnings.join(', ')}`);
+          console.warn(`Unknown assignment tokens for ${gname}: ${norm.warnings.join(", ")}`);
         }
       }
     });
 
-    // Allowed tables hint
     const allowedTablesByGuest: Record<string, number[]> = {};
-    Object.entries(engineAssignments ?? {}).forEach(([guestId, csv]) => {
-      allowedTablesByGuest[guestId] = parseAssignmentIds(String(csv));
+    Object.entries(engineAssignments).forEach(([gid, csv]) => {
+      allowedTablesByGuest[gid] = parseAssignmentIds(String(csv));
     });
 
-    // Call engine
+    const engineGuests = guests.map((g) => ({
+      ...g,
+      id: String(g.id),
+      name: g.name ?? `Guest ${g.id}`,
+      count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
+    }));
+    const engineTables = tables.map((t) => ({
+      id: t.id,
+      name: t.name ?? undefined,
+      seats: Array.isArray(t.seats) ? t.seats : [],
+      capacity: getCapacity(t),
+    }));
+
     const { plans: enginePlans, errors: engineErrors } = await Engine.generateSeatingPlans(
-      guests,
-      tables.map((t: Table) => {
-        const capacity = getCapacity(t);
-        return {
-          id: t.id,
-          name: t.name ?? undefined,
-          seats: Array.isArray(t.seats) ? t.seats : [],
-          capacity
-        };
-      }),
+      engineGuests as any,
+      engineTables as any,
       engineConstraints,
-      engineAdjacents,
+      engineAdj,
       engineAssignments,
-      isPremium
+      isPremium,
     );
 
-    // Map to app types
-    const plans: SeatingPlan[] = enginePlans.map((p, idx) => ({
-      id: idx + 1,
-      tables: p.tables.map((t: any) => {
-        const appTable = tables.find((at: Table) => String(at.id) === t.tableId);
-        return {
-          id: Number(t.tableId),
-          capacity: appTable?.seats ?? 0,
-          seats: Array.isArray(t.seats) ? t.seats : [],
-        };
-      }).sort((a, b) => a.id - b.id),
-    }));
+    const plans: SeatingPlan[] = enginePlans
+      .map((p, idx) => ({
+        id: idx + 1,
+        tables: p.tables
+          .map((t) => {
+            const appTable = tables.find((at) => String(at.id) === String(t.tableId));
+            return {
+              id: Number(t.tableId),
+              capacity: appTable?.seats ?? 0,
+              seats: Array.isArray(t.seats) ? t.seats : [],
+            };
+          })
+          .sort((a, b) => a.id - b.id),
+      }))
+      .sort((a, b) => a.id - b.id);
 
     const errors = [
       ...unknownErrors,
-      ...engineErrors.map(err => ({
-        type: mapErrorType(err.kind),
-        message: err.message,
-        ...(import.meta?.env?.DEV && { _originalKind: err.kind, _details: err.details }),
+      ...engineErrors.map((e) => ({
+        type: mapErrorType(e.kind),
+        message: e.message,
+        ...(import.meta?.env?.DEV && { _originalKind: e.kind, _details: e.details }),
       })),
     ];
 
     return { plans, errors };
   } catch (e: unknown) {
-    const err: ValidationError = { type: 'error', message: 'Failed to generate seating plans.' };
+    const err: ValidationError = { type: "error", message: "Failed to generate seating plans." };
     if (import.meta?.env?.DEV && e instanceof Error) {
-      console.error('Adapter error:', e.message, e.stack);
+      console.error("Adapter error:", e.message, e.stack);
       (err as any)._details = e.message;
     }
     return { plans: [], errors: [err] };
@@ -183,48 +166,39 @@ export function detectConstraintConflicts(
   tables: Table[] | null,
   constraints: Constraints | null,
   _checkAdjacency: boolean = false,
-  adjacents: Adjacents | null = {}
+  adjacents: Adjacents | null = {},
 ): ValidationError[] {
-    const engineGuests = (guests ?? []).map(g => ({
-      ...g,
-      id: String(g.id),
-      name: g.name ?? `Guest ${g.id}`, // internal only
-      count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
-    }));
-  const engineTables = (tables ?? []).map(t => {
-    const capacity = getCapacity(t);
-    return {
-      id: t.id,
-      name: t.name ?? undefined,
-      seats: Array.isArray(t.seats) ? t.seats : [],
-      capacity
-    };
-  });
-  const nameToIdMap = new Map<string, string>();
-  engineGuests.forEach((guest: Guest) => nameToIdMap.set(guest.name, guest.id));
-
+  const engineGuests = (guests ?? []).map((g) => ({
+    ...g,
+    id: String(g.id),
+    name: g.name ?? `Guest ${g.id}`,
+    count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
+  }));
+  const engineTables = (tables ?? []).map((t) => ({
+    id: t.id,
+    name: t.name ?? undefined,
+    seats: Array.isArray(t.seats) ? t.seats : [],
+    capacity: getCapacity(t),
+  }));
   const engineConstraints: Engine.ConstraintsMap = {};
-  Object.entries(constraints ?? {}).forEach(([guestId, cons]) => {
-    if (cons) {
-      engineConstraints[guestId] = {};
-      Object.entries(cons).forEach(([otherId, value]) => {
-        if (otherId !== guestId) engineConstraints[guestId][otherId] = value as 'must' | 'cannot' | '';
-      });
-    }
+  Object.entries(constraints ?? {}).forEach(([gid, row]) => {
+    if (!row) return;
+    engineConstraints[gid] = {};
+    Object.entries(row).forEach(([other, v]) => {
+      if (other !== gid) engineConstraints[gid][other] = v as "must" | "cannot" | "";
+    });
+  });
+  const engineAdj: Engine.AdjRecord = {};
+  Object.entries(adjacents ?? {}).forEach(([gid, list]) => {
+    if (!list) return;
+    engineAdj[gid] = (list as string[]).filter((id) => id !== gid);
   });
 
-  const engineAdjacents: Engine.AdjRecord = {};
-  Object.entries(adjacents ?? {}).forEach(([guestId, adj]) => {
-    if (adj) {
-      engineAdjacents[guestId] = (adj as string[]).filter(id => id !== guestId);
-    }
-  });
-
-  const engineErrors = Engine.detectConstraintConflicts(engineGuests, engineTables, engineConstraints, engineAdjacents, {});
-  return engineErrors.map(err => ({
-    type: mapErrorType(err.kind),
-    message: err.message,
-    ...(import.meta?.env?.DEV && { _originalKind: err.kind, _details: err.details }),
+  const errs = Engine.detectConstraintConflicts(engineGuests as any, engineTables as any, engineConstraints, engineAdj, {});
+  return errs.map((e) => ({
+    type: mapErrorType(e.kind),
+    message: e.message,
+    ...(import.meta?.env?.DEV && { _originalKind: e.kind, _details: e.details }),
   }));
 }
 
@@ -232,51 +206,53 @@ export function detectAdjacentPairingConflicts(
   guests: Guest[] | null,
   adjacents: Adjacents | null,
   tables: Table[] | null,
-  constraints?: Constraints | null
+  constraints?: Constraints | null,
 ): ValidationError[] {
-  const allErrors = detectConstraintConflicts(guests, tables, constraints ?? {}, true, adjacents);
-  return allErrors.filter((e: any) => e._originalKind === 'adjacency_degree_violation' || e._originalKind === 'adjacency_closed_loop_too_big' || e._originalKind === 'adjacency_closed_loop_not_exact');
+  const all = detectConstraintConflicts(guests, tables, constraints ?? {}, true, adjacents);
+  return all.filter(
+    (e: any) =>
+      e._originalKind === "adjacency_degree_violation" ||
+      e._originalKind === "adjacency_closed_loop_too_big" ||
+      e._originalKind === "adjacency_closed_loop_not_exact",
+  );
 }
 
 export function generatePlanSummary(plan: SeatingPlan, guests: Guest[], tables: Table[]): string {
   const enginePlan: Engine.SeatingPlanOut = {
-    tables: plan.tables.map(t => ({ tableId: String(t.id), seats: Array.isArray(t.seats) ? t.seats : [] })),
+    tables: plan.tables.map((t) => ({ tableId: String(t.id), seats: Array.isArray(t.seats) ? t.seats : [] })),
     score: 1.0,
     seedUsed: plan.id,
   };
-  const engineGuests = guests.map(g => ({
+  const engineGuests = guests.map((g) => ({
     ...g,
     id: String(g.id),
     name: g.name ?? `Guest ${g.id}`,
     count: Math.max(1, Math.floor(Number(g.count ?? countHeads(g.name)) || 1)),
   }));
-  const engineTables = tables.map(t => {
-    const capacity = getCapacity(t);
-    return {
-      id: t.id,
-      name: t.name ?? undefined,
-      seats: Array.isArray(t.seats) ? t.seats : [],
-      capacity
-    };
-  });
-  return Engine.generatePlanSummary(enginePlan, engineGuests, engineTables);
+  const engineTables = tables.map((t) => ({
+    id: t.id,
+    name: t.name ?? undefined,
+    seats: Array.isArray(t.seats) ? t.seats : [],
+    capacity: getCapacity(t),
+  }));
+  return Engine.generatePlanSummary(enginePlan, engineGuests as any, engineTables as any);
 }
 
-function mapErrorType(kind: Engine.ConflictKind): 'error' | 'warn' {
+function mapErrorType(kind: Engine.ConflictKind): "error" | "warn" {
   switch (kind) {
-    case 'must_cycle':
-    case 'invalid_input_data':
-    case 'self_reference_ignored':
-    case 'assignment_conflict':
-    case 'cant_within_must_group':
-    case 'group_too_big_for_any_table':
-    case 'unknown_guest':
-    case 'adjacency_closed_loop_not_exact':
-      return 'error';
-    case 'adjacency_degree_violation':
-    case 'adjacency_closed_loop_too_big':
-      return 'warn';
+    case "must_cycle":
+    case "invalid_input_data":
+    case "self_reference_ignored":
+    case "assignment_conflict":
+    case "cant_within_must_group":
+    case "group_too_big_for_any_table":
+    case "unknown_guest":
+    case "adjacency_closed_loop_not_exact":
+      return "error";
+    case "adjacency_degree_violation":
+    case "adjacency_closed_loop_too_big":
+      return "warn";
     default:
-      return 'error';
+      return "error";
   }
 }

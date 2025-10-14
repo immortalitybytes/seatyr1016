@@ -30,8 +30,8 @@ const Header: React.FC = () => {
 
   // Determine premium status from multiple sources to ensure accuracy
   const isPremium = 
-    isPremiumSubscription(subscription) || 
-    isPremiumSubscription(state.subscription);
+    isPremiumSubscription(subscription, state.trial) || 
+    isPremiumSubscription(state.subscription, state.trial);
 
   useEffect(() => {
     // Initialize user from session
@@ -129,7 +129,7 @@ const Header: React.FC = () => {
           return;
         }
 
-        const sub = data?.[0] || null;
+        const sub = data || null;
         setSubscription(sub);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
 
@@ -140,7 +140,7 @@ const Header: React.FC = () => {
             .select('*')
             .eq('user_id', user.id)
             .gt('expires_on', new Date().toISOString())
-            .limit(1);
+            .maybeSingle();
 
           if (!trialError && trialData?.length > 0) {
             const trialSubscription = {
@@ -179,7 +179,7 @@ const Header: React.FC = () => {
                   .select('*')
                   .eq('user_id', user.id)
                   .order('current_period_end', { ascending: false })
-                  .limit(1);
+                  .maybeSingle();
 
                 const refreshedSubscription = refreshedData?.[0] || null;
                 if (refreshedSubscription) {
@@ -222,14 +222,14 @@ const Header: React.FC = () => {
           .select('*')
           .eq('user_id', userId)
           .order('current_period_end', { ascending: false })
-          .limit(1);
+          .maybeSingle();
 
         if (error) {
           console.error('Subscription fetch error:', error);
           return;
         }
 
-        const sub = data?.[0] || null;
+        const sub = data || null;
         setSubscription(sub);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
 
@@ -239,15 +239,15 @@ const Header: React.FC = () => {
             .select('*')
             .eq('user_id', userId)
             .gt('expires_on', new Date().toISOString())
-            .limit(1);
+            .maybeSingle();
 
-          if (!trialError && trialData?.length > 0) {
+          if (!trialError && trialData) {
             const trialSubscription = {
-              id: `trial-${trialData[0].id}`,
+              id: `trial-${trialData.id}`,
               user_id: userId,
               status: 'active',
-              current_period_start: trialData[0].start_date,
-              current_period_end: trialData[0].expires_on,
+              current_period_start: trialData.start_date,
+              current_period_end: trialData.expires_on,
               cancel_at_period_end: true
             };
             setSubscription(trialSubscription);

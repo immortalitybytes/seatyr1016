@@ -484,8 +484,9 @@ const GuestManager: React.FC = () => {
           <div className="space-y-2 mb-2">
             <p className="text-sm text-gray-700">Enter guest names separated by commas or line breaks.</p>
             <table className="w-full invisible">
-              <tr>
-                <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
+              <tbody>
+                <tr>
+                  <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
                 <td className="text-right">
                   {isPremium ? (
                     <p className="text-sm text-gray-700">Premium Plan: {totalGuests} guests used</p>
@@ -493,7 +494,8 @@ const GuestManager: React.FC = () => {
                     <p className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</p>
                   )}
                 </td>
-              </tr>
+                </tr>
+              </tbody>
             </table>
           </div>
           <textarea
@@ -601,8 +603,9 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>Enter guest names separated by commas or line breaks.</p>
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
             <table className="w-full invisible">
-              <tr>
-                <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
+              <tbody>
+                <tr>
+                  <td className="text-sm text-gray-700">Connect couples and parties with an ampersand ("&").</td>
                 <td className="text-right">
                   {isPremium ? (
                     <p className="text-sm text-gray-700">Premium Plan: {totalGuests} guests used</p>
@@ -610,7 +613,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                     <p className="text-sm text-gray-700">Free Plan: {totalGuests}/80 guests used</p>
                   )}
                 </td>
-              </tr>
+                </tr>
+              </tbody>
             </table>
           </div>
           <textarea
