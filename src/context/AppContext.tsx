@@ -575,6 +575,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (alive) {
           dispatch({ type: "SET_SUBSCRIPTION", payload: sub || null });
           console.log("[PRE-SEED] Subscription:", sub ? "FOUND" : "NONE");
+          if (sub) {
+            console.log("[PRE-SEED] Subscription details:", {
+              status: sub.status,
+              current_period_end: sub.current_period_end,
+              cancel_at_period_end: sub.cancel_at_period_end
+            });
+          }
         }
 
         // trial via maybeSingle (no 406)
@@ -756,6 +763,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const mode = deriveMode(state.user, state.subscription, state.trial);
+  
+  // Debug logging for mode derivation
+  useEffect(() => {
+    console.log("[MODE DEBUG]", {
+      mode,
+      hasUser: !!state.user,
+      subscription: state.subscription,
+      trial: state.trial,
+      isPremium: isPremiumSubscription(state.subscription, state.trial)
+    });
+  }, [mode, state.user, state.subscription, state.trial]);
+  
   const value = useMemo(() => ({ state, dispatch, mode }), [state, mode]);
 
   return (

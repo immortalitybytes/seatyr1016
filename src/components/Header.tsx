@@ -26,6 +26,16 @@ const Header: React.FC = () => {
 
   // Use only context state for premium status to avoid race conditions
   const isPremium = isPremiumSubscription(state.subscription, state.trial);
+  
+  // Debug logging for premium status
+  useEffect(() => {
+    console.log("[HEADER DEBUG]", {
+      isPremium,
+      subscription: state.subscription,
+      trial: state.trial,
+      user: state.user?.email
+    });
+  }, [isPremium, state.subscription, state.trial, state.user]);
 
   useEffect(() => {
     // Initialize user from session
