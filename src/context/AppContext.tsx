@@ -567,11 +567,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         console.log("[PRE-SEED] User set:", uid);
 
         // subscription via maybeSingle (no 406 on 0 rows)
-        const { data: sub } = await supabase
+        const { data: sub, error: subError } = await supabase
           .from("subscriptions")
           .select("*")
           .eq("user_id", uid)
           .maybeSingle();
+        
+        if (subError) {
+          console.error("[PRE-SEED] Subscription query error:", subError);
+        }
         if (alive) {
           dispatch({ type: "SET_SUBSCRIPTION", payload: sub || null });
           console.log("[PRE-SEED] Subscription:", sub ? "FOUND" : "NONE");
