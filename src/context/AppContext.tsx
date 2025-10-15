@@ -566,12 +566,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         dispatch({ type: "SET_USER", payload: session.user });
         console.log("[PRE-SEED] User set:", uid);
 
-        // subscription via maybeSingle (no 406 on 0 rows)
-        const { data: sub, error: subError } = await supabase
+        // subscription via limit(1) to handle multiple records gracefully
+        const { data: subData, error: subError } = await supabase
           .from("subscriptions")
           .select("*")
           .eq("user_id", uid)
-          .maybeSingle();
+          .order("current_period_end", { ascending: false })
+          .limit(1);
+        
+        const sub = subData?.[0] || null;
         
         if (subError) {
           console.error("[PRE-SEED] Subscription query error:", subError);
@@ -588,12 +591,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           }
         }
 
-        // trial via maybeSingle (no 406)
-        const { data: trial } = await supabase
+        // trial via limit(1) to handle multiple records gracefully
+        const { data: trialData, error: trialError } = await supabase
           .from("trial_subscriptions")
           .select("expires_on, expires_at")
           .eq("user_id", uid)
-          .maybeSingle();
+          .order("expires_on", { ascending: false })
+          .limit(1);
+        
+        const trial = trialData?.[0] || null;
+        
+        if (trialError) {
+          console.error("[PRE-SEED] Trial query error:", trialError);
+        }
         if (alive) {
           dispatch({ type: "SET_TRIAL", payload: trial || null });
           console.log("[PRE-SEED] Trial:", trial ? "ACTIVE" : "NONE");
