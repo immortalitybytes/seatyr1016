@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
-import { Users, Table, ClipboardList, MapPin, Crown, UserCircle, ArmchairIcon as ChairIcon } from 'lucide-react';
-import Button from './Button';
+import { Users, Table, ClipboardList, Crown, UserCircle, ArmchairIcon as ChairIcon } from 'lucide-react';
 import AuthModal from './AuthModal';
 import PremiumModal from './PremiumModal';
 import MostRecentChoiceModal from './MostRecentChoiceModal';
 import { supabase } from '../lib/supabase';
-import { redirectToCheckout } from '../lib/stripe';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import {
-  saveMostRecentState,
   getMostRecentState
 } from '../lib/mostRecentState';
 import { clearAllSeatyrData } from '../lib/sessionSettings';
@@ -19,8 +16,7 @@ const Header: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showRecentChoice, setShowRecentChoice] = useState(false);
-  const [user, setUser] = useState(null);
-  const [subscription, setSubscription] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [subscriptionSyncing, setSubscriptionSyncing] = useState(false);
   const [syncRequested, setSyncRequested] = useState(false);
@@ -28,10 +24,8 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useApp();
 
-  // Determine premium status from multiple sources to ensure accuracy
-  const isPremium = 
-    isPremiumSubscription(subscription, state.trial) || 
-    isPremiumSubscription(state.subscription, state.trial);
+  // Use only context state for premium status to avoid race conditions
+  const isPremium = isPremiumSubscription(state.subscription, state.trial);
 
   useEffect(() => {
     // Initialize user from session
@@ -64,7 +58,6 @@ const Header: React.FC = () => {
         fetchSubscription(newUser.id, true); // Force fetch on auth change
       } else {
         // Clear subscription and reset app state when user logs out
-        setSubscription(null);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: null });
         dispatch({ type: 'RESET_APP_STATE' });
       }
@@ -73,15 +66,12 @@ const Header: React.FC = () => {
     return () => authSubscription.unsubscribe();
   }, [dispatch]);
 
-  // Keep local state in sync with context state
+  // Keep local user state in sync with context state
   useEffect(() => {
     if (state.user && state.user !== user) {
       setUser(state.user);
     }
-    if (state.subscription && state.subscription !== subscription) {
-      setSubscription(state.subscription);
-    }
-  }, [state.user, state.subscription, user, subscription]);
+  }, [state.user, user]);
 
   // Throttled subscription syncing
   useEffect(() => {
@@ -130,7 +120,6 @@ const Header: React.FC = () => {
         }
 
         const sub = data || null;
-        setSubscription(sub);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
 
         if (!sub) {
@@ -151,7 +140,6 @@ const Header: React.FC = () => {
               current_period_end: trialData[0].expires_on,
               cancel_at_period_end: true
             };
-            setSubscription(trialSubscription);
             dispatch({ type: 'SET_SUBSCRIPTION', payload: trialSubscription });
           } else {
             // Special case for VIP users - check only once on login, not repeatedly
@@ -183,7 +171,6 @@ const Header: React.FC = () => {
 
                 const refreshedSubscription = refreshedData?.[0] || null;
                 if (refreshedSubscription) {
-                  setSubscription(refreshedSubscription);
                   dispatch({
                     type: 'SET_SUBSCRIPTION',
                     payload: refreshedSubscription
@@ -230,7 +217,6 @@ const Header: React.FC = () => {
         }
 
         const sub = data || null;
-        setSubscription(sub);
         dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
 
         if (!sub) {
@@ -250,7 +236,6 @@ const Header: React.FC = () => {
               current_period_end: trialData.expires_on,
               cancel_at_period_end: true
             };
-            setSubscription(trialSubscription);
             dispatch({ type: 'SET_SUBSCRIPTION', payload: trialSubscription });
           }
         }
@@ -416,7 +401,6 @@ const Header: React.FC = () => {
         <MostRecentChoiceModal
           userId={user.id}
           isPremium={isPremium}
-          recentTimestamp={null}
           onClose={() => setShowRecentChoice(false)}
           onRestoreRecent={() => {
             getMostRecentState(user.id).then(recent => {
