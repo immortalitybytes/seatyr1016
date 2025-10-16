@@ -23,7 +23,7 @@ import {
   migrateState,
   migrateAssignmentsToIdKeys,
 } from "../utils/assignments";
-import MostRecentChoiceModal from "../Components/MostRecentChoiceModal";
+import MostRecentChoiceModal from "../components/MostRecentChoiceModal";
 import { generateSeatingPlans as engineGenerate } from "../utils/seatingAlgorithm";
 
 /**
