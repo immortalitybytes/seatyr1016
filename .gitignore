@@ -1,6 +1,16 @@
-node_modules/
-.env
+# macOS
+.DS_Store
 
-# Local Netlify folder
-.netlify
-OldCodeForCursor0917/
+# Node/JS
+node_modules/
+.next/
+dist/
+build/
+.turbo/
+.vercel/
+coverage/
+
+# Env files
+.env
+.env.*
+!.env.example
