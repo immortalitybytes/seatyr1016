@@ -192,6 +192,13 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'LOAD_MOST_RECENT':
     case 'LOAD_SAVED_SETTING': {
       const incoming = sanitizeAndMigrateAppState(action.payload);
+      console.log('[Reducer] Importing state:', {
+        type: action.type,
+        guests: incoming.guests?.length,
+        constraints: Object.keys(incoming.constraints || {}).length,
+        assignments: Object.keys(incoming.assignments || {}).length,
+        adjacents: Object.keys(incoming.adjacents || {}).length
+      });
       const assignmentSignature = JSON.stringify(
         Object.entries(incoming.assignments || {}).sort((a,b) => a[0].localeCompare(b[0]))
       );
@@ -257,15 +264,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
   const [fatalError, setFatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
+  const hasRestoredRef = useRef(false);
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
-    let isInitialized = false;
-    
     // Check initial session state on mount
     const checkInitialSession = async () => {
-      if (isInitialized) return;
-      isInitialized = true;
+      if (hasRestoredRef.current) return;
+      hasRestoredRef.current = true;
       
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -297,8 +303,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           try {
             const saved = localStorage.getItem('seatyr_app_state');
             if (saved) {
-              dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
-              console.log('[Session Restore] Anonymous user state restored from localStorage');
+              const parsed = JSON.parse(saved);
+              console.log('[Session Restore] Restoring anonymous state:', {
+                guests: parsed.guests?.length,
+                constraints: Object.keys(parsed.constraints || {}).length,
+                assignments: Object.keys(parsed.assignments || {}).length
+              });
+              dispatch({ type: 'IMPORT_STATE', payload: parsed });
             }
           } catch (err) {
             console.warn('[Session Restore] Failed to restore anonymous state:', err);
@@ -327,17 +338,36 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       try {
         if (event === 'SIGNED_OUT' || !session) {
-          const wasAuthed = userRef.current !== null;
           resetEntitlementsPromise();
-          dispatch({ type: 'RESET_APP_STATE' });
-
-          if (wasAuthed) {
+          
+          // Only reset if user explicitly signed out
+          // Don't reset on page reload (hasRestoredRef prevents double restore)
+          if (event === 'SIGNED_OUT') {
+            dispatch({ type: 'RESET_APP_STATE' });
             localStorage.removeItem('seatyr_app_state');
-          } else {
+            userRef.current = null;
+            setSessionTag('ANON');
+            return;
+          }
+          
+          // For anonymous users on reload, we already restored in checkInitialSession
+          // Don't RESET and re-IMPORT (would wipe data then restore stale data)
+          if (!hasRestoredRef.current) {
+            // Edge case: auth state change fired before initial check completed
             try {
               const saved = localStorage.getItem('seatyr_app_state');
-              if (saved) dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
-            } catch { /* ignore */ }
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                console.log('[Auth State] Restoring anonymous (fallback):', {
+                  guests: parsed.guests?.length,
+                  constraints: Object.keys(parsed.constraints || {}).length
+                });
+                dispatch({ type: 'IMPORT_STATE', payload: parsed });
+                hasRestoredRef.current = true;
+              }
+            } catch (err) {
+              console.warn('[Auth State] Fallback restore failed:', err);
+            }
           }
 
           userRef.current = null;
@@ -462,7 +492,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const { user, subscription, trial, seatingPlans, ...rest } = state;
         // PII minimalism: never store user or entitlement details in localStorage
         localStorage.setItem('seatyr_app_state', JSON.stringify(rest));
-        console.log('[Anonymous Persist] State saved to localStorage');
+        console.log('[Anonymous Persist] State saved to localStorage:', {
+          guests: rest.guests?.length,
+          tables: rest.tables?.length,
+          constraints: Object.keys(rest.constraints || {}).length,
+          assignments: Object.keys(rest.assignments || {}).length,
+          adjacents: Object.keys(rest.adjacents || {}).length
+        });
       } catch (err) {
         console.warn('[Anonymous Persist] Failed to save:', err);
       }

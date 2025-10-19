@@ -148,6 +148,7 @@ const TableManager: React.FC = () => {
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [assignmentWarnings, setAssignmentWarnings] = useState<Record<string, string[]>>({});
+  const [rawAssignmentInput, setRawAssignmentInput] = useState<Record<string, string>>({});
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = mode === 'premium';
@@ -605,11 +606,24 @@ const TableManager: React.FC = () => {
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
                           <input 
                             type="text" 
-                            value={assignedTables} 
-                            onChange={e => handleUpdateAssignment(guest.id, e.target.value)} 
+                            value={rawAssignmentInput[guest.id] ?? assignedTables} 
+                            onChange={e => setRawAssignmentInput(prev => ({ ...prev, [guest.id]: e.target.value }))}
+                            onBlur={e => {
+                              handleUpdateAssignment(guest.id, e.target.value);
+                              // Clear raw input after processing
+                              setRawAssignmentInput(prev => {
+                                const { [guest.id]: _, ...rest } = prev;
+                                return rest;
+                              });
+                            }}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur(); // Trigger onBlur
+                              }
+                            }}
                             className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" 
                             placeholder={mode === 'premium' ? "e.g., 1, 3, 5 or Table A, Table B (guest may sit at any)" : "e.g., 1, 3, 5 (guest may sit at any of these)"}
-                            title="Enter multiple tables separated by commas. Guest will be placed at one of these tables."
+                            title="Enter multiple tables separated by commas. Guest will be placed at one of these tables. Press Enter or click away to apply."
                           />
                           {assignedTables && parseAssignmentIds(assignedTables).length > 1 && (
                             <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
