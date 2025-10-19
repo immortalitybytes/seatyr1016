@@ -260,16 +260,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
-    let isInitialized = false;
+    let isMounted = true;
     
     // Check initial session state on mount
     const checkInitialSession = async () => {
-      if (isInitialized) return;
-      isInitialized = true;
+      console.log('[Init] Starting session check...');
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('[Init] Session error:', sessionError);
+          throw sessionError;
+        }
+        
+        if (!isMounted) return;
+        
         if (session?.user) {
+          console.log('[Init] User authenticated:', session.user.email);
           // User is already authenticated, process the session
           const user = session.user;
           userRef.current = user;
@@ -279,6 +287,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
           dispatch({ type: 'SET_TRIAL', payload: trial });
           setSessionTag('ENTITLED');
+          console.log('[Init] Session tag set to ENTITLED');
           
           // Auto-restore premium state without modal (seamless UX)
           if (isPremiumSubscription(subscription, trial)) {
@@ -293,6 +302,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             });
           }
         } else {
+          console.log('[Init] No session, user is anonymous');
           // No session, check for anonymous state
           try {
             const saved = localStorage.getItem('seatyr_app_state');
@@ -304,11 +314,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             console.warn('[Session Restore] Failed to restore anonymous state:', err);
           }
           setSessionTag('ANON');
+          console.log('[Init] Session tag set to ANON');
         }
       } catch (err: any) {
         console.error("[FSM] Initial session check error:", err?.message || err);
-        setSessionTag('ERROR');
-        setFatalError(err instanceof Error ? err : new Error(String(err)));
+        // Set to ANON on error so app doesn't hang
+        setSessionTag('ANON');
+        console.log('[Init] Session tag set to ANON (error fallback)');
       }
     };
     
@@ -375,7 +387,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setFatalError(err instanceof Error ? err : new Error(String(err)));
       }
     });
-    return () => authListener.subscription.unsubscribe();
+    
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   // Trial expiry observer: clears trial in-memory once expired
