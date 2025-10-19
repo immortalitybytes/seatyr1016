@@ -45,6 +45,28 @@
 
 ---
 
+### 1b. **Premium: Cannot Assign by Table Name**
+**Severity:** 🔴 Critical (Premium Feature)  
+**Impact:** Premium users cannot use table names in assignments  
+
+**Expected Behavior:**
+- User renames table 1 to "Head Table"
+- User can assign guest to "Head Table" (not just "1")
+- Input accepts: "Head Table, VIP Table, 5"
+- Parses table names to IDs correctly
+
+**Actual Behavior:**
+- Input rejects letters
+- Or table names not recognized
+- Premium users forced to use numeric IDs
+
+**Use Cases Blocked:**
+- Natural language assignments ("Head Table")
+- Easy-to-remember table references
+- Premium feature completely non-functional
+
+---
+
 ### 2. **Reload Blanks Screen**
 **Severity:** 🔴 Critical  
 **Impact:** Users lose all work on page reload  
@@ -121,18 +143,19 @@ No common allowed table for grouped guests
 
 ## 🎯 PRIORITY ISSUES
 
-### P0 - Must Fix:
-1. **Reload blanks screen** (if attempted fixes are re-applied)
-2. **Multi-table assignments** (core feature)
+### P0 - Must Fix (Blocking Core Features):
+1. **Multi-table assignments** - Cannot assign guest to "one of several tables"
+2. **Premium table name assignments** - Cannot use table names (only numbers work)
+3. **Reload blanks screen** - Site breaks when fixes are applied
 
-### P1 - Should Fix:
-3. **Reload data loss** (UX issue)
-4. **Warning message clarity** (confusing)
+### P1 - Should Fix (UX Issues):
+4. **Reload data loss** - Loses guests/constraints on page reload
+5. **Warning message clarity** - "No common allowed table" confusing
 
-### P2 - Nice to Have:
-5. Auto-save on plan generation
-6. Better error messages
-7. Input validation feedback
+### P2 - Nice to Have (Enhancements):
+6. Auto-save assignments on plan generation
+7. Better error messages
+8. Input validation feedback
 
 ---
 
