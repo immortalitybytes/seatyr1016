@@ -508,8 +508,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const mode = useMemo(() => deriveMode(state.user, state.subscription, state.trial), [state.user, state.subscription, state.trial]);
   const value = useMemo(() => ({ state, dispatch, mode, sessionTag }), [state, mode, sessionTag]);
 
-  // Invisible render gate (prevents flicker)
-  if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') return null;
+  // Show loading screen during initialization instead of invisible gate (fixes blank screen on reload)
+  if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading Seatyr...</p>
+        </div>
+      </div>
+    );
+  }
+  
   if (fatalError) { throw fatalError; }
 
   return (
