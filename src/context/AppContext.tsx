@@ -11,12 +11,13 @@ import type {
   UserSubscription, TrialSubscription
 } from '../types';
 
-import { getMostRecentState, clearMostRecentState, saveMostRecentState } from '../lib/mostRecentState';
+import { getMostRecentState, saveMostRecentState } from '../lib/mostRecentState';
 import { countHeads } from '../utils/formatters';
 import { getCapacity } from '../utils/tables';
 import { migrateState, migrateAssignmentsToIdKeys, parseAssignmentIds } from '../utils/assignments';
 import { generateSeatingPlans as engineGenerate } from '../utils/seatingAlgorithm';
-import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
+// Modal removed - now using auto-restore for seamless UX
+// import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
 
 type SessionTag = 'INITIALIZING' | 'AUTHENTICATING' | 'ANON' | 'ENTITLED' | 'ERROR';
 type AppAction = { type: string; payload?: any };
@@ -254,16 +255,18 @@ const AppContext = createContext<{
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
-  const [mostRecentState, setMostRecentState] = useState<AppState | null>(null);
-  const [showRecentModal, setShowRecentModal] = useState(false);
-  const [recentError, setRecentError] = useState<string | null>(null);
   const [fatalError, setFatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
+    let isInitialized = false;
+    
     // Check initial session state on mount
     const checkInitialSession = async () => {
+      if (isInitialized) return;
+      isInitialized = true;
+      
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -277,20 +280,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           dispatch({ type: 'SET_TRIAL', payload: trial });
           setSessionTag('ENTITLED');
           
+          // Auto-restore premium state without modal (seamless UX)
           if (isPremiumSubscription(subscription, trial)) {
             getMostRecentState(user.id).then(data => {
               if (data && (data.guests?.length ?? 0) > 0) {
-                setMostRecentState(data);
-                setShowRecentModal(true);
+                // Directly restore instead of showing modal
+                dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
+                console.log('[Session Restore] Premium user state restored automatically');
               }
-            }).catch((err) => setRecentError(err?.message || 'Error fetching recent state.'));
+            }).catch((err) => {
+              console.warn('[Session Restore] Failed to restore premium state:', err?.message);
+            });
           }
         } else {
           // No session, check for anonymous state
           try {
             const saved = localStorage.getItem('seatyr_app_state');
-            if (saved) dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
-          } catch { /* ignore */ }
+            if (saved) {
+              dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
+              console.log('[Session Restore] Anonymous user state restored from localStorage');
+            }
+          } catch (err) {
+            console.warn('[Session Restore] Failed to restore anonymous state:', err);
+          }
           setSessionTag('ANON');
         }
       } catch (err: any) {
@@ -303,8 +315,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     checkInitialSession();
     
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip INITIAL_SESSION since we handle it manually in checkInitialSession
+      if (event === 'INITIAL_SESSION') return;
+      
       const RELEVANT_EVENTS = new Set([
-        'INITIAL_SESSION','SIGNED_IN','USER_UPDATED','PASSWORD_RECOVERY','TOKEN_REFRESHED','SIGNED_OUT'
+        'SIGNED_IN','USER_UPDATED','PASSWORD_RECOVERY','TOKEN_REFRESHED','SIGNED_OUT'
       ]);
       if (!RELEVANT_EVENTS.has(event)) return;
 
@@ -343,13 +358,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         dispatch({ type: 'SET_TRIAL', payload: trial });
         setSessionTag('ENTITLED');
 
+        // Auto-restore premium state on new login (seamless UX)
         if (isPremiumSubscription(subscription, trial)) {
           getMostRecentState(user.id).then(data => {
             if (data && (data.guests?.length ?? 0) > 0) {
-              setMostRecentState(data);
-              setShowRecentModal(true);
+              dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
+              console.log('[Session Restore] Premium user state restored on sign-in');
             }
-          }).catch((err) => setRecentError(err?.message || 'Error fetching recent state.'));
+          }).catch((err) => {
+            console.warn('[Session Restore] Failed to restore on sign-in:', err?.message);
+          });
         }
       } catch (err: any) {
         console.error("[FSM] Session Error:", err?.message || err);
@@ -411,7 +429,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const isPremium = sessionTag === 'ENTITLED' && !!state.user && isPremiumSubscription(state.subscription, state.trial);
     if (!state.user?.id) return;                          // guard for mid-transition
-    if (!isPremium || showRecentModal) return;            // pause while modal is shown
+    if (!isPremium) return;                               // only autosave for premium users
     if (
       state.guests.length === 0 &&
       Object.keys(state.assignments).length === 0 &&
@@ -427,7 +445,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     return () => clearTimeout(t);
   }, [
-    sessionTag, showRecentModal, state.user, state.subscription, state.trial, autosavePayload, autosaveSignature
+    sessionTag, state.user, state.subscription, state.trial, autosavePayload, autosaveSignature
   ]);
 
   // Anonymous persistence to localStorage (no entitlements; no user)
@@ -444,8 +462,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const { user, subscription, trial, seatingPlans, ...rest } = state;
         // PII minimalism: never store user or entitlement details in localStorage
         localStorage.setItem('seatyr_app_state', JSON.stringify(rest));
-      } catch { /* ignore */ }
-    }, 1000);
+        console.log('[Anonymous Persist] State saved to localStorage');
+      } catch (err) {
+        console.warn('[Anonymous Persist] Failed to save:', err);
+      }
+    }, 100); // Reduced from 1000ms to 100ms for faster persistence
     return () => clearTimeout(t);
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, sessionTag, state.timestamp, state.userSetTables]);
 
@@ -494,24 +515,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={value}>
       {children}
-      {showRecentModal && state.user && isPremiumSubscription(state.subscription, state.trial) && (
-        <MostRecentChoiceModal
-          userId={state.user.id}
-          isPremium={isPremiumSubscription(state.subscription, state.trial)}
-          recentTimestamp={mostRecentState?.timestamp}
-          onClose={() => setShowRecentModal(false)}
-          onRestoreRecent={() => {
-            if (mostRecentState) dispatch({ type: 'LOAD_MOST_RECENT', payload: mostRecentState });
-            setShowRecentModal(false);
-          }}
-          onKeepCurrent={async () => {
-            if (state.user?.id) await clearMostRecentState(state.user.id);
-            setShowRecentModal(false);
-          }}
-          error={recentError}
-          loading={false}
-        />
-      )}
     </AppContext.Provider>
   );
 };

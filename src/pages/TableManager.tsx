@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
-import { normalizeAssignmentInputToIdsWithWarnings } from '../utils/assignments';
+import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from '../utils/assignments';
 import { getCapacity } from '../utils/tables';
 
 const useDebounce = (value: string, delay: number): string => {
@@ -147,6 +147,7 @@ const TableManager: React.FC = () => {
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  const [assignmentWarnings, setAssignmentWarnings] = useState<Record<string, string[]>>({});
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = mode === 'premium';
@@ -271,6 +272,13 @@ const TableManager: React.FC = () => {
       state.tables,
       mode === 'premium'
     );
+    
+    // Store warnings for this guest
+    setAssignmentWarnings(prev => ({
+      ...prev,
+      [guestId]: warnings
+    }));
+    
     if (warnings.length > 0) {
       dispatch({
         type: 'SET_WARNING',
@@ -595,7 +603,34 @@ const TableManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
-                          <input type="text" value={assignedTables} onChange={e => handleUpdateAssignment(guest.id, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder={mode === 'premium' ? "e.g., 1, 3, 5 or Table A, Table B" : "e.g., 1, 3, 5"} />
+                          <input 
+                            type="text" 
+                            value={assignedTables} 
+                            onChange={e => handleUpdateAssignment(guest.id, e.target.value)} 
+                            className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" 
+                            placeholder={mode === 'premium' ? "e.g., 1, 3, 5 or Table A, Table B (guest may sit at any)" : "e.g., 1, 3, 5 (guest may sit at any of these)"}
+                            title="Enter multiple tables separated by commas. Guest will be placed at one of these tables."
+                          />
+                          {assignedTables && parseAssignmentIds(assignedTables).length > 1 && (
+                            <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                              Multi-table option active - guest may sit at any of {parseAssignmentIds(assignedTables).length} tables
+                            </p>
+                          )}
+                          {assignmentWarnings[guest.id] && assignmentWarnings[guest.id].length > 0 && (
+                            <div className="mt-1 space-y-1">
+                              {assignmentWarnings[guest.id].map((warning, idx) => (
+                                <p key={idx} className="text-xs text-amber-600 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  </svg>
+                                  {warning}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                           {state.tables.length > 0 && <p className="text-xs text-gray-500 mt-1">Available: {getTableList()}</p>}
                         </div>
                         <div>
