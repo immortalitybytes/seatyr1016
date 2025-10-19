@@ -267,7 +267,11 @@ const TableManager: React.FC = () => {
   };
 
   const handleUpdateAssignment = (guestId: string, value: string) => {
-    const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(value, state.tables);
+    const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
+      value, 
+      state.tables,
+      mode === 'premium'
+    );
     if (warnings.length > 0) {
       dispatch({
         type: 'SET_WARNING',

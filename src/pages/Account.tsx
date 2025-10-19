@@ -12,15 +12,16 @@ import { isPremiumSubscription } from '../utils/premium';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 
 const Account: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, mode, sessionTag } = useApp();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
   const [isAccountInfoOpen, setIsAccountInfoOpen] = useState(true);
+
+  // Use SSOT for all auth/subscription state
+  const { user, subscription, trial } = state;
+  const isPremium = mode === 'premium';
 
   // Password change state
   const [newPassword, setNewPassword] = useState('');
@@ -35,46 +36,7 @@ const Account: React.FC = () => {
   const [showPasswordResetHighlight, setShowPasswordResetHighlight] = useState(false);
   const [animationCount, setAnimationCount] = useState(0);
 
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        setSessionLoading(true);
-        setSessionError(null);
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          setSessionError('Failed to verify your session. Please log in again.');
-          return;
-        }
-        
-        setUser(data.session?.user ?? null);
-        
-        // If we have a session user but not in context, update context
-        if (data.session?.user && !state.user) {
-          dispatch({ type: 'SET_USER', payload: data.session.user });
-        }
-      } catch (err) {
-        console.error('Error checking session:', err);
-        setSessionError('An error occurred while checking your session.');
-      } finally {
-        setSessionLoading(false);
-      }
-    };
-
-    // Set user from context if available, otherwise check session
-    if (state.user) {
-      setUser(state.user);
-    } else {
-      checkSession();
-    }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [state.user, dispatch]);
+  // Auth state is now managed by AppContext - no local effects needed
   
   // Check for password reset redirect
   useEffect(() => {
@@ -125,18 +87,17 @@ const Account: React.FC = () => {
   }, [showPasswordResetHighlight, animationCount]);
 
   const refreshSubscription = async () => {
-    const effectiveUser = user || state.user;
-    if (!effectiveUser) return;
+    if (!user) return;
     
     try {
       setLoadingSubscription(true);
-      console.log('Refreshing subscription data for user:', effectiveUser.id);
+      console.log('Refreshing subscription data for user:', user.id);
       
       // First check for regular subscription
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', effectiveUser.id)
+        .eq('user_id', user.id)
         .order('current_period_end', { ascending: false })
         .maybeSingle();
         
@@ -152,7 +113,7 @@ const Account: React.FC = () => {
       const { data: trialData, error: trialError } = await supabase
         .from('trial_subscriptions')
         .select('*')
-        .eq('user_id', effectiveUser.id)
+        .eq('user_id', user.id)
         .gt('expires_on', new Date().toISOString())
         .order('expires_on', { ascending: false })
         .maybeSingle();
@@ -162,7 +123,7 @@ const Account: React.FC = () => {
         // Create a virtual subscription object from the trial
         const virtualSubscription = {
           id: `trial-${trialData.id}`,
-          user_id: effectiveUser.id,
+          user_id: user.id,
           status: 'active',
           current_period_start: trialData.start_date,
           current_period_end: trialData.expires_on,
@@ -263,14 +224,14 @@ const Account: React.FC = () => {
     }
   };
 
-  const effectiveUser = user || state.user;
-  const isPremium = isPremiumSubscription(state.subscription);
+  // User is now managed by AppContext SSOT
 
   const toggleAccountInfo = () => {
     setIsAccountInfoOpen(!isAccountInfoOpen);
   };
 
-  if (sessionLoading) {
+  // Redirect to login if no user (handled by AppContext)
+  if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
@@ -280,14 +241,14 @@ const Account: React.FC = () => {
         <Card>
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#586D78] mx-auto mb-4"></div>
-            <p className="text-gray-600">Verifying your account...</p>
+            <p className="text-gray-600">Loading account information...</p>
           </div>
         </Card>
       </div>
     );
   }
 
-  if (!effectiveUser) {
+  if (!user) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
@@ -346,7 +307,7 @@ const Account: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <h2 className="text-lg font-semibold text-[#586D78]">Account Details</h2>
-                  <p className="text-gray-600 text-lg">{effectiveUser.email}</p>
+                  <p className="text-gray-600 text-lg">{user.email}</p>
                 </div>
                 
                 <div className="border-t pt-4">
@@ -491,7 +452,7 @@ const Account: React.FC = () => {
                 {state.subscription?.status === 'active' && !state.subscription.id.toString().startsWith('trial-') && (
                   <Button
                     variant="secondary"
-                    onClick={() => getCustomerPortal(effectiveUser.id)}
+                    onClick={() => getCustomerPortal(user.id)}
                     icon={<CreditCard className="w-4 h-4" />}
                     disabled={loadingSubscription}
                   >
@@ -502,7 +463,7 @@ const Account: React.FC = () => {
                 {showPaymentHistory && (
                   <div className="mt-6">
                     <h3 className="text-lg font-medium text-[#586D78] mb-4">Payment History</h3>
-                    <PaymentHistoryTable userId={effectiveUser.id} />
+                    <PaymentHistoryTable userId={user.id} />
                   </div>
                 )}
               </div>

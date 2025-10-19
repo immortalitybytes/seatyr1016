@@ -1,152 +1,99 @@
-/**
- * Utility functions for handling premium status and features
- */
-
+// src/utils/premium.ts
+import type { User } from '@supabase/supabase-js';
 import type { UserSubscription, TrialSubscription } from '../types';
 
-/**
- * Mode type for user gating (SSoT)
- */
 export type Mode = 'unsigned' | 'free' | 'premium';
 
-/**
- * Derive user mode from session state (SSoT)
- */
-export function deriveMode(user: any, subscription: UserSubscription | null | undefined, trial?: TrialSubscription | null): Mode {
+export function deriveMode(
+  user: User | null,
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): Mode {
   if (!user) return 'unsigned';
   return isPremiumSubscription(subscription, trial) ? 'premium' : 'free';
 }
 
-/**
- * Determine if a subscription indicates premium status
- */
-export function isPremiumSubscription(subscription: UserSubscription | null | undefined, trial?: TrialSubscription | null): boolean {
-  // Check for trial subscription first
-  if (trial) {
-    const expiryDate = new Date(trial.expires_on);
-    const now = new Date();
-    if (expiryDate > now) return true;
+export function isPremiumSubscription(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): boolean {
+  // Active trial grants premium
+  if (trial?.expires_on) {
+    const expiry = new Date(trial.expires_on);
+    if (expiry > new Date()) return true;
   }
 
   if (!subscription) return false;
-  
-  // Check for valid subscription statuses
-  if (['active', 'trialing', 'past_due'].includes(subscription.status)) {
+
+  // Treat active/trialing/past_due as premium (grace period)
+  const activeStatuses = ['active', 'trialing', 'past_due'];
+  if (activeStatuses.includes(subscription.status ?? '')) {
+    // Stripe timestamps may be ISO or epoch seconds -> normalize
+    if (subscription.current_period_end) {
+      const endDate = /^\d{10}$/.test(String(subscription.current_period_end))
+        ? new Date(Number(subscription.current_period_end) * 1000) // seconds -> ms
+        : new Date(subscription.current_period_end as any);
+      return endDate > new Date();
+    }
+    // Back-compat: if no current_period_end is present, keep premium
     return true;
   }
-  
-  // Also check if subscription is still within current period
-  if (subscription.current_period_end) {
-    // Handle Unix timestamp (seconds) or ISO date string
-    const endDate = isUnixTimestamp(subscription.current_period_end) 
-      ? new Date(Number(subscription.current_period_end) * 1000)
-      : new Date(subscription.current_period_end);
-    
-    if (endDate > new Date()) return true;
+
+  // Canceled but still inside paid window
+  if (subscription.status === 'canceled' && subscription.cancel_at_period_end) {
+    if (subscription.current_period_end) {
+      const endDate = /^\d{10}$/.test(String(subscription.current_period_end))
+        ? new Date(Number(subscription.current_period_end) * 1000)
+        : new Date(subscription.current_period_end as any);
+      return endDate > new Date();
+    }
   }
-  
   return false;
 }
 
-// Helper function to check if a value is likely a Unix timestamp in seconds
-function isUnixTimestamp(value: string): boolean {
-  return !isNaN(Number(value)) && value.length === 10;
+export function getMaxGuestLimit(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): number {
+  return isPremiumSubscription(subscription, trial) ? 10000 : 80;
 }
 
-/**
- * Get maximum number of guests allowed based on mode (SSoT)
- */
+export function getMaxSavedSettingsLimit(
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): number {
+  return isPremiumSubscription(subscription, trial) ? 50 : 5;
+}
+
+export function isSettingLoadable(
+  setting: any,
+  subscription: UserSubscription | null | undefined,
+  trial?: TrialSubscription | null
+): boolean {
+  if (!setting?.data?.guests) return true;
+  if (isPremiumSubscription(subscription, trial)) return true;
+  const totalHeads = (setting.data.guests || []).reduce(
+    (sum: number, g: any) => sum + (Number(g?.count) || 1),
+    0
+  );
+  return totalHeads <= getMaxGuestLimit(subscription, trial);
+}
+
+// Legacy mode-based helpers (wrappers for backward compatibility)
 export function getMaxGuestLimitByMode(mode: Mode): number {
-  return mode === 'premium' ? 2000 : 80;
+  return mode === 'premium' ? 10000 : 80;
 }
 
-/**
- * Get maximum number of saved settings allowed based on mode (SSoT)
- */
 export function getMaxSavedSettingsLimitByMode(mode: Mode): number {
-  return mode === 'premium' ? 30 : 5;
+  return mode === 'premium' ? 50 : 5;
 }
 
-/**
- * Get maximum number of guests allowed based on subscription status (legacy)
- */
-export function getMaxGuestLimit(subscription: UserSubscription | null | undefined): number {
-  return isPremiumSubscription(subscription) ? Number.MAX_SAFE_INTEGER : 80;
-}
-
-/**
- * Get maximum number of saved settings allowed based on subscription status (legacy)
- */
-export function getMaxSavedSettingsLimit(subscription: UserSubscription | null | undefined): number {
-  return isPremiumSubscription(subscription) ? 50 : 5;
-}
-
-/**
- * Check if user can add more guests
- */
-export function canAddGuests(subscription: UserSubscription | null | undefined, currentCount: number, addCount: number): boolean {
-  const maxLimit = getMaxGuestLimit(subscription);
+export function canAddGuests(subscription: UserSubscription | null | undefined, trial: TrialSubscription | null | undefined, currentCount: number, addCount: number): boolean {
+  const maxLimit = getMaxGuestLimit(subscription, trial);
   return (currentCount + addCount) <= maxLimit;
 }
 
-/**
- * Check if user can save more settings
- */
-export function canSaveMoreSettings(subscription: UserSubscription | null | undefined, currentCount: number): boolean {
-  const maxLimit = getMaxSavedSettingsLimit(subscription);
+export function canSaveMoreSettings(subscription: UserSubscription | null | undefined, trial: TrialSubscription | null | undefined, currentCount: number): boolean {
+  const maxLimit = getMaxSavedSettingsLimit(subscription, trial);
   return currentCount < maxLimit;
-}
-
-/**
- * Check if a saved setting is loadable based on the current subscription
- * Free users cannot load settings with more than 80 guests
- */
-export function isSettingLoadable(setting: any, subscription: UserSubscription | null | undefined): boolean {
-  if (!setting?.data?.guests) return true;
-  
-  if (isPremiumSubscription(subscription)) return true;
-  
-  return setting.data.guests.length <= getMaxGuestLimit(subscription);
-}
-
-/**
- * Get message for guest limits
- */
-export function getGuestLimitMessage(subscription: UserSubscription | null | undefined, currentCount: number): string {
-  const isPremium = isPremiumSubscription(subscription);
-  if (isPremium) {
-    return `${currentCount} guests`;
-  } else {
-    return `${currentCount}/80 guests used`;
-  }
-}
-
-/**
- * Get debug information about subscription
- */
-export function getSubscriptionDebugInfo(subscription: UserSubscription | null | undefined): string {
-  if (!subscription) return 'No subscription data';
-  
-  return JSON.stringify({
-    id: subscription.id,
-    status: subscription.status,
-    current_period_end: subscription.current_period_end,
-    cancelled: subscription.cancel_at_period_end,
-  }, null, 2);
-}
-
-/**
- * Get all features based on subscription status
- */
-export function getFeatures(subscription: UserSubscription | null | undefined): Record<string, boolean | number> {
-  const isPremium = isPremiumSubscription(subscription);
-  
-  return {
-    isPremium,
-    maxGuests: getMaxGuestLimit(subscription),
-    maxSavedSettings: getMaxSavedSettingsLimit(subscription),
-    unlimitedExports: isPremium,
-    prioritySupport: isPremium,
-    advancedConstraints: isPremium
-  };
 }

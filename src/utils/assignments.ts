@@ -1,44 +1,49 @@
-import type { Table, Guest, GuestID, Constraints, Adjacents } from "../types";
-
-/**
- * Tokenizer: punctuation-tolerant for inputs like "2. 3, College, 5".
- * Splits on commas, whitespace, and periods: /[,\s.]+/
- */
+// src/utils/assignments.ts
+import type { Guest, GuestID, Constraints, Adjacents } from "../types";
 
 export function normalizeAssignmentInputToIdsWithWarnings(
   raw: string | string[] | undefined | null,
-  tables: Pick<Table, "id" | "name">[],
+  tables: Array<{ id: number; name?: string | null }>,
+  isPremium: boolean
 ): { idCsv: string; warnings: string[] } {
   if (!raw) return { idCsv: "", warnings: [] };
   const inputStr = Array.isArray(raw) ? raw.join(",") : String(raw);
+
   const nameToId = new Map<string, number>();
+  const idSet = new Set<number>();
   for (const t of tables) {
+    if (t?.id) idSet.add(t.id);
     if (t?.name) nameToId.set(t.name.trim().toLowerCase(), t.id);
   }
 
   const resolved = new Set<number>();
   const warnings: string[] = [];
 
+  // Punctuation-tolerant; DO NOT split on '-' to preserve hyphenated names
   const tokens = inputStr
-    .split(/[,\s.]+/)
-    .map((s) => s.trim())
+    .split(/[,\s.;/|]+/)
+    .map(s => s.trim())
     .filter(Boolean);
 
   for (const token of tokens) {
+    // Rule: numeric tokens are treated as table IDs
     const asNum = Number(token);
-    if (Number.isFinite(asNum) && asNum > 0) {
-      if (tables.some((t) => t.id === asNum)) resolved.add(asNum);
-      else warnings.push(`Unknown table ID: ${token}`);
-    } else {
+    if (Number.isFinite(asNum) && Number.isInteger(asNum) && asNum > 0) {
+      if (idSet.has(asNum)) resolved.add(asNum);
+      else warnings.push(`Unknown table ID: "${token}"`);
+      continue;
+    }
+    // Premium allows resolving by table name
+    if (isPremium) {
       const id = nameToId.get(token.toLowerCase());
-      if (typeof id === "number") resolved.add(id);
-      else warnings.push(`Unknown table name: ${token}`);
+      if (typeof id === 'number') resolved.add(id);
+      else warnings.push(`Unknown table name: "${token}"`);
+    } else {
+      warnings.push(`Using table names ("${token}") requires Premium.`);
     }
   }
 
-  const idCsv = Array.from(resolved)
-    .sort((a, b) => a - b)
-    .join(",");
+  const idCsv = Array.from(resolved).sort((a,b)=>a-b).join(',');
   return { idCsv, warnings };
 }
 
@@ -53,7 +58,6 @@ export function normalizeGuestInputToIdsWithWarnings(
 
   const ids: string[] = [];
   const warnings: string[] = [];
-
   const tokens = inputStr
     .split(/[,\s.]+/)
     .map((s) => s.trim())
@@ -104,7 +108,7 @@ export function migrateAssignmentsToIdKeys(
     else {
       const id = nameToId.get(k.toLowerCase());
       if (id) out[id] = v;
-      else if (import.meta?.env?.DEV) console.warn(`Unresolved assignment key: "${k}"`);
+      // (Optional) could collect warnings for dropped keys; no UI drift now
     }
   }
   return out;
@@ -117,51 +121,35 @@ export function migrateState(state: {
 }): { constraints: Constraints; adjacents: Adjacents } {
   if (!state || !Array.isArray(state.guests)) return { constraints: {}, adjacents: {} };
 
-  const guestIdToName = new Map<GuestID, string>(
-    state.guests.map((g) => [g.id, squash(g.name)]),
-  );
-  const guestNameToId = new Map<string, GuestID>(
-    state.guests.map((g) => [squash(g.name), g.id]),
-  );
+  const guestNameToId = new Map<string, GuestID>(state.guests.map((g) => [squash(g.name), g.id]));
   const validIds = new Set<GuestID>(state.guests.map((g) => g.id));
 
   const constraints: Constraints = {};
   for (const [k1, row] of Object.entries(state.constraints || {})) {
-    const id1 = validIds.has(k1 as GuestID)
-      ? (k1 as GuestID)
-      : guestNameToId.get(squash(k1));
-    if (!id1 || !guestIdToName.has(id1)) continue;
+    const id1 = validIds.has(k1 as GuestID) ? (k1 as GuestID) : guestNameToId.get(squash(k1));
+    if (!id1) continue;
 
     for (const [k2, value] of Object.entries(row || {})) {
-      const id2 = validIds.has(k2 as GuestID)
-        ? (k2 as GuestID)
-        : guestNameToId.get(squash(k2));
-      if (!id2 || !guestIdToName.has(id2) || id1 === id2) continue;
-      if (value === "must" || value === "cannot" || value === "")
+      const id2 = validIds.has(k2 as GuestID) ? (k2 as GuestID) : guestNameToId.get(squash(k2));
+      if (!id2 || id1 === id2) continue;
+      if (["must", "cannot", ""].includes(value)) {
         (constraints[id1] ||= {})[id2] = value;
-      if (value === "must" || value === "cannot" || value === "")
         (constraints[id2] ||= {})[id1] = value;
+      }
     }
   }
 
   const adjacents: Adjacents = {};
   for (const [key, value] of Object.entries(state.adjacents || {})) {
-    const id = validIds.has(key as GuestID)
-      ? (key as GuestID)
-      : guestNameToId.get(squash(key));
-    if (!id || !guestIdToName.has(id)) continue;
-    const partners: GuestID[] = Array.isArray(value)
-      ? (value as GuestID[])
-      : Object.keys(value || ({} as any)) as GuestID[];
+    const id = validIds.has(key as GuestID) ? (key as GuestID) : guestNameToId.get(squash(key));
+    if (!id) continue;
+    const partners: GuestID[] = Array.isArray(value) ? value : Object.keys(value || {});
     const ok: GuestID[] = [];
     for (const adj of partners) {
-      const adjId = validIds.has(adj as GuestID)
-        ? (adj as GuestID)
-        : guestNameToId.get(squash(adj as unknown as string));
-      if (!adjId || !guestIdToName.has(adjId) || adjId === id) continue;
-      ok.push(adjId);
+      const adjId = validIds.has(adj as GuestID) ? (adj as GuestID) : guestNameToId.get(squash(adj as unknown as string));
+      if (adjId && adjId !== id) ok.push(adjId);
     }
-    if (ok.length) adjacents[id] = ok;
+    if (ok.length) adjacents[id] = [...new Set(ok)];
   }
 
   return { constraints, adjacents };
@@ -170,7 +158,5 @@ export function migrateState(state: {
 export function mergeAssignments(assignments: string[]): string {
   const all = new Set<number>();
   for (const a of assignments) for (const id of parseAssignmentIds(a)) all.add(id);
-  return Array.from(all)
-    .sort((a, b) => a - b)
-    .join(",");
+  return Array.from(all).sort((a, b) => a - b).join(",");
 }

@@ -48,11 +48,15 @@ async function loadEntitlementsOnce(userId: string): Promise<{ subscription: Use
       if (subError) throw subError;
 
       const nowIso = new Date().toISOString();
+      // CRITICAL: Parentheses required for PostgREST OR precedence.
+      // Without them: expires_on.gt.X OR (expires_at.gt.X AND user_id=Y) [WRONG]
+      // With them: (expires_on.gt.X OR expires_at.gt.X) AND user_id=Y [CORRECT]
+      // Prevents 406 on strict PostgREST builds. Ref: PostgREST complex filters.
       const { data: trial, error: trialError } = await supabase
         .from('trial_subscriptions')
         .select('*')
         .eq('user_id', userId)
-        .gt('expires_on', nowIso)
+        .or(`(expires_on.gt.${nowIso},expires_at.gt.${nowIso})`)
         .order('expires_on', { ascending: false })
         .maybeSingle();
       if (trialError) throw trialError;
@@ -295,8 +299,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Trial expiry observer: clears trial in-memory once expired
   useEffect(() => {
     const trial = state.trial;
-    if (trial?.expires_on) {
-      const expiryDate = new Date(trial.expires_on);
+    if (trial?.expires_on || trial?.expires_at) {
+      const expiryDate = new Date(trial.expires_on || trial.expires_at!);
       const timeout = expiryDate.getTime() - Date.now();
       if (timeout > 0) {
         const timerId = setTimeout(() => { dispatch({ type: 'SET_TRIAL', payload: null }); }, timeout);

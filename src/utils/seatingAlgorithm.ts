@@ -82,7 +82,7 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
     Object.entries(assignments ?? {}).forEach(([guestKey, raw]) => {
       const gid = toId(guestKey);
       if (!gid || !raw) return;
-      const norm = normalizeAssignmentInputToIdsWithWarnings(String(raw), tables);
+      const norm = normalizeAssignmentInputToIdsWithWarnings(String(raw), tables, isPremium);
       engineAssignments[gid] = norm.idCsv;
       if (norm.warnings.length > 0) {
         const gname = idToName.get(gid) || gid;
