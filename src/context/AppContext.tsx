@@ -158,6 +158,34 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'SET_CURRENT_PLAN_INDEX': return { ...state, currentPlanIndex: action.payload };
     case 'AUTO_RECONCILE_TABLES': return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
+    case 'ADD_TABLE': {
+      const maxId = Math.max(0, ...state.tables.map(t => t.id || 0));
+      const newTable = { id: maxId + 1, seats: 8 };
+      return { ...state, tables: [...state.tables, newTable], userSetTables: true };
+    }
+    case 'REMOVE_TABLE': {
+      const tableId = action.payload;
+      const filteredTables = state.tables.filter(t => t.id !== tableId);
+      // Remove assignments that reference the deleted table
+      const filteredAssignments = { ...state.assignments };
+      Object.keys(filteredAssignments).forEach(guestId => {
+        const assignment = filteredAssignments[guestId];
+        if (assignment) {
+          const tableIds = assignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+          const remainingIds = tableIds.filter(id => id !== tableId);
+          filteredAssignments[guestId] = remainingIds.join(',');
+        }
+      });
+      return { ...state, tables: filteredTables, assignments: filteredAssignments, userSetTables: true };
+    }
+    case 'UPDATE_TABLE': {
+      const { id, name, seats } = action.payload;
+      const updatedTables = state.tables.map(t => 
+        t.id === id ? { ...t, ...(name !== undefined && { name }), ...(seats !== undefined && { seats }) } : t
+      );
+      return { ...state, tables: updatedTables, userSetTables: true };
+    }
+    case 'SET_USER_SET_TABLES': return { ...state, userSetTables: action.payload };
 
     case 'IMPORT_STATE':
     case 'LOAD_MOST_RECENT':
@@ -234,16 +262,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
+    // Check initial session state on mount
+    const checkInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // User is already authenticated, process the session
+          const user = session.user;
+          userRef.current = user;
+          dispatch({ type: 'SET_USER', payload: user });
+          
+          const { subscription, trial } = await loadEntitlementsOnce(user.id);
+          dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
+          dispatch({ type: 'SET_TRIAL', payload: trial });
+          setSessionTag('ENTITLED');
+          
+          if (isPremiumSubscription(subscription, trial)) {
+            getMostRecentState(user.id).then(data => {
+              if (data && (data.guests?.length ?? 0) > 0) {
+                setMostRecentState(data);
+                setShowRecentModal(true);
+              }
+            }).catch((err) => setRecentError(err?.message || 'Error fetching recent state.'));
+          }
+        } else {
+          // No session, check for anonymous state
+          try {
+            const saved = localStorage.getItem('seatyr_app_state');
+            if (saved) dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
+          } catch { /* ignore */ }
+          setSessionTag('ANON');
+        }
+      } catch (err: any) {
+        console.error("[FSM] Initial session check error:", err?.message || err);
+        setSessionTag('ERROR');
+        setFatalError(err instanceof Error ? err : new Error(String(err)));
+      }
+    };
+    
+    checkInitialSession();
+    
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const RELEVANT_EVENTS = new Set([
-        'INITIAL_SESSION','SIGNED_IN','USER_UPDATED','PASSWORD_RECOVERY','TOKEN_REFRESHED','SIGNED_OUT','USER_DELETED'
+        'INITIAL_SESSION','SIGNED_IN','USER_UPDATED','PASSWORD_RECOVERY','TOKEN_REFRESHED','SIGNED_OUT'
       ]);
       if (!RELEVANT_EVENTS.has(event)) return;
 
       if (event !== 'SIGNED_OUT') setSessionTag('AUTHENTICATING');
 
       try {
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED' || !session) {
+        if (event === 'SIGNED_OUT' || !session) {
           const wasAuthed = userRef.current !== null;
           resetEntitlementsPromise();
           dispatch({ type: 'RESET_APP_STATE' });
@@ -311,7 +379,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const autosavePayload = useMemo(() => {
     // only store non-PII slices required for restore; seatingPlans are ephemeral
     const { guests, tables, constraints, adjacents, assignments, timestamp, userSetTables } = state;
-    return { guests, tables, constraints, adjacents, assignments, timestamp, userSetTables };
+    return { 
+      guests, 
+      tables, 
+      constraints, 
+      adjacents, 
+      assignments, 
+      timestamp, 
+      userSetTables,
+      // Add minimal required properties for AppState
+      seatingPlans: [],
+      currentPlanIndex: 0,
+      subscription: undefined,
+      trial: null,
+      user: null,
+      loadedSavedSetting: false,
+      isSupabaseConnected: !!supabase,
+      duplicateGuests: [],
+      assignmentSignature: '',
+      warnings: [],
+      lastGeneratedSignature: null,
+      hideTableReductionNotice: false,
+      conflictWarnings: [],
+      lastGeneratedPlanSig: null,
+    };
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.timestamp, state.userSetTables]);
 
   const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);

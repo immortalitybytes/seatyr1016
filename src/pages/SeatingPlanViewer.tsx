@@ -5,7 +5,6 @@ import { getCapacity } from '../utils/tables';
 import { generateSeatingPlans } from '../utils/seatingAlgorithm';
 import { ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
-import { isPremiumSubscription } from '../utils/premium';
 import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/formatters';
 import { computePlanSignature } from '../utils/planSignature';
 import FormatGuestName from '../components/FormatGuestName';
@@ -179,7 +178,7 @@ const SeatingPlanViewer: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   
   // Get premium status from subscription
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = mode === 'premium';
 
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
 

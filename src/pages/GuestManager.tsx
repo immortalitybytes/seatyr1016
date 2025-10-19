@@ -112,7 +112,7 @@ const GuestManager: React.FC = () => {
   const pulsingArrowTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = mode === 'premium';
   const maxGuests = getMaxGuestLimit(state.subscription);
 
   // Mode-aware sorting options (SSoT)

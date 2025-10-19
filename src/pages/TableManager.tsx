@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
-import { isPremiumSubscription } from '../utils/premium';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
@@ -150,7 +149,7 @@ const TableManager: React.FC = () => {
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = mode === 'premium';
 
   // Mode-aware sorting options (SSoT)
   const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = mode === 'unsigned'
@@ -318,7 +317,7 @@ const TableManager: React.FC = () => {
   
   const getTableList = () => {
     return state.tables.map(t => {
-      if (t.name) {
+      if (mode === 'premium' && t.name) {
         return `${t.id} (${t.name})`;
       }
       return t.id;
@@ -596,7 +595,7 @@ const TableManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
-                          <input type="text" value={assignedTables} onChange={e => handleUpdateAssignment(guest.id, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder="e.g., 1, 3, 5" />
+                          <input type="text" value={assignedTables} onChange={e => handleUpdateAssignment(guest.id, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder={mode === 'premium' ? "e.g., 1, 3, 5 or Table A, Table B" : "e.g., 1, 3, 5"} />
                           {state.tables.length > 0 && <p className="text-xs text-gray-500 mt-1">Available: {getTableList()}</p>}
                         </div>
                         <div>

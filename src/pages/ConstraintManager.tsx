@@ -40,7 +40,7 @@ const ConstraintManager: React.FC = () => {
   const [userHasInteractedWithWarning, setUserHasInteractedWithWarning] = useState(false);
   
   // Check if user has premium subscription
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = mode === 'premium';
 
   // Mode-aware sorting options (SSoT)
   const allowedSortOptions: SortOption[] = mode === 'unsigned'
