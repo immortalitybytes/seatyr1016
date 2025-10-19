@@ -283,23 +283,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           userRef.current = user;
           dispatch({ type: 'SET_USER', payload: user });
           
-          const { subscription, trial } = await loadEntitlementsOnce(user.id);
-          dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
-          dispatch({ type: 'SET_TRIAL', payload: trial });
+          let subscription = null;
+          let trial = null;
+          
+          try {
+            const ent = await loadEntitlementsOnce(user.id);
+            subscription = ent.subscription;
+            trial = ent.trial;
+            dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
+            dispatch({ type: 'SET_TRIAL', payload: trial });
+            console.log('[Init] Entitlements loaded:', { hasSubscription: !!subscription, hasTrial: !!trial });
+          } catch (entError) {
+            console.error('[Init] Failed to load entitlements:', entError);
+            // Continue with null subscription/trial
+          }
+          
           setSessionTag('ENTITLED');
           console.log('[Init] Session tag set to ENTITLED');
           
           // Auto-restore premium state without modal (seamless UX)
-          if (isPremiumSubscription(subscription, trial)) {
-            getMostRecentState(user.id).then(data => {
-              if (data && (data.guests?.length ?? 0) > 0) {
-                // Directly restore instead of showing modal
-                dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
-                console.log('[Session Restore] Premium user state restored automatically');
-              }
-            }).catch((err) => {
-              console.warn('[Session Restore] Failed to restore premium state:', err?.message);
-            });
+          if (subscription || trial) {
+            if (isPremiumSubscription(subscription, trial)) {
+              getMostRecentState(user.id).then(data => {
+                if (data && (data.guests?.length ?? 0) > 0) {
+                  // Directly restore instead of showing modal
+                  dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
+                  console.log('[Session Restore] Premium user state restored automatically');
+                }
+              }).catch((err) => {
+                console.warn('[Session Restore] Failed to restore premium state:', err?.message);
+              });
+            }
           }
         } else {
           console.log('[Init] No session, user is anonymous');
@@ -339,19 +353,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       try {
         if (event === 'SIGNED_OUT' || !session) {
-          const wasAuthed = userRef.current !== null;
           resetEntitlementsPromise();
-          dispatch({ type: 'RESET_APP_STATE' });
-
-          if (wasAuthed) {
+          
+          // Only RESET on explicit sign out, not on reload
+          if (event === 'SIGNED_OUT') {
+            console.log('[Auth] User signed out - clearing all data');
+            dispatch({ type: 'RESET_APP_STATE' });
             localStorage.removeItem('seatyr_app_state');
-          } else {
-            try {
-              const saved = localStorage.getItem('seatyr_app_state');
-              if (saved) dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
-            } catch { /* ignore */ }
+            userRef.current = null;
+            setSessionTag('ANON');
+            return;
           }
-
+          
+          // For anonymous reload (!session but not SIGNED_OUT), keep data
+          // The initial session check already restored from localStorage if needed
+          console.log('[Auth] No session (anonymous user)');
           userRef.current = null;
           setSessionTag('ANON');
           return;
