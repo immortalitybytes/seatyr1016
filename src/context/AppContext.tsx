@@ -253,162 +253,76 @@ const AppContext = createContext<{
 } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, (init) => {
+    try {
+      const saved = localStorage.getItem('seatyr_app_state');
+      if (saved) return sanitizeAndMigrateAppState(JSON.parse(saved));
+    } catch {}
+    return init;
+  });
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
   const [fatalError, setFatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
-    let isMounted = true;
-    
-    // Check initial session state on mount
-    const checkInitialSession = async () => {
-      console.log('[Init] Starting session check...');
-      
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('[Init] Session error:', sessionError);
-          throw sessionError;
+    let mounted = true;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      const wasAuthed = !!state.user;
+
+      if (event === 'SIGNED_IN') {
+        try { localStorage.removeItem('seatyr_app_state'); } catch {}
+        // Do not nuke anonymous state; INITIAL_SESSION will follow
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        if (wasAuthed) {
+          try { localStorage.removeItem('seatyr_app_state'); } catch {}
+          dispatch({ type: 'RESET_APP_STATE' });
         }
-        
-        if (!isMounted) return;
-        
+        resetEntitlementsPromise();
+        userRef.current = null;
+        setSessionTag('ANON');
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION') {
         if (session?.user) {
-          console.log('[Init] User authenticated:', session.user.email);
-          // User is already authenticated, process the session
-          const user = session.user;
-          userRef.current = user;
-          dispatch({ type: 'SET_USER', payload: user });
-          
-          let subscription = null;
-          let trial = null;
-          
+          dispatch({ type: 'SET_USER', payload: session.user });
+          userRef.current = session.user;
+
           try {
-            const ent = await loadEntitlementsOnce(user.id);
-            subscription = ent.subscription;
-            trial = ent.trial;
-            dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
+            const { subscription: sub, trial } = await loadEntitlementsOnce(session.user.id);
+            dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
             dispatch({ type: 'SET_TRIAL', payload: trial });
-            console.log('[Init] Entitlements loaded:', { hasSubscription: !!subscription, hasTrial: !!trial });
-          } catch (entError) {
-            console.error('[Init] Failed to load entitlements:', entError);
-            // Continue with null subscription/trial
-          }
-          
-          setSessionTag('ENTITLED');
-          console.log('[Init] Session tag set to ENTITLED');
-          
-          // Auto-restore premium state without modal (seamless UX)
-          if (subscription || trial) {
-            if (isPremiumSubscription(subscription, trial)) {
-              getMostRecentState(user.id).then(data => {
-                if (data && (data.guests?.length ?? 0) > 0) {
-                  // Directly restore instead of showing modal
+            setSessionTag('ENTITLED');
+
+            // PATH B: Auto-restore (no modal exists today)
+            if (isPremiumSubscription(sub, trial)) {
+              try {
+                const data = await getMostRecentState(session.user.id);
+                if (mounted && data?.guests?.length > 0) {
                   dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
-                  console.log('[Session Restore] Premium user state restored automatically');
                 }
-              }).catch((err) => {
-                console.warn('[Session Restore] Failed to restore premium state:', err?.message);
-              });
-            }
-          }
-        } else {
-          console.log('[Init] No session, user is anonymous');
-          // No session, check for anonymous state
-          try {
-            const saved = localStorage.getItem('seatyr_app_state');
-            if (saved) {
-              dispatch({ type: 'IMPORT_STATE', payload: JSON.parse(saved) });
-              console.log('[Session Restore] Anonymous user state restored from localStorage');
+              } catch {}
             }
           } catch (err) {
-            console.warn('[Session Restore] Failed to restore anonymous state:', err);
-          }
-          setSessionTag('ANON');
-          console.log('[Init] Session tag set to ANON');
-        }
-      } catch (err: any) {
-        console.error("[FSM] Initial session check error:", err?.message || err);
-        // Set to ANON on error so app doesn't hang
-        setSessionTag('ANON');
-        console.log('[Init] Session tag set to ANON (error fallback)');
-      }
-    };
-    
-    checkInitialSession();
-    
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Skip INITIAL_SESSION since we handle it manually in checkInitialSession
-      if (event === 'INITIAL_SESSION') return;
-      
-      const RELEVANT_EVENTS = new Set([
-        'SIGNED_IN','USER_UPDATED','PASSWORD_RECOVERY','TOKEN_REFRESHED','SIGNED_OUT'
-      ]);
-      if (!RELEVANT_EVENTS.has(event)) return;
-
-      if (event !== 'SIGNED_OUT') setSessionTag('AUTHENTICATING');
-
-      try {
-        if (event === 'SIGNED_OUT' || !session) {
-          resetEntitlementsPromise();
-          
-          // Only RESET on explicit sign out, not on reload
-          if (event === 'SIGNED_OUT') {
-            console.log('[Auth] User signed out - clearing all data');
-            dispatch({ type: 'RESET_APP_STATE' });
-            localStorage.removeItem('seatyr_app_state');
-            userRef.current = null;
+            console.error('[Init] Entitlements error:', err);
             setSessionTag('ANON');
-            return;
           }
-          
-          // For anonymous reload (!session but not SIGNED_OUT), keep data
-          // The initial session check already restored from localStorage if needed
-          console.log('[Auth] No session (anonymous user)');
-          userRef.current = null;
+        } else {
+          // Anonymous - synchronous hydration already happened in reducer init
           setSessionTag('ANON');
-          return;
         }
-
-        const user = session.user;
-        if (!userRef.current && user) {
-          // New login: clear anon cache
-          localStorage.removeItem('seatyr_app_state');
-        }
-        userRef.current = user;
-        dispatch({ type: 'SET_USER', payload: user });
-
-        const { subscription, trial } = await loadEntitlementsOnce(user.id);
-        dispatch({ type: 'SET_SUBSCRIPTION', payload: subscription });
-        dispatch({ type: 'SET_TRIAL', payload: trial });
-        setSessionTag('ENTITLED');
-
-        // Auto-restore premium state on new login (seamless UX)
-        if (isPremiumSubscription(subscription, trial)) {
-          getMostRecentState(user.id).then(data => {
-            if (data && (data.guests?.length ?? 0) > 0) {
-              dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
-              console.log('[Session Restore] Premium user state restored on sign-in');
-            }
-          }).catch((err) => {
-            console.warn('[Session Restore] Failed to restore on sign-in:', err?.message);
-          });
-        }
-      } catch (err: any) {
-        console.error("[FSM] Session Error:", err?.message || err);
-        setSessionTag('ERROR');
-        setFatalError(err instanceof Error ? err : new Error(String(err)));
       }
     });
-    
-    return () => {
-      isMounted = false;
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
+
+    return () => { mounted = false; subscription.unsubscribe(); };
+  }, [state.user]);
 
   // Trial expiry observer: clears trial in-memory once expired
   useEffect(() => {

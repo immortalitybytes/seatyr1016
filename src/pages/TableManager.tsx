@@ -148,6 +148,7 @@ const TableManager: React.FC = () => {
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('last-name');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
   const [assignmentWarnings, setAssignmentWarnings] = useState<Record<string, string[]>>({});
+  const [rawAssignmentInput, setRawAssignmentInput] = useState<Record<string, string>>({});
   
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
   const isPremium = mode === 'premium';
@@ -603,13 +604,21 @@ const TableManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
-                          <input 
-                            type="text" 
-                            value={assignedTables} 
-                            onChange={e => handleUpdateAssignment(guest.id, e.target.value)} 
-                            className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" 
-                            placeholder={mode === 'premium' ? "e.g., 1, 3, 5 or Table A, Table B (guest may sit at any)" : "e.g., 1, 3, 5 (guest may sit at any of these)"}
-                            title="Enter multiple tables separated by commas. Guest will be placed at one of these tables."
+                          <input
+                            type="text"
+                            autoComplete="off"
+                            value={rawAssignmentInput[guest.id] ?? assignedTables}
+                            onChange={e => setRawAssignmentInput(prev => ({ ...prev, [guest.id]: e.target.value }))}
+                            onBlur={e => {
+                              handleUpdateAssignment(guest.id, e.target.value);
+                              setRawAssignmentInput(prev => {
+                                const { [guest.id]: _drop, ...rest } = prev;
+                                return rest;
+                              });
+                            }}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm"
+                            placeholder={mode === 'premium' ? 'e.g., 1, 3 or Table A' : 'e.g., 1, 3, 5'}
                           />
                           {assignedTables && parseAssignmentIds(assignedTables).length > 1 && (
                             <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
