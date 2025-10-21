@@ -399,37 +399,22 @@ function validateAndGroup(
   // respect allowed tables (intersection across members)
   for (const gi of byRoot.values()) {
     let groupAllowed: Set<ID> | null = null;
-    const assignedMembers: string[] = [];
-    
     for (const m of gi.members) {
       const raw = assignments[m];
       if (!raw) continue;
-      
-      assignedMembers.push(m);
       const list = (Array.isArray(raw) ? raw : String(raw).split(/[,\s]+/).filter(Boolean))
         .map((t) => String(t).replace(/\.$/, '')) // Remove trailing periods
         .map((t) => String(t))
         .filter((tid) => idToTable.has(String(tid)));
       const memberAllowed = new Set<ID>(list);
-      
-      console.log(`[Assignment] Member ${m}: raw="${raw}" → parsed=[${Array.from(memberAllowed).join(',')}]`);
-      
       if (memberAllowed.size === 0) continue;
-      if (groupAllowed === null) {
-        groupAllowed = memberAllowed;
-        console.log(`[Intersection] Initial set for group: [${Array.from(groupAllowed).join(',')}]`);
-      } else {
+      if (groupAllowed === null) groupAllowed = memberAllowed;
+      else {
         const next = new Set<ID>();
         for (const tid of groupAllowed) if (memberAllowed.has(tid)) next.add(tid);
-        console.log(`[Intersection] ${Array.from(groupAllowed).join(',')} ∩ ${Array.from(memberAllowed).join(',')} = ${Array.from(next).join(',')}`);
         groupAllowed = next;
       }
     }
-    
-    if (assignedMembers.length > 0) {
-      console.log(`[Group Result] Members with assignments: [${assignedMembers.join(',')}], Final intersection: [${groupAllowed ? Array.from(groupAllowed).join(',') : 'none'}], Group size: ${gi.size} people`);
-    }
-    
     if (groupAllowed && groupAllowed.size === 0) {
       errors.push({
         kind: "assignment_conflict",
@@ -439,10 +424,8 @@ function validateAndGroup(
     } else if (groupAllowed && groupAllowed.size === 1) {
       gi.preassignedTable = Array.from(groupAllowed)[0];
       gi.allowedTables = groupAllowed;
-      console.log(`[Pre-assignment] Group pre-assigned to table: ${gi.preassignedTable}`);
     } else if (groupAllowed && groupAllowed.size > 1) {
       gi.allowedTables = groupAllowed;
-      console.log(`[Allowed Tables] Group can be placed at: [${Array.from(groupAllowed).join(',')}]`);
     }
   }
 

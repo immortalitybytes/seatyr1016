@@ -117,7 +117,7 @@
                     let testResults = '<div class="test-section"><h2>📊 Test Results</h2>';
                     
                     // Check Table 5 allocation
-                    const table5 = firstPlan.tables.find(t => t.tableId === '5');
+                    const table5 = firstPlan.tables.find(t => t.id === 5);
                     if (table5) {
                         const guestIds = table5.seats.map(s => {
                             const guest = guests.find(g => g.name === s.name);
@@ -128,7 +128,7 @@
                         console.log('Table 5 allocation:', uniqueGuestIds);
                         
                         testResults += `<p><strong>Table 5 Guests:</strong> ${uniqueGuestIds.join(', ')}</p>`;
-                        testResults += `<p><strong>Seat Count:</strong> ${table5.seats.length} / 11</p>`;
+                        testResults += `<p><strong>Seat Count:</strong> ${table5.seats.length} / ${table5.capacity}</p>`;
                         
                         // Check if all MUST chain members are at Table 5
                         const mustChain = ['g1', 'g2', 'g3', 'g4', 'g5'];
