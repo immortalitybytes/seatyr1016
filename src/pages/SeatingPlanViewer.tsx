@@ -180,7 +180,7 @@ const SeatingPlanViewer: React.FC = () => {
   // Get premium status from subscription
   const isPremium = mode === 'premium';
 
-  const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
+  const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
 
   // SEATYR: Viewer is passive; AppContext handles generation centrally.
 

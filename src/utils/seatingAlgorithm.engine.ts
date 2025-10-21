@@ -372,9 +372,9 @@ function validateAndGroup(
 
   // DIAGNOSTIC: Input summary
   console.group('[Algorithm Start]');
-  console.log('Total guests:', guests.length, 'Total people:', guests.reduce((sum, g) => sum + g.groupSize, 0));
-  console.log('Tables:', tables.map(t => `${t.id}:${t.seats}seats`).join(', '));
-  console.log('Total capacity:', tables.reduce((sum, t) => sum + t.seats, 0));
+  console.log('Total guests:', guests.length, 'Total people:', guests.reduce((sum, g) => sum + (g.groupSize || 0), 0));
+  console.log('Tables:', tables.map(t => `${t.id}:${getCapacity(t)}seats`).join(', '));
+  console.log('Total capacity:', tables.reduce((sum, t) => sum + getCapacity(t), 0));
   console.log('isPremium:', isPremium);
   console.log('MUST pairs:', constr?.mustPairs?.length || 0);
   console.log('ADJ pairs:', adj?.pairs?.length || 0);
