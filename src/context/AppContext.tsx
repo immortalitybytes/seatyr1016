@@ -413,6 +413,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const genRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedGeneratePlans = useCallback(() => {
+    console.log('🔍 [AppContext] debouncedGeneratePlans called');
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const id = ++genRef.current;
