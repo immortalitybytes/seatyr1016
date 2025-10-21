@@ -416,6 +416,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const id = ++genRef.current;
+      
+      // DIAGNOSTIC: Log what we're passing to the algorithm
+      console.group('[AppContext] Calling seating algorithm');
+      console.log('state.guests:', state.guests.length, 'guests');
+      console.log('state.tables:', state.tables.length, 'tables');
+      console.log('state.constraints:', state.constraints);
+      console.log('state.assignments:', state.assignments);
+      console.groupEnd();
+      
       const { plans, errors } = await engineGenerate({
         guests: state.guests, tables: state.tables, constraints: state.constraints, adjacents: state.adjacents,
         assignments: state.assignments, isPremium: isPremiumSubscription(state.subscription, state.trial),
