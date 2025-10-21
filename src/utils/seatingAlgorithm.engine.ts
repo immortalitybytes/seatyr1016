@@ -402,7 +402,8 @@ function validateAndGroup(
     for (const m of gi.members) {
       const raw = assignments[m];
       if (!raw) continue;
-      const list = (Array.isArray(raw) ? raw : String(raw).split(/[,\s.]+/).filter(Boolean))
+      const list = (Array.isArray(raw) ? raw : String(raw).split(/[,\s]+/).filter(Boolean))
+        .map((t) => String(t).replace(/\.$/, '')) // Remove trailing periods
         .map((t) => String(t))
         .filter((tid) => idToTable.has(String(tid)));
       const memberAllowed = new Set<ID>(list);
