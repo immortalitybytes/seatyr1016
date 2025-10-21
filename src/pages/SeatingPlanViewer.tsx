@@ -219,6 +219,15 @@ const SeatingPlanViewer: React.FC = () => {
       setIsGenerating(true);
       setErrors([]);
       try {
+          // DIAGNOSTIC: Log what SeatingPlanViewer is passing to algorithm
+          console.group('[SeatingPlanViewer] Calling seating algorithm directly');
+          console.log('state.guests:', state.guests.length, 'guests');
+          console.log('state.tables:', state.tables.length, 'tables');
+          console.log('state.constraints:', state.constraints);
+          console.log('state.assignments:', state.assignments);
+          console.log('isPremium:', isPremium);
+          console.groupEnd();
+          
           const { plans, errors: validationErrors } = await generateSeatingPlans(
               state.guests, state.tables, state.constraints, state.adjacents, state.assignments, isPremium
           );
