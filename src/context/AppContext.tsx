@@ -16,8 +16,7 @@ import { countHeads } from '../utils/formatters';
 import { getCapacity } from '../utils/tables';
 import { migrateState, migrateAssignmentsToIdKeys, parseAssignmentIds } from '../utils/assignments';
 import { generateSeatingPlans as engineGenerate } from '../utils/seatingAlgorithm';
-// Modal removed - now using auto-restore for seamless UX
-// import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
+import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
 
 type SessionTag = 'INITIALIZING' | 'AUTHENTICATING' | 'ANON' | 'ENTITLED' | 'ERROR';
 type AppAction = { type: string; payload?: any };
@@ -102,7 +101,7 @@ function sanitizeAndMigrateAppState(s: any): AppState {
 const initialState: AppState = {
   guests: [], tables: defaultTables, constraints: {}, adjacents: {}, assignments: {},
   seatingPlans: [], currentPlanIndex: 0, subscription: undefined, trial: null, user: null,
-  userSetTables: false, loadedSavedSetting: false, timestamp: new Date().toISOString(),
+  userSetTables: false, loadedSavedSetting: false, loadedRestoreDecision: false, timestamp: new Date().toISOString(),
   isSupabaseConnected: !!supabase, duplicateGuests: [], assignmentSignature: '',
   warnings: [], lastGeneratedSignature: null, hideTableReductionNotice: false,
   conflictWarnings: [], lastGeneratedPlanSig: null,
@@ -113,6 +112,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'SET_USER': return { ...state, user: action.payload };
     case 'SET_SUBSCRIPTION': return { ...state, subscription: action.payload };
     case 'SET_TRIAL': return { ...state, trial: action.payload };
+    case 'SET_LOADED_RESTORE_DECISION': return { ...state, loadedRestoreDecision: action.payload };
 
     case 'SET_GUESTS': {
       const payload = action.payload;
@@ -191,19 +191,17 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'IMPORT_STATE':
     case 'LOAD_MOST_RECENT':
     case 'LOAD_SAVED_SETTING': {
-      const incoming = sanitizeAndMigrateAppState(action.payload);
-      const assignmentSignature = JSON.stringify(
-        Object.entries(incoming.assignments || {}).sort((a,b) => a[0].localeCompare(b[0]))
-      );
+      const incoming = action.payload ?? {};
+      if (!incoming.guests) return state;
       return {
-        ...state,
+        ...initialState,
         ...incoming,
-        assignmentSignature,
+        tables: (incoming.tables?.length ? incoming.tables : defaultTables),
         user: state.user,
         subscription: state.subscription,
         trial: state.trial,
-        seatingPlans: Array.isArray(incoming.seatingPlans) ? incoming.seatingPlans : state.seatingPlans,
-        lastGeneratedSignature: null,
+        seatingPlans: [],
+        currentPlanIndex: 0,
         warnings: [],
       };
     }
@@ -249,7 +247,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
 };
 
 const AppContext = createContext<{
-  state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag
+  state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag; isPremium: boolean;
 } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -263,66 +261,104 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
   const [fatalError, setFatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
+  
+  // NEW: Modal state and refs
+  const isMountedRef = useRef(true);
+  const [mostRecentState, setMostRecentState] = useState<AppState | null>(null);
+  const [showRecentModal, setShowRecentModal] = useState(false);
+  const [recentError, setRecentError] = useState<string | null>(null);
+
+  // Mounted lifecycle effect
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
-    let mounted = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      const wasAuthed = !!state.user;
-
-      if (event === 'SIGNED_IN') {
-        try { localStorage.removeItem('seatyr_app_state'); } catch {}
-        // Do not nuke anonymous state; INITIAL_SESSION will follow
-        return;
-      }
+    // FIX: Rename to avoid shadowing
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMountedRef.current) return;
 
       if (event === 'SIGNED_OUT') {
-        if (wasAuthed) {
-          try { localStorage.removeItem('seatyr_app_state'); } catch {}
-          dispatch({ type: 'RESET_APP_STATE' });
-        }
-        resetEntitlementsPromise();
-        userRef.current = null;
+        // Existing reset logic
+        try { localStorage.removeItem('seatyr_app_state'); } catch {}
+        dispatch({ type: 'RESET_APP_STATE' });
         setSessionTag('ANON');
+        dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
         return;
       }
 
-      if (event === 'INITIAL_SESSION') {
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           dispatch({ type: 'SET_USER', payload: session.user });
           userRef.current = session.user;
 
           try {
-            const { subscription: sub, trial } = await loadEntitlementsOnce(session.user.id);
-            dispatch({ type: 'SET_SUBSCRIPTION', payload: sub });
-            dispatch({ type: 'SET_TRIAL', payload: trial });
-            setSessionTag('ENTITLED');
+            console.log('[Auth] Getting entitlements...');
+            // FIX: Rename to avoid shadowing
+            const { subscription: entSub, trial } = await loadEntitlementsOnce(session.user.id);
+            if (!isMountedRef.current) return;
 
-            // PATH B: Auto-restore (no modal exists today)
-            if (isPremiumSubscription(sub, trial)) {
-              try {
-                const data = await getMostRecentState(session.user.id);
-                if (mounted && data?.guests?.length > 0) {
-                  dispatch({ type: 'LOAD_MOST_RECENT', payload: data });
-                }
-              } catch {}
+            const isPremium = isPremiumSubscription(entSub, trial);
+            dispatch({ type: 'SET_SUBSCRIPTION', payload: entSub });
+            dispatch({ type: 'SET_TRIAL', payload: trial });
+            setSessionTag('SIGNED_IN');
+
+            if (isPremium) {
+              const data = await getMostRecentState(session.user.id);
+              if (isMountedRef.current && data?.guests?.length > 0) {
+                setMostRecentState(data);
+                setShowRecentModal(true); // RESTORE MODAL
+                // Don't set loadedRestoreDecision yet (modal will do it)
+              } else {
+                dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+              }
+            } else {
+              dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
             }
+
           } catch (err) {
-            console.error('[Init] Entitlements error:', err);
-            setSessionTag('ANON');
+            // CRITICAL: Graceful degradation
+            if (!isMountedRef.current) return;
+            console.error('[Auth] Entitlements fetch FAILED.', err);
+            setSessionTag('SIGNED_IN');
+            dispatch({ type: 'SET_SUBSCRIPTION', payload: null });
+            dispatch({ type: 'SET_TRIAL', payload: null });
+            dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
           }
         } else {
-          // Anonymous - synchronous hydration already happened in reducer init
+          // Anonymous
           setSessionTag('ANON');
+          dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
         }
       }
     });
 
-    return () => { mounted = false; subscription.unsubscribe(); };
-  }, [state.user]);
+    return () => { authSub.unsubscribe(); };
+  }, []); // FIX: Remove state.user dependency to prevent re-subscription
+
+  // Autosave memos
+  const autosavePayload = useMemo(() => {
+    // CRITICAL: Exclude timestamp from hash
+    const { timestamp, ...rest } = state;
+    return {
+      guests: rest.guests,
+      tables: rest.tables,
+      constraints: rest.constraints,
+      adjacents: rest.adjacents,
+      assignments: rest.assignments,
+      userSetTables: rest.userSetTables,
+    };
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.userSetTables]);
+
+  const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);
+  const lastAutosaveSigRef = useRef<string>("");
+
+  const isPremium = useMemo(
+    () => isPremiumSubscription(state.subscription, state.trial),
+    [state.subscription, state.trial]
+  );
 
   // Trial expiry observer: clears trial in-memory once expired
   useEffect(() => {
@@ -339,82 +375,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [state.trial]);
 
-  // Premium autosave with precise deps, ETag signature, and modal pause
-  const autosavePayload = useMemo(() => {
-    // only store non-PII slices required for restore; seatingPlans are ephemeral
-    const { guests, tables, constraints, adjacents, assignments, timestamp, userSetTables } = state;
-    return { 
-      guests, 
-      tables, 
-      constraints, 
-      adjacents, 
-      assignments, 
-      timestamp, 
-      userSetTables,
-      // Add minimal required properties for AppState
-      seatingPlans: [],
-      currentPlanIndex: 0,
-      subscription: undefined,
-      trial: null,
-      user: null,
-      loadedSavedSetting: false,
-      isSupabaseConnected: !!supabase,
-      duplicateGuests: [],
-      assignmentSignature: '',
-      warnings: [],
-      lastGeneratedSignature: null,
-      hideTableReductionNotice: false,
-      conflictWarnings: [],
-      lastGeneratedPlanSig: null,
-    };
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.timestamp, state.userSetTables]);
-
-  const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);
-  const lastAutosaveSigRef = useRef<string>("");
-
+  // Premium autosave
   useEffect(() => {
-    const isPremium = sessionTag === 'ENTITLED' && !!state.user && isPremiumSubscription(state.subscription, state.trial);
-    if (!state.user?.id) return;                          // guard for mid-transition
-    if (!isPremium) return;                               // only autosave for premium users
-    if (
-      state.guests.length === 0 &&
-      Object.keys(state.assignments).length === 0 &&
-      Object.keys(state.constraints).length === 0
-    ) return;
+    if (!isPremium || !state.user?.id || showRecentModal) return;
     if (autosaveSignature === lastAutosaveSigRef.current) return;
 
     const t = setTimeout(() => {
-      saveMostRecentState(state.user!.id, autosavePayload, true)
+      console.log('[Autosave Premium] Data signature changed. Saving...');
+      // CRITICAL: Call 3-arg function
+      saveMostRecentState(state.user!.id, state, true)
         .then(() => { lastAutosaveSigRef.current = autosaveSignature; })
-        .catch(() => {/* silent; no UI drift */});
+        .catch((err) => { console.error('[Autosave Premium] FAILED:', err); });
     }, 500);
 
     return () => clearTimeout(t);
-  }, [
-    sessionTag, state.user, state.subscription, state.trial, autosavePayload, autosaveSignature
-  ]);
+  }, [state, autosaveSignature, showRecentModal, isPremium]);
 
-  // Anonymous persistence to localStorage (no entitlements; no user)
+  // Anonymous persistence
   useEffect(() => {
     if (sessionTag !== 'ANON') return;
-    if (
-      state.guests.length === 0 &&
-      Object.keys(state.constraints).length === 0 &&
-      Object.keys(state.assignments).length === 0
-    ) return;
+    if (autosaveSignature === lastAutosaveSigRef.current) return;
 
     const t = setTimeout(() => {
       try {
-        const { user, subscription, trial, seatingPlans, ...rest } = state;
-        // PII minimalism: never store user or entitlement details in localStorage
-        localStorage.setItem('seatyr_app_state', JSON.stringify(rest));
-        console.log('[Anonymous Persist] State saved to localStorage');
+        // Use the minimal payload (which excludes timestamp)
+        localStorage.setItem('seatyr_app_state', JSON.stringify(autosavePayload));
+        lastAutosaveSigRef.current = autosaveSignature;
       } catch (err) {
         console.warn('[Anonymous Persist] Failed to save:', err);
       }
-    }, 100); // Reduced from 1000ms to 100ms for faster persistence
+    }, 100);
+
     return () => clearTimeout(t);
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, sessionTag, state.timestamp, state.userSetTables]);
+  }, [sessionTag, autosaveSignature, autosavePayload]);
 
   // Debounced plan generation
   const genRef = useRef(0);
@@ -452,7 +445,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [state.guests.length, state.assignmentSignature, state.userSetTables]);
 
   const mode = useMemo(() => deriveMode(state.user, state.subscription, state.trial), [state.user, state.subscription, state.trial]);
-  const value = useMemo(() => ({ state, dispatch, mode, sessionTag }), [state, mode, sessionTag]);
+  const value = useMemo(() => ({ state, dispatch, mode, sessionTag, isPremium }), [state, mode, sessionTag, isPremium]);
 
   // Show loading screen during initialization instead of invisible gate (fixes blank screen on reload)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') {
@@ -471,12 +464,53 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={value}>
       {children}
+
+      {showRecentModal && state.user && isPremium && mostRecentState && (
+        <MostRecentChoiceModal
+          userId={state.user.id}
+          isPremium={isPremium}
+          recentTimestamp={mostRecentState?.timestamp}
+          onClose={() => {
+            console.log('[Modal] onClose called');
+            setShowRecentModal(false);
+            setMostRecentState(null);
+            setRecentError(null);
+            dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+            console.log('[Modal] onClose complete');
+          }}
+          onRestoreRecent={async () => {
+            console.log('[Modal] onRestoreRecent START');
+            // Use Promise to ensure async completion
+            return new Promise<void>((resolve) => {
+              if (mostRecentState) {
+                dispatch({ type: 'LOAD_MOST_RECENT', payload: mostRecentState });
+              }
+              dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+              // Let modal's onClose handle the actual close
+              console.log('[Modal] onRestoreRecent COMPLETE');
+              resolve();
+            });
+          }}
+          onKeepCurrent={async () => {
+            console.log('[Modal] onKeepCurrent START');
+            // Use Promise to ensure async completion
+            return new Promise<void>((resolve) => {
+              dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+              // Let modal's onClose handle the actual close
+              console.log('[Modal] onKeepCurrent COMPLETE');
+              resolve();
+            });
+          }}
+          error={recentError}
+          loading={false}
+        />
+      )}
     </AppContext.Provider>
   );
 };
 
 export function useApp(): {
-  state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag
+  state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag; isPremium: boolean;
 } {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');

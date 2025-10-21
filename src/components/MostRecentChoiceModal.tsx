@@ -47,30 +47,53 @@ const MostRecentChoiceModal: React.FC<Props> = ({
 
   const handleRestoreRecent = async () => {
     try {
-      console.log('Restoring recent state');
+      console.log('[Modal Handler] Restore Recent - START');
       setLocalLoading(true);
       setLocalError(null);
+      
+      console.log('[Modal Handler] Calling onRestoreRecent callback...');
       await onRestoreRecent();
+      console.log('[Modal Handler] onRestoreRecent callback completed');
+      
+      // Add small delay to ensure state updates complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      console.log('[Modal Handler] Calling onClose...');
+      onClose();
+      console.log('[Modal Handler] Restore Recent - COMPLETE');
     } catch (err) {
-      console.error('Error restoring recent state:', err);
+      console.error('[Modal Handler] Error restoring recent state:', err);
       setLocalError('Failed to restore your most recent session. Please try again or use saved settings.');
     } finally {
+      console.log('[Modal Handler] Setting localLoading to false');
       setLocalLoading(false);
     }
   };
 
   const handleKeepCurrent = async () => {
     try {
-      console.log('Keeping current state');
+      console.log('[Modal Handler] Keep Current - START');
       setLocalLoading(true);
       setLocalError(null);
+      
+      console.log('[Modal Handler] Calling onKeepCurrent callback...');
       await onKeepCurrent();
+      console.log('[Modal Handler] onKeepCurrent callback completed');
+      
+      // Add small delay to ensure state updates complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      console.log('[Modal Handler] Calling onClose...');
+      onClose();
+      console.log('[Modal Handler] Keep Current - COMPLETE');
     } catch (err) {
-      console.error('Error clearing recent state:', err);
+      console.error('[Modal Handler] Error clearing recent state:', err);
       setLocalError('Error clearing recent state, but continuing with current data.');
       // Even if clearing fails, we still want to continue with current data
+      await new Promise(resolve => setTimeout(resolve, 50));
       onClose();
     } finally {
+      console.log('[Modal Handler] Setting localLoading to false');
       setLocalLoading(false);
     }
   };

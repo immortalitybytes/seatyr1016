@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Save, FolderOpen, Edit2, Copy, Trash2, AlertCircle, Crown, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
@@ -21,7 +21,12 @@ interface SavedSettingsAccordionProps {
 }
 
 const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefaultOpen = false }) => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, sessionTag } = useApp();
+  const { user, subscription, trial } = state;
+  const isPremium = useMemo(() => isPremiumSubscription(subscription, trial), [subscription, trial]);
+  const inFlightFetch = useRef(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  
   const [settings, setSettings] = useState<SavedSetting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,15 +52,56 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   
   const navigate = useNavigate();
 
-  // Get user and subscription from global app state
-  const { user, subscription } = state;
-
-  // Effect to fetch settings when the accordion is opened
+  // Effect to fetch settings with 5-point guard
   useEffect(() => {
-    if (isOpen && (user || sessionUser)) {
-      loadSettings();
+    // 5-POINT GUARD
+    const entitlementsAttempted = state.subscription !== undefined;
+
+    if (
+      sessionTag !== 'SIGNED_IN' ||     // 1. Wait for auth
+      !user?.id ||                      // 2. Wait for user
+      !entitlementsAttempted ||         // 3. Wait for entitlements
+      !state.loadedRestoreDecision ||   // 4. Wait for restore decision
+      !isPremium                        // 5. Check premium status
+    ) {
+      setSettings([]);
+      setLoading(false);
+      return;
     }
-  }, [isOpen, user, sessionUser]);
+
+    if (inFlightFetch.current) return;
+    inFlightFetch.current = true;
+
+    const ac = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    supabase
+      .from('recent_session_settings')
+      .select('id, name, updated_at, data')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(50)
+      .abortSignal(ac.signal)
+      .then(({ data, error }) => {
+        if (error && error.name !== 'AbortError') {
+          setError(error.message);
+        } else if (data) {
+          setSettings(data ?? []);
+        }
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) {
+          setLoading(false);
+          inFlightFetch.current = false;
+        }
+      });
+
+    return () => {
+      ac.abort();
+      inFlightFetch.current = false;
+    };
+  }, [sessionTag, user?.id, state.subscription, state.loadedRestoreDecision, isPremium, reloadKey]);
 
   // Try to get session user if context user is not available
   useEffect(() => {
@@ -251,8 +297,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setSavingSettings(true);
       
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+    const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -331,8 +376,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       }
 
       // Check if user is premium
-      const isPremium = isPremiumSubscription(subscription);
-      const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+    const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
       
       // Check if user has reached their limit
       if (settings.length >= maxSettings && !isPremium) {
@@ -488,8 +532,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   };
 
   // Check premium status from global state
-  const isPremium = isPremiumSubscription(subscription);
-  const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+    const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
   
   // Check if we have an effective user (either from context or session)
   const effectiveUser = user || sessionUser;

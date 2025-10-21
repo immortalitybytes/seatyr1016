@@ -6,6 +6,7 @@ import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from '../utils/assignments';
+import { isPremiumSubscription } from '../utils/premium';
 import { getCapacity } from '../utils/tables';
 
 const useDebounce = (value: string, delay: number): string => {
@@ -267,31 +268,8 @@ const TableManager: React.FC = () => {
     return table.name || `Table ${table.id}`;
   };
 
-  const handleUpdateAssignment = (guestId: string, value: string) => {
-    const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
-      value, 
-      state.tables,
-      mode === 'premium'
-    );
-    
-    // Store warnings for this guest
-    setAssignmentWarnings(prev => ({
-      ...prev,
-      [guestId]: warnings
-    }));
-    
-    if (warnings.length > 0) {
-      dispatch({
-        type: 'SET_WARNING',
-        payload: warnings.map(w => `Guest ${guestId}: ${w}`)
-      });
-    }
-    dispatch({
-      type: 'UPDATE_ASSIGNMENT',
-      payload: { guestId, raw: idCsv }
-    });
-    purgePlans();
-  };
+  const handleUpdateAssignment = (guestId: string, csv: string) =>
+    dispatch({ type: 'UPDATE_ASSIGNMENT', payload: { guestId, raw: csv } });
   
   const updateConstraints = (guestId: string, newNames: string[], type: 'must' | 'cannot') => {
     // Get old constraint IDs and convert to names
@@ -610,7 +588,20 @@ const TableManager: React.FC = () => {
                             value={rawAssignmentInput[guest.id] ?? assignedTables}
                             onChange={e => setRawAssignmentInput(prev => ({ ...prev, [guest.id]: e.target.value }))}
                             onBlur={e => {
-                              handleUpdateAssignment(guest.id, e.target.value);
+                              const isPremium = isPremiumSubscription(state.subscription, state.trial);
+                              const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
+                                e.target.value,
+                                state.tables,
+                                isPremium
+                              );
+
+                              handleUpdateAssignment(guest.id, idCsv);
+
+                              if (warnings.length > 0) {
+                                console.warn('Assignment warnings:', warnings);
+                                // TODO: Route to existing toast/modal
+                              }
+
                               setRawAssignmentInput(prev => {
                                 const { [guest.id]: _drop, ...rest } = prev;
                                 return rest;
