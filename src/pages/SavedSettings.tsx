@@ -60,7 +60,7 @@ const SavedSettings: React.FC = () => {
     setError(null);
 
     supabase
-      .from('recent_session_settings')
+      .from('saved_settings')
       .select('id, name, updated_at, data')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
