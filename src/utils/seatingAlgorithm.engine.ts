@@ -370,6 +370,16 @@ function validateAndGroup(
   for (const [a, b] of constr.mustPairs) dsu.union(a, b);
   for (const [a, b] of adj.pairs) dsu.union(a, b);
 
+  // DIAGNOSTIC: Input summary
+  console.group('[Algorithm Start]');
+  console.log('Total guests:', guests.length, 'Total people:', guests.reduce((sum, g) => sum + g.groupSize, 0));
+  console.log('Tables:', tables.map(t => `${t.id}:${t.seats}seats`).join(', '));
+  console.log('Total capacity:', tables.reduce((sum, t) => sum + t.seats, 0));
+  console.log('isPremium:', isPremium);
+  console.log('MUST pairs:', constr.mustPairs.length);
+  console.log('ADJ pairs:', adj.pairs.length);
+  console.groupEnd();
+
   const byRoot = new Map<ID, { root: ID; members: ID[]; size: number; adjacencyDegree: number; cantNeighbors: Set<ID>; preassignedTable?: ID; allowedTables?: Set<ID> }>();
 
   for (const g of guests) {
@@ -396,25 +406,46 @@ function validateAndGroup(
       }
   }
 
-  // respect allowed tables (intersection across members)
+  // DIAGNOSTIC: Assignment intersection with detailed logging
+  console.group('[Assignment Intersection]');
   for (const gi of byRoot.values()) {
     let groupAllowed: Set<ID> | null = null;
+    const assignedMembers: string[] = [];
+    
     for (const m of gi.members) {
       const raw = assignments[m];
       if (!raw) continue;
+      
+      assignedMembers.push(m);
       const list = (Array.isArray(raw) ? raw : String(raw).split(/[,\s]+/).filter(Boolean))
         .map((t) => String(t).replace(/\.$/, '')) // Remove trailing periods
         .map((t) => String(t))
         .filter((tid) => idToTable.has(String(tid)));
       const memberAllowed = new Set<ID>(list);
+      
+      console.log(`Member ${m}: "${raw}" → [${Array.from(memberAllowed).join(',')}]`);
+      
       if (memberAllowed.size === 0) continue;
-      if (groupAllowed === null) groupAllowed = memberAllowed;
-      else {
+      if (groupAllowed === null) {
+        groupAllowed = memberAllowed;
+      } else {
+        const before = Array.from(groupAllowed).join(',');
         const next = new Set<ID>();
         for (const tid of groupAllowed) if (memberAllowed.has(tid)) next.add(tid);
         groupAllowed = next;
+        console.log(`  Intersection: [${before}] ∩ [${Array.from(memberAllowed).join(',')}] = [${Array.from(groupAllowed).join(',')}]`);
       }
     }
+    
+    if (assignedMembers.length > 0) {
+      console.log(`Group [${gi.members.join(',')}]: ${gi.size} people, Final intersection: [${groupAllowed ? Array.from(groupAllowed).join(',') : 'NONE'}]`);
+      if (groupAllowed && groupAllowed.size === 0) {
+        console.error(`  ❌ CONFLICT: No common table for group`);
+      } else if (groupAllowed && groupAllowed.size === 1) {
+        console.log(`  ✓ Pre-assigned to table: ${Array.from(groupAllowed)[0]}`);
+      }
+    }
+    
     if (groupAllowed && groupAllowed.size === 0) {
       errors.push({
         kind: "assignment_conflict",
@@ -428,6 +459,7 @@ function validateAndGroup(
       gi.allowedTables = groupAllowed;
     }
   }
+  console.groupEnd();
 
   for (const [id, s] of adjMap.entries())
     if (s.size > 2)
@@ -509,11 +541,22 @@ function placeGroups(
   };
   let attempts = 0;
 
+  // DIAGNOSTIC: Pre-assignment phase
+  const preassignedGroups = groups.filter(g => g.preassignedTable);
+  console.log(`[Pre-assignment Phase] ${preassignedGroups.length} groups to pre-assign`);
+  
   for (const gi of groups) {
     if (!gi.preassignedTable) continue;
     const ts = state.tables.find((s: any) => String(s.table.id) === String(gi.preassignedTable));
-    if (!ts) return { success: false, state, attempts };
-    if (!canPlaceGroup(gi, ts, cantMap)) return { success: false, state, attempts };
+    if (!ts) {
+      console.error(`❌ Cannot find table ${gi.preassignedTable} for pre-assigned group [${gi.members.join(',')}]`);
+      return { success: false, state, attempts };
+    }
+    if (!canPlaceGroup(gi, ts, cantMap)) {
+      console.error(`❌ Cannot place pre-assigned group [${gi.members.join(',')}] at table ${gi.preassignedTable}: Need ${gi.size} seats, Available: ${ts.remaining}`);
+      return { success: false, state, attempts };
+    }
+    console.log(`✓ Placed group [${gi.members.join(',')}] (${gi.size} people) at table ${gi.preassignedTable}`);
     ts.remaining -= gi.size;
     ts.occupants.push(...gi.members);
     for (const m of gi.members) state.placed.set(m, ts.table.id);
@@ -747,7 +790,15 @@ export async function generateSeatingPlans(
 
   const allErrors = [...initialErrors, ...vErr];
   const fatal = allErrors.filter((e) => e.kind !== "self_reference_ignored");
-  if (fatal.length > 0) return { plans: [], errors: fatal };
+  
+  // DIAGNOSTIC: Validation errors
+  if (fatal.length > 0) {
+    console.group('[Validation Errors]');
+    fatal.forEach(err => console.error(`${err.kind}:`, err.message, err.details));
+    console.groupEnd();
+    console.log('❌ Returning 0 plans due to validation errors');
+    return { plans: [], errors: fatal };
+  }
 
   const rngBase = new RNG(defaults.seed);
   const deadline = start + defaults.timeBudgetMs;
