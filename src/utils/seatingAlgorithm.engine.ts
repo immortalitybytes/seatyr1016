@@ -362,13 +362,13 @@ function validateAndGroup(
   const errors: ValidationError[] = [];
   const idToGuest = new Map<ID, GuestUnit>(guests.map((g) => [String(g.id), g]));
   const idToTable = new Map<ID, TableIn>(tables.map((t) => [String(t.id), t as any]));
-  const cantMap = buildUndirectedMap(constr.cantPairs);
-  const adjMap = buildUndirectedMap(adj.pairs);
+  const cantMap = buildUndirectedMap(constr?.cantPairs || []);
+  const adjMap = buildUndirectedMap(adj?.pairs || []);
 
   const dsu = new DSU();
   for (const g of guests) dsu.find(String(g.id));
-  for (const [a, b] of constr.mustPairs) dsu.union(a, b);
-  for (const [a, b] of adj.pairs) dsu.union(a, b);
+  for (const [a, b] of constr?.mustPairs || []) dsu.union(a, b);
+  for (const [a, b] of adj?.pairs || []) dsu.union(a, b);
 
   // DIAGNOSTIC: Input summary
   console.group('[Algorithm Start]');
@@ -376,8 +376,8 @@ function validateAndGroup(
   console.log('Tables:', tables.map(t => `${t.id}:${t.seats}seats`).join(', '));
   console.log('Total capacity:', tables.reduce((sum, t) => sum + t.seats, 0));
   console.log('isPremium:', isPremium);
-  console.log('MUST pairs:', constr.mustPairs.length);
-  console.log('ADJ pairs:', adj.pairs.length);
+  console.log('MUST pairs:', constr?.mustPairs?.length || 0);
+  console.log('ADJ pairs:', adj?.pairs?.length || 0);
   console.groupEnd();
 
   const byRoot = new Map<ID, { root: ID; members: ID[]; size: number; adjacencyDegree: number; cantNeighbors: Set<ID>; preassignedTable?: ID; allowedTables?: Set<ID> }>();
@@ -487,18 +487,18 @@ function validateAndGroup(
       if (a === b)
         errors.push({ kind: "self_reference_ignored", message: `Ignored self reference in ${kind}: ${a}` });
     });
-  checkSelf(constr.mustPairs, "must");
-  checkSelf(constr.cantPairs, "cannot");
-  checkSelf(adj.pairs, "adjacent");
+  checkSelf(constr?.mustPairs || [], "must");
+  checkSelf(constr?.cantPairs || [], "cannot");
+  checkSelf(adj?.pairs || [], "adjacent");
 
   const checkUnknown = (pairs: Pair[], where: string) =>
     pairs.forEach(([a, b]) => {
       if (!guestIds.has(a) || !guestIds.has(b))
         errors.push({ kind: "unknown_guest", message: `Unknown guest in ${where}: ${a}-${b}` });
     });
-  checkUnknown(constr.mustPairs, "must");
-  checkUnknown(constr.cantPairs, "cannot");
-  checkUnknown(adj.pairs, "adjacent");
+  checkUnknown(constr?.mustPairs || [], "must");
+  checkUnknown(constr?.cantPairs || [], "cannot");
+  checkUnknown(adj?.pairs || [], "adjacent");
 
   for (const gid of Object.keys(assignments))
     if (!guestIds.has(gid))
