@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MUST Chain Assignment Intersection Test</title>
+    <style>
+        body { font-family: monospace; margin: 20px; background: #f5f5f5; }
+        .test-section { background: white; margin: 20px 0; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { color: #28a745; font-weight: bold; }
+        .failure { color: #dc3545; font-weight: bold; }
+        .info { color: #007bff; }
+        pre { background: #f8f9fa; padding: 10px; overflow-x: auto; border-left: 3px solid #007bff; }
+        h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .scenario { background: #e7f3ff; padding: 15px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 MUST Chain Assignment Intersection Test</h1>
+    
+    <div class="test-section scenario">
+        <h2>Test Scenario</h2>
+        <p><strong>MUST Chain:</strong> A→B→C→D→E (10 people total)</p>
+        <ul>
+            <li>Abby Abrams+1 (2 people) <strong>MUST</strong> Betty & Bob Boden (2 people)</li>
+            <li>Betty & Bob Boden (2 people) <strong>MUST</strong> Carl Cesario+2 (3 people)</li>
+            <li>Carl Cesario+2 (3 people) <strong>MUST</strong> Dave Dore (1 person)</li>
+            <li>Dave Dore (1 person) <strong>MUST</strong> Evie & Evan Einstein (2 people)</li>
+        </ul>
+        
+        <p><strong>Table Assignments:</strong></p>
+        <ul>
+            <li>Betty & Bob Boden: <code>1,5,7</code> (can sit at tables 1, 5, or 7)</li>
+            <li>Dave Dore: <code>2,5,6</code> (can sit at tables 2, 5, or 6)</li>
+        </ul>
+        
+        <p><strong>Expected Intersection:</strong> Table 5 (only common table)</p>
+        
+        <p><strong>Table Capacities:</strong></p>
+        <ul>
+            <li>Table 5: <strong>11 seats</strong> (sufficient for 10 people)</li>
+            <li>Other tables: 8 seats</li>
+        </ul>
+        
+        <p class="info"><strong>Expected Result:</strong> Algorithm should identify Table 5 as the only viable table and generate seating plans with the MUST chain placed at Table 5.</p>
+    </div>
+
+    <div id="results"></div>
+
+    <script type="module">
+        import { generateSeatingPlans } from './src/utils/seatingAlgorithm.ts';
+        
+        async function runTest() {
+            const resultsDiv = document.getElementById('results');
+            
+            // Test scenario setup
+            const guests = [
+                { id: 'g1', name: 'Abby Abrams+1', groupSize: 2 },
+                { id: 'g2', name: 'Betty & Bob Boden', groupSize: 2 },
+                { id: 'g3', name: 'Carl Cesario+2', groupSize: 3 },
+                { id: 'g4', name: 'Dave Dore', groupSize: 1 },
+                { id: 'g5', name: 'Evie & Evan Einstein', groupSize: 2 },
+            ];
+            
+            const tables = [
+                { id: 1, seats: 8, name: 'Table 1' },
+                { id: 2, seats: 8, name: 'Table 2' },
+                { id: 5, seats: 11, name: 'Table 5' },
+                { id: 6, seats: 8, name: 'Table 6' },
+                { id: 7, seats: 8, name: 'Table 7' },
+            ];
+            
+            const constraints = {
+                'g1': { 'g2': 'must' },
+                'g2': { 'g1': 'must', 'g3': 'must' },
+                'g3': { 'g2': 'must', 'g4': 'must' },
+                'g4': { 'g3': 'must', 'g5': 'must' },
+                'g5': { 'g4': 'must' },
+            };
+            
+            const assignments = {
+                'g2': '1,5,7',  // Betty & Bob Boden
+                'g4': '2,5,6',  // Dave Dore
+            };
+            
+            try {
+                resultsDiv.innerHTML += '<div class="test-section"><h2>🔍 Running Algorithm...</h2><p>Check browser console for detailed logs.</p></div>';
+                
+                console.log('='.repeat(80));
+                console.log('TEST: MUST Chain Assignment Intersection');
+                console.log('='.repeat(80));
+                
+                const { plans, errors } = await generateSeatingPlans(
+                    guests,
+                    tables,
+                    constraints,
+                    {},
+                    assignments,
+                    true // isPremium
+                );
+                
+                console.log('='.repeat(80));
+                console.log('ALGORITHM RESULTS');
+                console.log('='.repeat(80));
+                
+                // Display errors
+                if (errors && errors.length > 0) {
+                    resultsDiv.innerHTML += `<div class="test-section"><h2>❌ Errors</h2><pre>${JSON.stringify(errors, null, 2)}</pre></div>`;
+                    console.log('Errors:', errors);
+                }
+                
+                // Display plans
+                if (plans && plans.length > 0) {
+                    resultsDiv.innerHTML += `<div class="test-section"><h2 class="success">✅ Generated ${plans.length} Seating Plans</h2></div>`;
+                    console.log(`Generated ${plans.length} plans`);
+                    
+                    // Analyze first plan
+                    const firstPlan = plans[0];
+                    let testResults = '<div class="test-section"><h2>📊 Test Results</h2>';
+                    
+                    // Check Table 5 allocation
+                    const table5 = firstPlan.tables.find(t => t.tableId === '5');
+                    if (table5) {
+                        const guestIds = table5.seats.map(s => {
+                            const guest = guests.find(g => g.name === s.name);
+                            return guest ? guest.id : null;
+                        }).filter(Boolean);
+                        const uniqueGuestIds = [...new Set(guestIds)];
+                        
+                        console.log('Table 5 allocation:', uniqueGuestIds);
+                        
+                        testResults += `<p><strong>Table 5 Guests:</strong> ${uniqueGuestIds.join(', ')}</p>`;
+                        testResults += `<p><strong>Seat Count:</strong> ${table5.seats.length} / 11</p>`;
+                        
+                        // Check if all MUST chain members are at Table 5
+                        const mustChain = ['g1', 'g2', 'g3', 'g4', 'g5'];
+                        const allPresent = mustChain.every(gid => uniqueGuestIds.includes(gid));
+                        
+                        if (allPresent) {
+                            testResults += '<p class="success">✅ SUCCESS: All MUST chain members allocated to Table 5</p>';
+                        } else {
+                            const missing = mustChain.filter(gid => !uniqueGuestIds.includes(gid));
+                            testResults += `<p class="failure">❌ FAILURE: Missing MUST chain members: ${missing.join(', ')}</p>`;
+                        }
+                    } else {
+                        testResults += '<p class="failure">❌ FAILURE: Table 5 not found in plan or empty</p>';
+                    }
+                    
+                    testResults += `<h3>Full Plan Details:</h3><pre>${JSON.stringify(firstPlan, null, 2)}</pre>`;
+                    testResults += '</div>';
+                    
+                    resultsDiv.innerHTML += testResults;
+                    
+                } else {
+                    resultsDiv.innerHTML += '<div class="test-section"><h2 class="failure">❌ FAILURE: No seating plans generated</h2></div>';
+                    console.log('No plans generated');
+                }
+                
+            } catch (error) {
+                resultsDiv.innerHTML += `<div class="test-section"><h2 class="failure">❌ ERROR</h2><pre>${error.message}\n\n${error.stack}</pre></div>`;
+                console.error('Test error:', error);
+            }
+        }
+        
+        // Run test on page load
+        runTest();
+    </script>
+</body>
+</html>
