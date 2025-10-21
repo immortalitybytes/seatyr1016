@@ -19,11 +19,16 @@ export function normalizeAssignmentInputToIdsWithWarnings(
   const resolved = new Set<number>();
   const warnings: string[] = [];
 
-  // Punctuation-tolerant; DO NOT split on '-' to preserve hyphenated names
+  // Enhanced punctuation-tolerant parsing
+  // Handles: "2. 3, College, 5" → ["2", "3", "College", "5"]
   const tokens = inputStr
-    .split(/[,\s.;/|]+/)
+    .split(/[,\s]+/)  // Split on commas and spaces only
     .map(s => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .map(token => {
+      // Handle trailing periods: "2." → "2", "College." → "College"
+      return token.replace(/\.$/, '');
+    });
 
   for (const token of tokens) {
     // Rule: numeric tokens are treated as table IDs

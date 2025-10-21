@@ -599,7 +599,11 @@ const TableManager: React.FC = () => {
 
                               if (warnings.length > 0) {
                                 console.warn('Assignment warnings:', warnings);
-                                // TODO: Route to existing toast/modal
+                                // Display warnings to user
+                                dispatch({ type: 'SHOW_MODAL', payload: { 
+                                  title: 'Assignment Warnings', 
+                                  body: warnings.join('\n') 
+                                }});
                               }
 
                               setRawAssignmentInput(prev => {
