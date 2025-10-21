@@ -34,9 +34,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   const [newSettingName, setNewSettingName] = useState('');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [sessionUser, setSessionUser] = useState<any | null>(null);
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  // Removed unused session state variables - AppContext handles authentication
   const [operationError, setOperationError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(isDefaultOpen);
   
@@ -103,59 +101,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     };
   }, [sessionTag, user?.id, state.subscription, state.loadedRestoreDecision, isPremium, reloadKey]);
 
-  // Try to get session user if context user is not available
-  useEffect(() => {
-    const checkSession = async () => {
-      if (!user) {
-        try {
-          setSessionLoading(true);
-          setSessionError(null);
-          
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Error fetching session:', error);
-            setSessionError('Failed to verify authentication. Please try again or log in.');
-            return;
-          }
-          
-          const sessionUser = data?.session?.user;
-          if (sessionUser) {
-            console.log('Found authenticated user in session:', sessionUser.id);
-            setSessionUser(sessionUser);
-            
-            // Also dispatch to context so other components can use it
-            dispatch({ type: 'SET_USER', payload: sessionUser });
-            
-            // Fetch subscription data for this user
-            try {
-              const { data: subData, error: subError } = await supabase
-                .from('subscriptions')
-                .select('*')
-                .eq('user_id', sessionUser.id)
-                .order('current_period_end', { ascending: false })
-                .maybeSingle();
-
-              if (!subError && subData) {
-                dispatch({ type: 'SET_SUBSCRIPTION', payload: subData });
-              }
-            } catch (err) {
-              console.error('Error fetching subscription data:', err);
-            }
-          } else {
-            console.log('No authenticated user found in session');
-          }
-        } catch (err) {
-          console.error('Error checking session:', err);
-          setSessionError('Failed to verify your session. Please try again later.');
-        } finally {
-          setSessionLoading(false);
-        }
-      }
-    };
-    
-    checkSession();
-  }, [user, dispatch]);
+  // Removed redundant session checking - AppContext already handles authentication
 
   // Listen for clicks outside the editing input to save
   useEffect(() => {
@@ -182,7 +128,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
 
   const loadSettings = async () => {
     try {
-      const effectiveUser = user || sessionUser;
+      const effectiveUser = user;
       
       if (!effectiveUser) {
         setSettings([]);
@@ -196,7 +142,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
-        .eq('user_id', (user || sessionUser).id)
+        .eq('user_id', user.id)
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -269,7 +215,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         .from('saved_settings')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', setting.id)
-        .eq('user_id', (user || sessionUser).id);
+        .eq('user_id', user.id);
       
       // Navigate to the Seating tab page
       navigate('/seating');
@@ -281,7 +227,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
 
   const handleSave = async () => {
     setError(null);
-    const effectiveUser = user || sessionUser;
+    const effectiveUser = user;
     
     if (!effectiveUser) {
       setShowAuthModal(true);
@@ -369,7 +315,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     
     setOperationError(null);
     try {
-      const effectiveUser = user || sessionUser;
+      const effectiveUser = user;
       if (!effectiveUser) {
         setShowAuthModal(true);
         return;
@@ -423,7 +369,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         .from('saved_settings')
         .delete()
         .eq('id', id)
-        .eq('user_id', (user || sessionUser).id);
+        .eq('user_id', user.id);
 
       if (error) {
         if (error.status === 401) {
@@ -490,7 +436,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         .from('saved_settings')
         .update({ name: trimmedName })
         .eq('id', editingSettingId)
-        .eq('user_id', (user || sessionUser).id);
+        .eq('user_id', user.id);
 
       if (error) {
         if (error.status === 401) {
@@ -534,8 +480,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   // Check premium status from global state
     const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
   
-  // Check if we have an effective user (either from context or session)
-  const effectiveUser = user || sessionUser;
+  // Check if we have a user from context
+  const effectiveUser = user;
   
   // Get the current setting name from localStorage
   const currentSettingName = localStorage.getItem('seatyr_current_setting_name') || null;
@@ -569,7 +515,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
 
       {isOpen && (
         <div className="mt-4 space-y-4 p-4 bg-[#D7E5E5] rounded-md">
-          {!effectiveUser && !sessionLoading ? (
+          {!effectiveUser ? (
             <Card>
               <div className="text-center py-4">
                 <p className="text-gray-600 mb-4">
@@ -580,7 +526,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                 </Button>
               </div>
             </Card>
-          ) : sessionLoading ? (
+          ) : loading ? (
             <Card>
               <div className="text-center py-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#586D78] mx-auto mb-4"></div>

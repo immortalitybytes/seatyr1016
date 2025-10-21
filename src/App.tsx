@@ -55,7 +55,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AppProvider>
           <div className="min-h-screen bg-[#dde1e3] flex flex-col">
             <Header />

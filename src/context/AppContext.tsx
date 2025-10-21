@@ -1,6 +1,6 @@
 // src/context/AppContext.tsx
 import React, {
-  createContext, useContext, useReducer, useEffect, useMemo, useRef, ReactNode, useState,
+  createContext, useContext, useReducer, useEffect, useMemo, useRef, ReactNode, useState, useCallback,
 } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
@@ -409,10 +409,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearTimeout(t);
   }, [sessionTag, autosaveSignature, autosavePayload]);
 
-  // Debounced plan generation
+  // Debounced plan generation - use useCallback to prevent recreation
   const genRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const debouncedGeneratePlans = useMemo(() => () => {
+  const debouncedGeneratePlans = useCallback(() => {
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const id = ++genRef.current;
@@ -422,7 +422,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
       if (id === genRef.current) dispatch({ type: 'SET_SEATING_PLANS', payload: { plans, errors } });
     }, 500);
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.subscription, state.trial]);
+  }, [dispatch]); // Only depend on dispatch, access state directly
 
   const generationSignature = useMemo(
     () => JSON.stringify([state.guests, state.tables, state.constraints, state.adjacents, state.assignments, deriveMode(state.user, state.subscription, state.trial)]),
