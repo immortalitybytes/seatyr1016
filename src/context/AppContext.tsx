@@ -270,24 +270,21 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'LOAD_MOST_RECENT':
     case 'LOAD_SAVED_SETTING': {
       const incoming = action.payload ?? {};
-      console.log('[LOAD_MOST_RECENT] Incoming payload:', incoming);
-      console.log('[LOAD_MOST_RECENT] Incoming guests:', incoming.guests);
-      console.log('[LOAD_MOST_RECENT] Guests length:', incoming.guests?.length);
-      console.log('[LOAD_MOST_RECENT] Guests type:', typeof incoming.guests);
-      console.log('[LOAD_MOST_RECENT] Guests isArray:', Array.isArray(incoming.guests));
-      console.log('[LOAD_MOST_RECENT] !incoming.guests:', !incoming.guests);
+      const executionId = Math.random().toString(36).substr(2, 9);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Incoming payload:`, incoming);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Incoming guests:`, incoming.guests);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Guests length:`, incoming.guests?.length);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Guests type:`, typeof incoming.guests);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Guests isArray:`, Array.isArray(incoming.guests));
+      console.log(`[LOAD_MOST_RECENT-${executionId}] !incoming.guests:`, !incoming.guests);
       
-      if (!incoming.guests) {
-        console.log('[LOAD_MOST_RECENT] No guests found (null/undefined), returning current state');
+      // FIX: More robust condition check
+      if (!incoming.guests || !Array.isArray(incoming.guests) || incoming.guests.length === 0) {
+        console.log(`[LOAD_MOST_RECENT-${executionId}] No valid guests found, returning current state`);
         return state;
       }
       
-      if (incoming.guests.length === 0) {
-        console.log('[LOAD_MOST_RECENT] Empty guests array, returning current state');
-        return state;
-      }
-      
-      console.log('[LOAD_MOST_RECENT] Loading guests into state:', incoming.guests.length, 'guests');
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Loading guests into state:`, incoming.guests.length, 'guests');
       return {
         ...initialState,
         ...incoming,
