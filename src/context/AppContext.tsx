@@ -185,6 +185,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
     case 'SET_CURRENT_PLAN_INDEX': return { ...state, currentPlanIndex: action.payload };
+    case 'TRIGGER_REGENERATION': 
+      console.log('[AppContext] TRIGGER_REGENERATION - clearing plans to force regeneration');
+      return { ...state, seatingPlans: [], currentPlanIndex: 0 };
     case 'AUTO_RECONCILE_TABLES': return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case 'ADD_TABLE': {
       const maxId = Math.max(0, ...state.tables.map(t => t.id || 0));

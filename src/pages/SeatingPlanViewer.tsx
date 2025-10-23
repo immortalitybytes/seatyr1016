@@ -218,37 +218,22 @@ const SeatingPlanViewer: React.FC = () => {
   const handleGenerateSeatingPlan = async () => {
       setIsGenerating(true);
       setErrors([]);
-      try {
-          // DIAGNOSTIC: Log what SeatingPlanViewer is passing to algorithm
-          console.group('[SeatingPlanViewer] Calling seating algorithm directly');
-          console.log('state.guests:', state.guests.length, 'guests');
-          console.log('state.tables:', state.tables.length, 'tables');
-          console.log('state.constraints:', state.constraints);
-          console.log('state.assignments:', state.assignments);
-          console.log('isPremium:', isPremium);
-          
-          // DETAILED: Log assignment contents
-          console.log('Assignment details:');
-          Object.entries(state.assignments || {}).forEach(([guestId, assignment]) => {
-            console.log(`  Guest ${guestId}: "${assignment}"`);
-          });
-          console.groupEnd();
-          
-          const { plans, errors: validationErrors } = await generateSeatingPlans(
-              state.guests, state.tables, state.constraints, state.adjacents, state.assignments, isPremium
-          );
-          if (validationErrors.length > 0) setErrors(validationErrors);
-          if (plans.length > 0) {
-              dispatch({ type: 'SET_SEATING_PLANS', payload: plans });
-              dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
-          } else if (validationErrors.length === 0) {
-              setErrors([{ type: 'error', message: 'No valid seating plans could be generated. Try relaxing constraints.' }]);
-          }
-      } catch (e) {
-          setErrors([{ type: 'error', message: 'An unexpected error occurred during plan generation.' }]);
-      } finally {
-          setIsGenerating(false);
-      }
+      
+      // Let AppContext handle the algorithm call via debouncedGeneratePlans
+      // This ensures consistent state and prevents dual calls
+      console.log('[SeatingPlanViewer] Triggering AppContext algorithm generation');
+      
+      // The AppContext will handle the actual generation via its useEffect
+      // We just need to trigger a state change that will cause regeneration
+      dispatch({ type: 'TRIGGER_REGENERATION' });
+      
+      // Wait a moment for the algorithm to complete
+      setTimeout(() => {
+        setIsGenerating(false);
+        if (state.seatingPlans.length === 0) {
+          setErrors([{ type: 'error', message: 'No valid seating plans could be generated. Try relaxing constraints.' }]);
+        }
+      }, 2000);
   };
 
   // Render page numbers function (matching Constraints page)
