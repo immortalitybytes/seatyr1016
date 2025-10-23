@@ -278,8 +278,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       console.log(`[LOAD_MOST_RECENT-${executionId}] Guests isArray:`, Array.isArray(incoming.guests));
       console.log(`[LOAD_MOST_RECENT-${executionId}] !incoming.guests:`, !incoming.guests);
       
-      // FIX: More robust condition check
-      if (!incoming.guests || !Array.isArray(incoming.guests) || incoming.guests.length === 0) {
+      // FIX: More robust condition check with immediate logging
+      const hasGuests = incoming.guests && Array.isArray(incoming.guests) && incoming.guests.length > 0;
+      console.log(`[LOAD_MOST_RECENT-${executionId}] hasGuests check:`, hasGuests);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] incoming.guests:`, incoming.guests);
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Array.isArray(incoming.guests):`, Array.isArray(incoming.guests));
+      console.log(`[LOAD_MOST_RECENT-${executionId}] incoming.guests.length:`, incoming.guests?.length);
+      
+      if (!hasGuests) {
         console.log(`[LOAD_MOST_RECENT-${executionId}] No valid guests found, returning current state`);
         return state;
       }
@@ -365,10 +371,20 @@ const AppContext = createContext<{
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState, (init) => {
+    console.log('[AppProvider] Initializing reducer with localStorage check...');
     try {
       const saved = localStorage.getItem('seatyr_app_state');
-      if (saved) return sanitizeAndMigrateAppState(JSON.parse(saved));
-    } catch {}
+      console.log('[AppProvider] localStorage data exists:', !!saved);
+      if (saved) {
+        console.log('[AppProvider] Calling sanitizeAndMigrateAppState...');
+        const result = sanitizeAndMigrateAppState(JSON.parse(saved));
+        console.log('[AppProvider] sanitizeAndMigrateAppState result:', result);
+        return result;
+      }
+    } catch (err) {
+      console.error('[AppProvider] localStorage parse error:', err);
+    }
+    console.log('[AppProvider] Using initial state');
     return init;
   });
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
