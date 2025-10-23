@@ -143,9 +143,36 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'UPDATE_ASSIGNMENT': {
       const { guestId, raw } = action.payload || {};
-      const assignments = { ...(state.assignments || {}), [guestId]: raw ?? '' };
+      const currentAssignment = state.assignments[guestId] || '';
+      const newAssignment = raw ?? '';
+      const assignments = { ...(state.assignments || {}), [guestId]: newAssignment };
       const signature = JSON.stringify(Object.entries(assignments).sort((a,b)=>a[0].localeCompare(b[0])));
-      return { ...state, assignments, assignmentSignature: signature, seatingPlans: [], currentPlanIndex: 0 };
+      
+      // Determine if this is adding or removing assignment constraints
+      const isAddingAssignment = newAssignment !== '' && currentAssignment === '';
+      const isRemovingAssignment = newAssignment === '' && currentAssignment !== '';
+      const isChangingAssignment = newAssignment !== '' && currentAssignment !== '';
+      
+      // Parse assignments to compare constraint levels
+      const currentTables = currentAssignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+      const newTables = newAssignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+      
+      const isMoreRestrictive = newTables.length > 0 && currentTables.length > 0 && 
+        newTables.every(id => currentTables.includes(id)) && newTables.length < currentTables.length;
+      const isLessRestrictive = newTables.length > 0 && currentTables.length > 0 && 
+        currentTables.every(id => newTables.includes(id)) && newTables.length > currentTables.length;
+      
+      const shouldRegenerate = isAddingAssignment || isChangingAssignment || isMoreRestrictive;
+      
+      console.log(`[Assignment Change] Guest ${guestId}: "${currentAssignment}" → "${newAssignment}", Regenerate: ${shouldRegenerate}`);
+      
+      return { 
+        ...state, 
+        assignments, 
+        assignmentSignature: signature, 
+        seatingPlans: shouldRegenerate ? [] : state.seatingPlans, 
+        currentPlanIndex: shouldRegenerate ? 0 : state.currentPlanIndex 
+      };
     }
     case 'SET_SEATING_PLANS': {
       const { plans = [], errors = [] } = action.payload || {};
@@ -162,6 +189,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'ADD_TABLE': {
       const maxId = Math.max(0, ...state.tables.map(t => t.id || 0));
       const newTable = { id: maxId + 1, seats: 8 };
+      console.log('[Table Change] Adding table - preserving plans (relaxation)');
       return { ...state, tables: [...state.tables, newTable], userSetTables: true };
     }
     case 'REMOVE_TABLE': {
@@ -177,14 +205,31 @@ const reducer = (state: AppState, action: AppAction): AppState => {
           filteredAssignments[guestId] = remainingIds.join(',');
         }
       });
-      return { ...state, tables: filteredTables, assignments: filteredAssignments, userSetTables: true };
+      console.log('[Table Change] Removing table - regenerating plans (constraint addition)');
+      return { ...state, tables: filteredTables, assignments: filteredAssignments, userSetTables: true, seatingPlans: [], currentPlanIndex: 0 };
     }
     case 'UPDATE_TABLE': {
       const { id, name, seats } = action.payload;
+      const currentTable = state.tables.find(t => t.id === id);
       const updatedTables = state.tables.map(t => 
         t.id === id ? { ...t, ...(name !== undefined && { name }), ...(seats !== undefined && { seats }) } : t
       );
-      return { ...state, tables: updatedTables, userSetTables: true };
+      
+      // Determine if capacity is being reduced (constraint addition) or increased (relaxation)
+      const isCapacityReduced = seats !== undefined && currentTable && seats < currentTable.seats;
+      const isCapacityIncreased = seats !== undefined && currentTable && seats > currentTable.seats;
+      
+      if (isCapacityReduced) {
+        console.log(`[Table Change] Reducing capacity ${currentTable.seats} → ${seats} - regenerating plans (constraint addition)`);
+        return { ...state, tables: updatedTables, userSetTables: true, seatingPlans: [], currentPlanIndex: 0 };
+      } else if (isCapacityIncreased) {
+        console.log(`[Table Change] Increasing capacity ${currentTable.seats} → ${seats} - preserving plans (relaxation)`);
+        return { ...state, tables: updatedTables, userSetTables: true };
+      } else {
+        // Name change or no capacity change - preserve plans
+        console.log(`[Table Change] Name change or no capacity change - preserving plans`);
+        return { ...state, tables: updatedTables, userSetTables: true };
+      }
     }
     case 'SET_USER_SET_TABLES': return { ...state, userSetTables: action.payload };
 
@@ -223,6 +268,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const currentIndex = cycle.indexOf(currentStateForCycle);
       const nextState = cycle[(currentIndex + 1) % cycle.length];
 
+      // Determine if this is adding or removing constraints
+      const isAddingConstraint = nextState !== '' && currentStateForCycle === '';
+      const isRemovingConstraint = nextState === '' && currentStateForCycle !== '';
+      const isChangingConstraint = nextState !== '' && currentStateForCycle !== '';
+
       if (newConstraints[a]) delete newConstraints[a][b];
       if (newConstraints[b]) delete newConstraints[b][a];
       if (newAdjacents[a]) newAdjacents[a] = newAdjacents[a].filter((id: string) => id !== b);
@@ -239,7 +289,18 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         if (!newAdjacents[a].includes(b)) newAdjacents[a].push(b);
         if (!newAdjacents[b].includes(a)) newAdjacents[b].push(a);
       }
-      return { ...state, constraints: newConstraints, adjacents: newAdjacents, seatingPlans: [], currentPlanIndex: 0 };
+
+      // ASYMMETRIC REGENERATION: Only clear plans when adding/changing constraints
+      const shouldRegenerate = isAddingConstraint || isChangingConstraint;
+      console.log(`[Constraint Change] ${a}-${b}: ${currentStateForCycle} → ${nextState}, Regenerate: ${shouldRegenerate}`);
+      
+      return { 
+        ...state, 
+        constraints: newConstraints, 
+        adjacents: newAdjacents, 
+        seatingPlans: shouldRegenerate ? [] : state.seatingPlans, 
+        currentPlanIndex: shouldRegenerate ? 0 : state.currentPlanIndex 
+      };
     }
 
     default: return state;
