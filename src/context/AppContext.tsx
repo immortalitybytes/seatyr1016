@@ -291,10 +291,23 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       }
       
       console.log(`[LOAD_MOST_RECENT-${executionId}] Loading guests into state:`, incoming.guests.length, 'guests');
+      
+      // CRITICAL FIX: Preserve current table state if user has made changes
+      // Only use incoming tables if user hasn't customized tables locally
+      const shouldUseIncomingTables = !state.userSetTables && incoming.tables?.length;
+      const tablesToUse = shouldUseIncomingTables ? incoming.tables : state.tables;
+      
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Table preservation check:`, {
+        userSetTables: state.userSetTables,
+        incomingTablesLength: incoming.tables?.length,
+        shouldUseIncomingTables,
+        finalTablesLength: tablesToUse.length
+      });
+      
       return {
         ...initialState,
         ...incoming,
-        tables: (incoming.tables?.length ? incoming.tables : defaultTables),
+        tables: tablesToUse,
         user: state.user,
         subscription: state.subscription,
         trial: state.trial,
