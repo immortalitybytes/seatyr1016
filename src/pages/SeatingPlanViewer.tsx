@@ -226,6 +226,12 @@ const SeatingPlanViewer: React.FC = () => {
           console.log('state.constraints:', state.constraints);
           console.log('state.assignments:', state.assignments);
           console.log('isPremium:', isPremium);
+          
+          // DETAILED: Log assignment contents
+          console.log('Assignment details:');
+          Object.entries(state.assignments || {}).forEach(([guestId, assignment]) => {
+            console.log(`  Guest ${guestId}: "${assignment}"`);
+          });
           console.groupEnd();
           
           const { plans, errors: validationErrors } = await generateSeatingPlans(
