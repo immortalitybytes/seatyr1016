@@ -342,7 +342,7 @@ const TableManager: React.FC = () => {
 
   const sortedGuests = useMemo(() => {
     const guests = [...state.guests];
-    const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
+    const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
     switch (sortOption) {
       case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
       case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));

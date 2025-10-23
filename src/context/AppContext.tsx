@@ -95,7 +95,31 @@ function sanitizeAndMigrateAppState(s: any): AppState {
   console.log('[State Migration] Raw saved state:', s);
   console.log('[State Migration] Raw guests:', s.guests);
   
-  const guests = (s.guests || []).filter((g: Guest) => g && g.id && g.name);
+  // DIAGNOSTIC: Check first few guest structures
+  if (s.guests && s.guests.length > 0) {
+    console.log('[State Migration] First guest structure:', s.guests[0]);
+    console.log('[State Migration] Guest fields check:', {
+      hasId: !!s.guests[0].id,
+      hasName: !!s.guests[0].name,
+      idValue: s.guests[0].id,
+      nameValue: s.guests[0].name,
+      allFields: Object.keys(s.guests[0])
+    });
+  }
+  
+  // FIX: More lenient filtering - check for any identifier field
+  const guests = (s.guests || []).filter((g: any) => {
+    const hasId = g && (g.id || g.guestId || g.key);
+    const hasName = g && (g.name || g.guestName || g.displayName);
+    console.log(`[State Migration] Guest filter check:`, { 
+      guest: g, 
+      hasId, 
+      hasName, 
+      passes: hasId && hasName 
+    });
+    return hasId && hasName;
+  });
+  
   console.log('[State Migration] Filtered guests:', guests);
   console.log('[State Migration] Guest count:', guests.length);
   
