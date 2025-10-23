@@ -270,7 +270,16 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'LOAD_MOST_RECENT':
     case 'LOAD_SAVED_SETTING': {
       const incoming = action.payload ?? {};
-      if (!incoming.guests) return state;
+      console.log('[LOAD_MOST_RECENT] Incoming payload:', incoming);
+      console.log('[LOAD_MOST_RECENT] Incoming guests:', incoming.guests);
+      console.log('[LOAD_MOST_RECENT] Guests length:', incoming.guests?.length);
+      
+      if (!incoming.guests) {
+        console.log('[LOAD_MOST_RECENT] No guests found, returning current state');
+        return state;
+      }
+      
+      console.log('[LOAD_MOST_RECENT] Loading guests into state:', incoming.guests.length, 'guests');
       return {
         ...initialState,
         ...incoming,
@@ -405,15 +414,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setSessionTag('SIGNED_IN');
 
             if (isPremium) {
+              console.log('[Auth] Premium user, fetching most recent state...');
               const data = await getMostRecentState(session.user.id);
+              console.log('[Auth] Most recent state fetched:', data);
+              console.log('[Auth] Data guests:', data?.guests);
+              console.log('[Auth] Data guests length:', data?.guests?.length);
+              
               if (isMountedRef.current && data?.guests?.length > 0) {
+                console.log('[Auth] Setting most recent state and showing modal');
                 setMostRecentState(data);
                 setShowRecentModal(true); // RESTORE MODAL
                 // Don't set loadedRestoreDecision yet (modal will do it)
               } else {
+                console.log('[Auth] No recent state or no guests, skipping modal');
                 dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
               }
             } else {
+              console.log('[Auth] Not premium user, skipping recent state fetch');
               dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
             }
 
