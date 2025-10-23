@@ -92,7 +92,13 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   return [...tables, ...add];
 }
 function sanitizeAndMigrateAppState(s: any): AppState {
+  console.log('[State Migration] Raw saved state:', s);
+  console.log('[State Migration] Raw guests:', s.guests);
+  
   const guests = (s.guests || []).filter((g: Guest) => g && g.id && g.name);
+  console.log('[State Migration] Filtered guests:', guests);
+  console.log('[State Migration] Guest count:', guests.length);
+  
   const { constraints, adjacents } = migrateState({ guests, constraints: s.constraints, adjacents: s.adjacents });
   const migratedAssignments = migrateAssignmentsToIdKeys(s.assignments || {}, guests);
   return { ...s, guests, assignments: migratedAssignments, constraints, adjacents, timestamp: new Date().toISOString() };
@@ -483,6 +489,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedGeneratePlans = useCallback(() => {
     console.log('🔍 [AppContext] debouncedGeneratePlans called');
+    console.log('🔍 [AppContext] Current state.guests:', state.guests);
+    console.log('🔍 [AppContext] Current state.guests.length:', state.guests.length);
+    
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       const id = ++genRef.current;
