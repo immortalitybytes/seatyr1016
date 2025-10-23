@@ -411,10 +411,15 @@ function validateAndGroup(
   for (const gi of byRoot.values()) {
     let groupAllowed: Set<ID> | null = null;
     const assignedMembers: string[] = [];
+    const unassignedMembers: string[] = [];
     
     for (const m of gi.members) {
       const raw = assignments[m];
-      if (!raw) continue;
+      if (!raw) {
+        unassignedMembers.push(m);
+        console.log(`Member ${m}: No assignment (flexible)`);
+        continue;
+      }
       
       assignedMembers.push(m);
       const list = (Array.isArray(raw) ? raw : String(raw).split(/[,\s]+/).filter(Boolean))
@@ -425,39 +430,58 @@ function validateAndGroup(
       
       console.log(`Member ${m}: "${raw}" → [${Array.from(memberAllowed).join(',')}]`);
       
-      if (memberAllowed.size === 0) continue;
+      if (memberAllowed.size === 0) {
+        console.log(`  → Skipping (no valid tables)`);
+        continue;
+      }
+      
       if (groupAllowed === null) {
         groupAllowed = memberAllowed;
+        console.log(`  → Initial group allowed: [${Array.from(groupAllowed).join(',')}]`);
       } else {
         const before = Array.from(groupAllowed).join(',');
         const next = new Set<ID>();
         for (const tid of groupAllowed) if (memberAllowed.has(tid)) next.add(tid);
         groupAllowed = next;
-        console.log(`  Intersection: [${before}] ∩ [${Array.from(memberAllowed).join(',')}] = [${Array.from(groupAllowed).join(',')}]`);
+        console.log(`  → Intersection: [${before}] ∩ [${Array.from(memberAllowed).join(',')}] = [${Array.from(groupAllowed).join(',')}]`);
       }
     }
     
     if (assignedMembers.length > 0) {
-      console.log(`Group [${gi.members.join(',')}]: ${gi.size} people, Final intersection: [${groupAllowed ? Array.from(groupAllowed).join(',') : 'NONE'}]`);
+      console.log(`Group [${gi.members.join(',')}]: ${gi.size} people`);
+      console.log(`  Assigned members: [${assignedMembers.join(',')}]`);
+      if (unassignedMembers.length > 0) {
+        console.log(`  Unassigned members: [${unassignedMembers.join(',')}] (flexible)`);
+      }
+      console.log(`  Final intersection: [${groupAllowed ? Array.from(groupAllowed).join(',') : 'NONE'}]`);
+      
       if (groupAllowed && groupAllowed.size === 0) {
-        console.error(`  ❌ CONFLICT: No common table for group`);
+        console.error(`  ❌ CONFLICT: No common table for assigned members`);
       } else if (groupAllowed && groupAllowed.size === 1) {
         console.log(`  ✓ Pre-assigned to table: ${Array.from(groupAllowed)[0]}`);
+      } else if (groupAllowed && groupAllowed.size > 1) {
+        console.log(`  ✓ Can be placed at tables: [${Array.from(groupAllowed).join(',')}]`);
       }
+    } else {
+      console.log(`Group [${gi.members.join(',')}]: ${gi.size} people, No assignments (can be placed anywhere)`);
     }
     
-    if (groupAllowed && groupAllowed.size === 0) {
-      errors.push({
-        kind: "assignment_conflict",
-        message: "No common allowed table for grouped guests",
-        details: { group: gi.members },
-      });
-    } else if (groupAllowed && groupAllowed.size === 1) {
-      gi.preassignedTable = Array.from(groupAllowed)[0];
-      gi.allowedTables = groupAllowed;
-    } else if (groupAllowed && groupAllowed.size > 1) {
-      gi.allowedTables = groupAllowed;
+    // Only apply assignment restrictions if there are assigned members
+    if (assignedMembers.length > 0) {
+      if (groupAllowed && groupAllowed.size === 0) {
+        errors.push({
+          kind: "assignment_conflict",
+          message: "No common allowed table for grouped guests",
+          details: { group: gi.members },
+        });
+      } else if (groupAllowed && groupAllowed.size === 1) {
+        gi.preassignedTable = Array.from(groupAllowed)[0];
+        gi.allowedTables = groupAllowed;
+      } else if (groupAllowed && groupAllowed.size > 1) {
+        gi.allowedTables = groupAllowed;
+      }
     }
+    // If no assigned members, group can be placed anywhere (no restrictions)
   }
   console.groupEnd();
 
