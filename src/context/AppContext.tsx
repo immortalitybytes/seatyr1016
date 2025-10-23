@@ -317,8 +317,12 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
 
-    case 'RESET_APP_STATE': return { ...initialState, user: null, subscription: null, trial: null };
-    case 'CLEAR_ALL': return { ...initialState, user: state.user, subscription: state.subscription, trial: state.trial };
+    case 'RESET_APP_STATE': 
+      console.log('[AppContext] RESET_APP_STATE called - clearing all data');
+      return { ...initialState, user: null, subscription: null, trial: null };
+    case 'CLEAR_ALL': 
+      console.log('[AppContext] CLEAR_ALL called - resetting to initial state');
+      return { ...initialState, user: state.user, subscription: state.subscription, trial: state.trial };
 
     case 'CYCLE_CONSTRAINT': {
       const { a, b, mode } = action.payload;
@@ -566,6 +570,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     console.log('🔍 [AppContext] debouncedGeneratePlans called');
     console.log('🔍 [AppContext] Current state.guests:', state.guests);
     console.log('🔍 [AppContext] Current state.guests.length:', state.guests.length);
+    console.log('🔍 [AppContext] Current state.tables:', state.tables.map(t => `${t.id}:${t.seats}seats`).join(', '));
+    console.log('🔍 [AppContext] Session tag:', sessionTag);
+    console.log('🔍 [AppContext] User:', state.user?.id);
+    console.log('🔍 [AppContext] Loaded restore decision:', state.loadedRestoreDecision);
     
     if (timerRef.current != null) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
