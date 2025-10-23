@@ -294,6 +294,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const shouldRegenerate = isAddingConstraint || isChangingConstraint;
       console.log(`[Constraint Change] ${a}-${b}: ${currentStateForCycle} → ${nextState}, Regenerate: ${shouldRegenerate}`);
       
+      // DIAGNOSTIC: Log constraint state after update
+      console.log(`[Constraint Reducer] After update:`);
+      console.log(`  constraints:`, JSON.stringify(newConstraints));
+      console.log(`  adjacents:`, JSON.stringify(newAdjacents));
+      
       return { 
         ...state, 
         constraints: newConstraints, 

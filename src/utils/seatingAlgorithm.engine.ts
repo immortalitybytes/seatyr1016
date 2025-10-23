@@ -378,6 +378,12 @@ function validateAndGroup(
   console.log('isPremium:', isPremium);
   console.log('MUST pairs:', constr?.mustPairs?.length || 0);
   console.log('ADJ pairs:', adj?.pairs?.length || 0);
+  
+  // DIAGNOSTIC: Check guest structure
+  if (guests.length > 0) {
+    console.log('First guest structure:', JSON.stringify(guests[0]));
+    console.log('Guest groupSize values:', guests.map(g => `${g.name || g.id}: ${g.groupSize || 'undefined'}`).slice(0, 5));
+  }
   console.groupEnd();
 
   const byRoot = new Map<ID, { root: ID; members: ID[]; size: number; adjacencyDegree: number; cantNeighbors: Set<ID>; preassignedTable?: ID; allowedTables?: Set<ID> }>();
