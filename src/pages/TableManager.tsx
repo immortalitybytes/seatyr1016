@@ -516,8 +516,8 @@ const TableManager: React.FC = () => {
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
                 <AlertCircle className="text-red-500 mr-2 mt-1 flex-shrink-0" />
                 <div>
-                  <p className="text-red-700 font-medium">Assignment Warnings</p>
-                  <ul className="list-disc pl-5 text-red-600 text-sm">
+                  <p className="font-medium" style={{ color: '#A16206' }}>Assignment Warnings</p>
+                  <ul className="list-disc pl-5 text-sm" style={{ color: '#A16206' }}>
                     {state.conflictWarnings.map((warn, index) => (
                       <li key={index}>{warn}</li>
                     ))}
