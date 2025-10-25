@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
@@ -140,7 +140,7 @@ const ConstraintChipsInput: React.FC<{
 };
 
 const TableManager: React.FC = () => {
-  const { state, dispatch, mode } = useApp();
+  const { state, dispatch, mode, sessionTag } = useApp();
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -164,6 +164,8 @@ const TableManager: React.FC = () => {
     if (!allowedSortOptions.includes(sortOption)) setSortOption('last-name');
   }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
+  const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
+  
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
@@ -171,10 +173,73 @@ const TableManager: React.FC = () => {
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
   };
   
-  const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
   useEffect(() => {
     purgePlans();
   }, [totalSeatsNeeded, state.assignments, state.tables, dispatch]);
+  
+  // Complete input handlers
+  const handleAssignmentInputChange = useCallback((guestId: string, value: string) => {
+    setRawAssignmentInput(prev => ({ ...prev, [guestId]: value }));
+    // Clear warnings when typing
+    setAssignmentWarnings(prev => {
+      const { [guestId]: _, ...rest } = prev;
+      return rest;
+    });
+  }, []);
+
+  // Handler for commit (blur/Enter) - COMPLETE implementation
+  const handleAssignmentCommit = useCallback((guestId: string) => {
+    const rawValue = rawAssignmentInput[guestId];
+    const committedValue = state.assignments[guestId] || '';
+    
+    if (rawValue !== undefined && rawValue !== committedValue) {
+      const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
+        rawValue,
+        state.tables,  // ✅ FIXED: Pass table objects, not just IDs
+        isPremium
+      );
+      
+      dispatch({ type: 'UPDATE_ASSIGNMENT', payload: { guestId, raw: idCsv } });
+      setAssignmentWarnings(prev => ({ ...prev, [guestId]: warnings }));
+    }
+  }, [rawAssignmentInput, state.assignments, state.tables, isPremium, dispatch]);
+  
+  const currentTableKey = (guestId: string, plan: any) => {
+    if (plan?.tables) {
+      if (plan.tables.some((t: any) => t.seats.some((s: any) => s.id === guestId))) {
+        return plan.tables.find((t: any) => t.seats.some((s: any) => s.id === guestId))!.id;
+      }
+    }
+    const raw = state.assignments[guestId];
+    if (raw) {
+      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
+      if (ids.length) return ids[0];
+    }
+    return Number.POSITIVE_INFINITY;
+  };
+
+  const sortedGuests = useMemo(() => {
+    const guests = [...state.guests];
+    const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
+    switch (sortOption) {
+      case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
+      case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
+      case 'current-table': 
+        if (state.seatingPlans.length === 0) return guests; // no-op when no plans
+        return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
+      default: return guests;
+    }
+  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments, currentTableKey]);
+  
+  // Loading guard - use state.isReady (single source of truth)
+  if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]" role="status" aria-label="Loading...">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" aria-hidden="true"></div>
+        <span>Loading...</span>
+      </div>
+    );
+  }
   
   const handleAddTable = () => {
     if (state.tables.length >= 100) {
@@ -267,9 +332,6 @@ const TableManager: React.FC = () => {
   const getTableDisplayName = (table: { id: number, name?: string | null }) => {
     return table.name || `Table ${table.id}`;
   };
-
-  const handleUpdateAssignment = (guestId: string, csv: string) =>
-    dispatch({ type: 'UPDATE_ASSIGNMENT', payload: { guestId, raw: csv } });
   
   const updateConstraints = (guestId: string, newNames: string[], type: 'must' | 'cannot') => {
     // Get old constraint IDs and convert to names
@@ -325,33 +387,6 @@ const TableManager: React.FC = () => {
       .filter(Boolean);
     return { must, cannot, adjacent };
   };
-
-  const currentTableKey = (guestId: string, plan: any) => {
-    if (plan?.tables) {
-      if (plan.tables.some((t: any) => t.seats.some((s: any) => s.id === guestId))) {
-        return plan.tables.find((t: any) => t.seats.some((s: any) => s.id === guestId))!.id;
-      }
-    }
-    const raw = state.assignments[guestId];
-    if (raw) {
-      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
-      if (ids.length) return ids[0];
-    }
-    return Number.POSITIVE_INFINITY;
-  };
-
-  const sortedGuests = useMemo(() => {
-    const guests = [...state.guests];
-    const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
-    switch (sortOption) {
-      case 'first-name': return guests.sort((a, b) => a.name.localeCompare(b.name));
-      case 'last-name': return guests.sort((a, b) => (getLastNameForSorting(a.name)).localeCompare(getLastNameForSorting(b.name)));
-      case 'current-table': 
-        if (state.seatingPlans.length === 0) return guests; // no-op when no plans
-        return guests.sort((a, b) => currentTableKey(a.id, plan) - currentTableKey(b.id, plan));
-      default: return guests;
-    }
-  }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments]);
   
   const accordionHeaderStyles = "flex justify-between items-center p-3 rounded-md bg-[#D7E5E5] cursor-pointer";
   
@@ -586,35 +621,38 @@ const TableManager: React.FC = () => {
                             type="text"
                             autoComplete="off"
                             value={rawAssignmentInput[guest.id] ?? assignedTables}
-                            onChange={e => setRawAssignmentInput(prev => ({ ...prev, [guest.id]: e.target.value }))}
-                            onBlur={e => {
-                              const isPremium = isPremiumSubscription(state.subscription, state.trial);
-                              const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
-                                e.target.value,
-                                state.tables,
-                                isPremium
-                              );
-
-                              handleUpdateAssignment(guest.id, idCsv);
-
-                              if (warnings.length > 0) {
-                                console.warn('Assignment warnings:', warnings);
-                                // Display warnings to user
-                                dispatch({ type: 'SHOW_MODAL', payload: { 
-                                  title: 'Assignment Warnings', 
-                                  body: warnings.join('\n') 
-                                }});
+                            onChange={e => handleAssignmentInputChange(guest.id, e.target.value)}
+                            onBlur={() => handleAssignmentCommit(guest.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAssignmentCommit(guest.id);
+                              } else if (e.key === 'Escape') {
+                                setRawAssignmentInput(prev => {
+                                  const { [guest.id]: _, ...rest } = prev;
+                                  return rest;
+                                });
                               }
-
-                              setRawAssignmentInput(prev => {
-                                const { [guest.id]: _drop, ...rest } = prev;
-                                return rest;
-                              });
                             }}
-                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            aria-describedby={assignmentWarnings[guest.id]?.length ? `warning-${guest.id}` : undefined}
                             className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm"
                             placeholder={mode === 'premium' ? 'e.g., 1, 3 or Table A' : 'e.g., 1, 3, 5'}
                           />
+                          
+                          {/* Inline warnings for input errors */}
+                          {assignmentWarnings[guest.id]?.length > 0 && (
+                            <div 
+                              id={`warning-${guest.id}`} 
+                              className="mt-1 text-xs text-red-600 space-y-0.5" 
+                              role="alert" 
+                              aria-live="polite"
+                            >
+                              {assignmentWarnings[guest.id].map((warning, idx) => (
+                                <p key={idx}>⚠️ {warning}</p>
+                              ))}
+                            </div>
+                          )}
+                          
                           {assignedTables && parseAssignmentIds(assignedTables).length > 1 && (
                             <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -622,18 +660,6 @@ const TableManager: React.FC = () => {
                               </svg>
                               Multi-table option active - guest may sit at any of {parseAssignmentIds(assignedTables).length} tables
                             </p>
-                          )}
-                          {assignmentWarnings[guest.id] && assignmentWarnings[guest.id].length > 0 && (
-                            <div className="mt-1 space-y-1">
-                              {assignmentWarnings[guest.id].map((warning, idx) => (
-                                <p key={idx} className="text-xs text-amber-600 flex items-center gap-1">
-                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                  </svg>
-                                  {warning}
-                                </p>
-                              ))}
-                            </div>
                           )}
                           {state.tables.length > 0 && <p className="text-xs text-gray-500 mt-1">Available: {getTableList()}</p>}
                         </div>

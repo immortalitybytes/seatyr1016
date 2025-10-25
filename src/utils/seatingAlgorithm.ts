@@ -155,6 +155,7 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
       console.error("Adapter error:", e.message, e.stack);
       (err as any)._details = e.message;
     }
+    console.error("Full error object:", e);
     return { plans: [], errors: [err] };
   } finally {
     console.timeEnd("SeatingGeneration");

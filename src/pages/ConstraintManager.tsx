@@ -657,9 +657,12 @@ const ConstraintManager: React.FC = () => {
       if (currentConstraint !== 'must') {
         // Set to must first
         dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
+        // Then cycle again to get to adjacent
+        dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
+      } else {
+        // Already at must, just cycle to adjacent
+        dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
       }
-      // Then cycle again to get to adjacent
-      dispatch({ type: 'CYCLE_CONSTRAINT', payload: { a: selectedGuestId, b: guestId, mode } });
 
       // Highlight the pair (using IDs for internal state)
       setHighlightedPair({ guest1: selectedGuestId, guest2: guestId });

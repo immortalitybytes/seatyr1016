@@ -18,6 +18,57 @@ import { migrateState, migrateAssignmentsToIdKeys, parseAssignmentIds } from '..
 import { generateSeatingPlans as engineGenerate } from '../utils/seatingAlgorithm';
 import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
 
+// Inline debounce utility (no external file)
+// FIXED: Use ReturnType<typeof setTimeout> for cross-platform compatibility
+function debounce<T extends (...args: any[]) => void>(
+  func: T,
+  wait: number,
+  options: { leading?: boolean; trailing?: boolean } = { trailing: true }
+): T & { cancel: () => void } {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<T> | null = null;
+  let lastThis: any = null;
+  
+  const invoke = () => {
+    if (lastArgs) {
+      func.apply(lastThis, lastArgs);
+      lastArgs = null;
+      lastThis = null;
+    }
+  };
+  
+  const debounced = function(this: any, ...args: Parameters<T>) {
+    lastArgs = args;
+    lastThis = this;
+    
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+    
+    if (options.leading && timeoutId === null) {
+      invoke();
+    }
+    
+    timeoutId = setTimeout(() => {
+      if (options.trailing) {
+        invoke();
+      }
+      timeoutId = null;
+    }, wait);
+  } as T & { cancel: () => void };
+  
+  debounced.cancel = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    lastArgs = null;
+    lastThis = null;
+  };
+  
+  return debounced;
+}
+
 type SessionTag = 'INITIALIZING' | 'AUTHENTICATING' | 'ANON' | 'ENTITLED' | 'ERROR';
 type AppAction = { type: string; payload?: any };
 
@@ -131,7 +182,8 @@ function sanitizeAndMigrateAppState(s: any): AppState {
 const initialState: AppState = {
   guests: [], tables: defaultTables, constraints: {}, adjacents: {}, assignments: {},
   seatingPlans: [], currentPlanIndex: 0, subscription: undefined, trial: null, user: null,
-  userSetTables: false, loadedSavedSetting: false, loadedRestoreDecision: false, timestamp: new Date().toISOString(),
+  userSetTables: false, loadedSavedSetting: false, loadedRestoreDecision: false, 
+  regenerationNeeded: true, isReady: false, timestamp: new Date().toISOString(),
   isSupabaseConnected: !!supabase, duplicateGuests: [], assignmentSignature: '',
   warnings: [], lastGeneratedSignature: null, hideTableReductionNotice: false,
   conflictWarnings: [], lastGeneratedPlanSig: null,
@@ -143,6 +195,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'SET_SUBSCRIPTION': return { ...state, subscription: action.payload };
     case 'SET_TRIAL': return { ...state, trial: action.payload };
     case 'SET_LOADED_RESTORE_DECISION': return { ...state, loadedRestoreDecision: action.payload };
+    case 'SET_READY': return { ...state, isReady: true };
 
     case 'SET_GUESTS': {
       const payload = action.payload;
@@ -151,7 +204,13 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'ADD_GUEST': {
       const guest: Guest = action.payload;
-      return { ...state, guests: [...state.guests, guest], seatingPlans: [], currentPlanIndex: 0 };
+      return { 
+        ...state, 
+        guests: [...state.guests, guest], 
+        regenerationNeeded: true,
+        seatingPlans: [], 
+        currentPlanIndex: 0 
+      };
     }
     case 'REMOVE_GUEST': {
       const id = action.payload;
@@ -164,7 +223,16 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { [id]: _z, ...adjacents } = state.adjacents || {};
       Object.keys(adjacents).forEach(k => { adjacents[k] = (adjacents[k] || []).filter((gid: any) => gid !== id); });
 
-      return { ...state, guests, assignments, constraints, adjacents, seatingPlans: [], currentPlanIndex: 0 };
+      return { 
+        ...state, 
+        guests, 
+        assignments, 
+        constraints, 
+        adjacents, 
+        regenerationNeeded: true,
+        seatingPlans: [], 
+        currentPlanIndex: 0 
+      };
     }
     case 'RENAME_GUEST': {
       const { id, name } = action.payload;
@@ -178,68 +246,92 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const assignments = { ...(state.assignments || {}), [guestId]: newAssignment };
       const signature = JSON.stringify(Object.entries(assignments).sort((a,b)=>a[0].localeCompare(b[0])));
       
-      // Determine if this is adding or removing assignment constraints
-      const isAddingAssignment = newAssignment !== '' && currentAssignment === '';
-      const isRemovingAssignment = newAssignment === '' && currentAssignment !== '';
-      const isChangingAssignment = newAssignment !== '' && currentAssignment !== '';
-      
       // Parse assignments to compare constraint levels
-      const currentTables = currentAssignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
-      const newTables = newAssignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+      const currentTables = parseAssignmentIds(currentAssignment);
+      const newTables = parseAssignmentIds(newAssignment);
       
-      const isMoreRestrictive = newTables.length > 0 && currentTables.length > 0 && 
-        newTables.every(id => currentTables.includes(id)) && newTables.length < currentTables.length;
-      const isLessRestrictive = newTables.length > 0 && currentTables.length > 0 && 
-        currentTables.every(id => newTables.includes(id)) && newTables.length > currentTables.length;
+      const isStricter = (newTables.length > 0 && currentTables.length === 0) ||
+                         (newTables.length > 0 && currentTables.length > 0 && 
+                          newTables.length < currentTables.length);
       
-      const shouldRegenerate = isAddingAssignment || isChangingAssignment || isMoreRestrictive;
-      
-      console.log(`[Assignment Change] Guest ${guestId}: "${currentAssignment}" → "${newAssignment}", Regenerate: ${shouldRegenerate}`);
+      console.log(`[Assignment Change] Guest ${guestId}: "${currentAssignment}" → "${newAssignment}", Stricter: ${isStricter}`);
       
       return { 
         ...state, 
         assignments, 
         assignmentSignature: signature, 
-        seatingPlans: shouldRegenerate ? [] : state.seatingPlans, 
-        currentPlanIndex: shouldRegenerate ? 0 : state.currentPlanIndex 
+        regenerationNeeded: isStricter ? true : state.regenerationNeeded,
+        seatingPlans: isStricter ? [] : state.seatingPlans, 
+        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex 
       };
     }
     case 'SET_SEATING_PLANS': {
       const { plans = [], errors = [] } = action.payload || {};
+      const warnings = errors.map((e: any) => e?.message || String(e)).filter(Boolean);
+      
+      // Show global toast for engine errors
+      if (warnings.length > 0 && typeof window !== 'undefined') {
+        import('react-toastify').then(({ toast }) => {
+          toast.warning(`Generation warnings: ${warnings.join('; ')}`, {
+            position: 'top-right',
+            autoClose: 5000
+          });
+        });
+      }
+      
       return {
         ...state,
         seatingPlans: plans,
-        warnings: [...new Set([...(state.warnings || []), ...errors.map((e: any) => e?.message ?? String(e))])],
+        warnings: [...new Set([...(state.warnings || []), ...warnings])],
         currentPlanIndex: plans.length ? Math.min(state.currentPlanIndex, plans.length - 1) : 0,
         lastGeneratedSignature: state.assignmentSignature,
+        regenerationNeeded: false // Reset flag after generation
       };
     }
     case 'SET_CURRENT_PLAN_INDEX': return { ...state, currentPlanIndex: action.payload };
     case 'TRIGGER_REGENERATION': 
       console.log('[AppContext] TRIGGER_REGENERATION - clearing plans to force regeneration');
-      return { ...state, seatingPlans: [], currentPlanIndex: 0 };
+      return { 
+        ...state, 
+        regenerationNeeded: true,
+        seatingPlans: [], 
+        currentPlanIndex: 0 
+      };
     case 'AUTO_RECONCILE_TABLES': return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case 'ADD_TABLE': {
       const maxId = Math.max(0, ...state.tables.map(t => t.id || 0));
       const newTable = { id: maxId + 1, seats: 8 };
       console.log('[Table Change] Adding table - preserving plans (relaxation)');
-      return { ...state, tables: [...state.tables, newTable], userSetTables: true };
+      return { 
+        ...state, 
+        tables: [...state.tables, newTable], 
+        userSetTables: true
+        // Do NOT set regenerationNeeded or clear plans (looser change)
+      };
     }
     case 'REMOVE_TABLE': {
       const tableId = action.payload;
       const filteredTables = state.tables.filter(t => t.id !== tableId);
-      // Remove assignments that reference the deleted table
-      const filteredAssignments = { ...state.assignments };
-      Object.keys(filteredAssignments).forEach(guestId => {
-        const assignment = filteredAssignments[guestId];
-        if (assignment) {
-          const tableIds = assignment.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
-          const remainingIds = tableIds.filter(id => id !== tableId);
-          filteredAssignments[guestId] = remainingIds.join(',');
-        }
-      });
+      
+      // Remove assignments referencing deleted table
+      const filteredAssignments = Object.fromEntries(
+        Object.entries(state.assignments).map(([guestId, raw]) => {
+          const ids = parseAssignmentIds(raw);
+          const filtered = ids.filter(id => id !== tableId);
+          return [guestId, filtered.join(',')];
+        })
+      );
+      
       console.log('[Table Change] Removing table - regenerating plans (constraint addition)');
-      return { ...state, tables: filteredTables, assignments: filteredAssignments, userSetTables: true, seatingPlans: [], currentPlanIndex: 0 };
+      return {
+        ...state,
+        tables: filteredTables,
+        assignments: filteredAssignments,
+        userSetTables: true,
+        regenerationNeeded: true,
+        seatingPlans: [],
+        currentPlanIndex: 0
+      };
     }
     case 'UPDATE_TABLE': {
       const { id, name, seats } = action.payload;
@@ -248,20 +340,28 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         t.id === id ? { ...t, ...(name !== undefined && { name }), ...(seats !== undefined && { seats }) } : t
       );
       
-      // Determine if capacity is being reduced (constraint addition) or increased (relaxation)
-      const isCapacityReduced = seats !== undefined && currentTable && seats < currentTable.seats;
-      const isCapacityIncreased = seats !== undefined && currentTable && seats > currentTable.seats;
+      // Use getCapacity for comparison
+      const isCapacityReduced = seats !== undefined && currentTable && 
+        getCapacity({ ...currentTable, seats }) < getCapacity(currentTable);
       
       if (isCapacityReduced) {
         console.log(`[Table Change] Reducing capacity ${currentTable.seats} → ${seats} - regenerating plans (constraint addition)`);
-        return { ...state, tables: updatedTables, userSetTables: true, seatingPlans: [], currentPlanIndex: 0 };
-      } else if (isCapacityIncreased) {
-        console.log(`[Table Change] Increasing capacity ${currentTable.seats} → ${seats} - preserving plans (relaxation)`);
-        return { ...state, tables: updatedTables, userSetTables: true };
+        return { 
+          ...state, 
+          tables: updatedTables, 
+          userSetTables: true, 
+          regenerationNeeded: true,
+          seatingPlans: [], 
+          currentPlanIndex: 0 
+        };
       } else {
-        // Name change or no capacity change - preserve plans
-        console.log(`[Table Change] Name change or no capacity change - preserving plans`);
-        return { ...state, tables: updatedTables, userSetTables: true };
+        // Name change or capacity increase - preserve plans
+        console.log(`[Table Change] Name change or capacity increase - preserving plans`);
+        return { 
+          ...state, 
+          tables: updatedTables, 
+          userSetTables: true
+        };
       }
     }
     case 'SET_USER_SET_TABLES': return { ...state, userSetTables: action.payload };
@@ -311,6 +411,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         user: state.user,
         subscription: state.subscription,
         trial: state.trial,
+        loadedRestoreDecision: true,
+        isReady: true, // Set readiness after load
+        regenerationNeeded: true,
         seatingPlans: [],
         currentPlanIndex: 0,
         warnings: [],
@@ -319,7 +422,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
 
     case 'RESET_APP_STATE': 
       console.log('[AppContext] RESET_APP_STATE called - clearing all data');
-      return { ...initialState, user: null, subscription: null, trial: null };
+      return { 
+        ...initialState, 
+        user: null, 
+        subscription: null, 
+        trial: null,
+        isReady: true, // CRITICAL: Set ready after reset
+        loadedRestoreDecision: true // CRITICAL: Set loaded after reset
+      };
     case 'CLEAR_ALL': 
       console.log('[AppContext] CLEAR_ALL called - resetting to initial state');
       return { ...initialState, user: state.user, subscription: state.subscription, trial: state.trial };
@@ -339,9 +449,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const nextState = cycle[(currentIndex + 1) % cycle.length];
 
       // Determine if this is adding or removing constraints
-      const isAddingConstraint = nextState !== '' && currentStateForCycle === '';
-      const isRemovingConstraint = nextState === '' && currentStateForCycle !== '';
-      const isChangingConstraint = nextState !== '' && currentStateForCycle !== '';
+      // const isAddingConstraint = nextState !== '' && currentStateForCycle === '';
+      // const isRemovingConstraint = nextState === '' && currentStateForCycle !== '';
+      // const isChangingConstraint = nextState !== '' && currentStateForCycle !== '';
 
       if (newConstraints[a]) delete newConstraints[a][b];
       if (newConstraints[b]) delete newConstraints[b][a];
@@ -361,20 +471,16 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       }
 
       // ASYMMETRIC REGENERATION: Only clear plans when adding/changing constraints
-      const shouldRegenerate = isAddingConstraint || isChangingConstraint;
-      console.log(`[Constraint Change] ${a}-${b}: ${currentStateForCycle} → ${nextState}, Regenerate: ${shouldRegenerate}`);
-      
-      // DIAGNOSTIC: Log constraint state after update
-      console.log(`[Constraint Reducer] After update:`);
-      console.log(`  constraints:`, JSON.stringify(newConstraints));
-      console.log(`  adjacents:`, JSON.stringify(newAdjacents));
+      const isStricter = (nextState !== '' && currentStateForCycle === '') || 
+                         (nextState !== '' && currentStateForCycle !== '' && nextState !== currentStateForCycle);
       
       return { 
         ...state, 
         constraints: newConstraints, 
         adjacents: newAdjacents, 
-        seatingPlans: shouldRegenerate ? [] : state.seatingPlans, 
-        currentPlanIndex: shouldRegenerate ? 0 : state.currentPlanIndex 
+        regenerationNeeded: isStricter ? true : state.regenerationNeeded,
+        seatingPlans: isStricter ? [] : state.seatingPlans,
+        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex
       };
     }
 
@@ -387,7 +493,8 @@ const AppContext = createContext<{
 } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(reducer, initialState, (init) => {
+  // Use useMemo to prevent the initialization function from being recreated on every render
+  const initializeState = useMemo(() => (init: AppState): AppState => {
     console.log('[AppProvider] Initializing reducer with localStorage check...');
     try {
       const saved = localStorage.getItem('seatyr_app_state');
@@ -403,16 +510,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     console.log('[AppProvider] Using initial state');
     return init;
-  });
+  }, []); // Empty dependency array means this function is only created once
+
+  const [state, dispatch] = useReducer(reducer, initialState, initializeState);
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
-  const [fatalError, setFatalError] = useState<Error | null>(null);
+  const [fatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
+  
+  // State management
+  const stateRef = useRef(state);
+  const genRef = useRef(0); // Generation counter
   
   // NEW: Modal state and refs
   const isMountedRef = useRef(true);
   const [mostRecentState, setMostRecentState] = useState<AppState | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
   const [recentError, setRecentError] = useState<string | null>(null);
+
+  // CRITICAL: Keep stateRef synced
+  useEffect(() => { stateRef.current = state; }, [state]);
 
   // Mounted lifecycle effect
   useEffect(() => {
@@ -432,6 +548,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         dispatch({ type: 'RESET_APP_STATE' });
         setSessionTag('ANON');
         dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+        dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for anonymous users
         return;
       }
 
@@ -449,7 +566,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const isPremium = isPremiumSubscription(entSub, trial);
             dispatch({ type: 'SET_SUBSCRIPTION', payload: entSub });
             dispatch({ type: 'SET_TRIAL', payload: trial });
-            setSessionTag('SIGNED_IN');
+            setSessionTag('ENTITLED');
 
             if (isPremium) {
               console.log('[Auth] Premium user, fetching most recent state...');
@@ -466,25 +583,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               } else {
                 console.log('[Auth] No recent state or no guests, skipping modal');
                 dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+                dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready when no modal
               }
             } else {
               console.log('[Auth] Not premium user, skipping recent state fetch');
               dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+              dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for non-premium users
             }
 
           } catch (err) {
             // CRITICAL: Graceful degradation
             if (!isMountedRef.current) return;
             console.error('[Auth] Entitlements fetch FAILED.', err);
-            setSessionTag('SIGNED_IN');
+            setSessionTag('ENTITLED');
             dispatch({ type: 'SET_SUBSCRIPTION', payload: null });
             dispatch({ type: 'SET_TRIAL', payload: null });
             dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+            dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready even on error
           }
         } else {
           // Anonymous
           setSessionTag('ANON');
           dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+          dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for anonymous users
         }
       }
     });
@@ -564,51 +685,67 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [sessionTag, autosaveSignature, autosavePayload]);
 
   // Debounced plan generation - use useCallback to prevent recreation
-  const genRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const debouncedGeneratePlans = useCallback(() => {
-    console.log('🔍 [AppContext] debouncedGeneratePlans called');
-    console.log('🔍 [AppContext] Current state.guests:', state.guests);
-    console.log('🔍 [AppContext] Current state.guests.length:', state.guests.length);
-    console.log('🔍 [AppContext] Current state.tables:', state.tables.map(t => `${t.id}:${t.seats}seats`).join(', '));
-    console.log('🔍 [AppContext] Session tag:', sessionTag);
-    console.log('🔍 [AppContext] User:', state.user?.id);
-    console.log('🔍 [AppContext] Loaded restore decision:', state.loadedRestoreDecision);
+    const s = stateRef.current;
     
-    if (timerRef.current != null) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(async () => {
-      const id = ++genRef.current;
-      
-      // DIAGNOSTIC: Log what we're passing to the algorithm
-      console.group('[AppContext] Calling seating algorithm');
-      console.log('state.guests:', state.guests.length, 'guests');
-      console.log('state.tables:', state.tables.length, 'tables');
-      console.log('state.constraints:', state.constraints);
-      console.log('state.assignments:', state.assignments);
-      console.groupEnd();
-      
-      const { plans, errors } = await engineGenerate({
-        guests: state.guests, tables: state.tables, constraints: state.constraints, adjacents: state.adjacents,
-        assignments: state.assignments, isPremium: isPremiumSubscription(state.subscription, state.trial),
+    // Guards - use state.isReady (single source of truth)
+    if (!s.isReady || !s.loadedRestoreDecision || !s.regenerationNeeded) return;
+    if (s.guests.length === 0 || s.tables.length === 0) return;
+    
+    const genId = ++genRef.current;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Generator] Running:', {
+        guests: s.guests.length,
+        tables: s.tables.length,
+        isPremium: isPremiumSubscription(s.subscription, s.trial)
       });
-      if (id === genRef.current) dispatch({ type: 'SET_SEATING_PLANS', payload: { plans, errors } });
-    }, 500);
-  }, [dispatch]); // Only depend on dispatch, access state directly
-
-  const generationSignature = useMemo(
-    () => JSON.stringify([state.guests, state.tables, state.constraints, state.adjacents, state.assignments, deriveMode(state.user, state.subscription, state.trial)]),
-    [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.user, state.subscription, state.trial]
-  );
-  const lastGenSigRef = useRef('');
-
-  useEffect(() => {
-    if (state.guests.length > 0 && state.tables.length > 0) {
-      if (generationSignature !== lastGenSigRef.current) {
-        debouncedGeneratePlans();
-        lastGenSigRef.current = generationSignature;
-      }
     }
-  }, [generationSignature, state.guests.length, state.tables.length, debouncedGeneratePlans]);
+    
+    // Use actual function name from imports
+    engineGenerate({
+      guests: s.guests,
+      tables: s.tables,
+      constraints: s.constraints,
+      adjacents: s.adjacents,
+      assignments: s.assignments,
+      isPremium: isPremiumSubscription(s.subscription, s.trial)
+    }).then(({ plans, errors }) => {
+      if (genId === genRef.current) {
+        dispatch({ type: 'SET_SEATING_PLANS', payload: { plans, errors } });
+      }
+    });
+  }, [dispatch]);
+
+  // Debounced wrapper
+  const debouncedGeneratePlansWrapper = useMemo(() => {
+    return debounce(debouncedGeneratePlans, 180, { leading: false, trailing: true });
+  }, [debouncedGeneratePlans]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => { debouncedGeneratePlansWrapper.cancel(); };
+  }, [debouncedGeneratePlansWrapper]);
+
+  // Trigger effect - use state.isReady (single source of truth)
+  useEffect(() => {
+    const s = stateRef.current;
+    
+    if (s.isReady && s.loadedRestoreDecision && s.regenerationNeeded && 
+        s.guests.length > 0 && s.tables.length > 0) {
+      debouncedGeneratePlansWrapper();
+    }
+  }, [
+    state.guests,
+    state.constraints,
+    state.adjacents,
+    state.assignments,
+    state.tables,
+    state.regenerationNeeded,
+    state.isReady,
+    state.loadedRestoreDecision,
+    debouncedGeneratePlansWrapper
+  ]);
 
   // Auto reconcile table count when guests/assignments change
   useEffect(() => {
@@ -637,44 +774,78 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       {children}
 
       {showRecentModal && state.user && isPremium && mostRecentState && (
-        <MostRecentChoiceModal
-          userId={state.user.id}
-          isPremium={isPremium}
-          recentTimestamp={mostRecentState?.timestamp}
-          onClose={() => {
-            console.log('[Modal] onClose called');
-            setShowRecentModal(false);
-            setMostRecentState(null);
-            setRecentError(null);
-            dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
-            console.log('[Modal] onClose complete');
-          }}
-          onRestoreRecent={async () => {
-            console.log('[Modal] onRestoreRecent START');
-            // Use Promise to ensure async completion
-            return new Promise<void>((resolve) => {
+        // Try to use existing component first
+        typeof MostRecentChoiceModal !== 'undefined' ? (
+          <MostRecentChoiceModal
+            userId={state.user.id}
+            isPremium={isPremium}
+            recentTimestamp={mostRecentState?.timestamp}
+            onClose={() => {
+              console.log('[Modal] onClose called');
+              setShowRecentModal(false);
+              setMostRecentState(null);
+              setRecentError(null);
+              dispatch({ type: 'SET_READY' });
+              console.log('[Modal] onClose complete');
+            }}
+            onRestoreRecent={async () => {
+              console.log('[Modal] onRestoreRecent START');
               if (mostRecentState) {
                 dispatch({ type: 'LOAD_MOST_RECENT', payload: mostRecentState });
               }
-              dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
-              // Let modal's onClose handle the actual close
+              setShowRecentModal(false);
+              setMostRecentState(null);
+              dispatch({ type: 'SET_READY' });
               console.log('[Modal] onRestoreRecent COMPLETE');
-              resolve();
-            });
-          }}
-          onKeepCurrent={async () => {
-            console.log('[Modal] onKeepCurrent START');
-            // Use Promise to ensure async completion
-            return new Promise<void>((resolve) => {
+            }}
+            onKeepCurrent={async () => {
+              console.log('[Modal] onKeepCurrent START');
               dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
-              // Let modal's onClose handle the actual close
+              dispatch({ type: 'SET_READY' });
+              setShowRecentModal(false);
+              setMostRecentState(null);
               console.log('[Modal] onKeepCurrent COMPLETE');
-              resolve();
-            });
-          }}
-          error={recentError}
-          loading={false}
-        />
+            }}
+            error={recentError}
+            loading={false}
+          />
+        ) : (
+          // Inline fallback modal
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+            <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full">
+              <h3 className="text-lg font-medium mb-3">Restore Session?</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Cloud data was found. Restore it or keep the current session?
+              </p>
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={async () => {
+                    dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+                    dispatch({ type: 'SET_READY' });
+                    setShowRecentModal(false);
+                    setMostRecentState(null);
+                  }}
+                  className="px-3 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                >
+                  Keep Current
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (mostRecentState) {
+                      dispatch({ type: 'LOAD_MOST_RECENT', payload: mostRecentState });
+                    }
+                    setShowRecentModal(false);
+                    setMostRecentState(null);
+                    dispatch({ type: 'SET_READY' });
+                  }}
+                  className="px-3 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700"
+                >
+                  Restore Recent
+                </button>
+              </div>
+            </div>
+          </div>
+        )
       )}
     </AppContext.Provider>
   );

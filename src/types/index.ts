@@ -96,6 +96,8 @@ export interface AppState {
   userSetTables: boolean;
   loadedSavedSetting: boolean;
   loadedRestoreDecision: boolean; // NEW: Gate for data-fetching components
+  regenerationNeeded: boolean; // NEW: Flag for auto-regeneration policy
+  isReady: boolean; // NEW: Single source of truth for readiness
   timestamp?: string; // For storing when the state was saved
   isSupabaseConnected?: boolean;
   hideTableReductionNotice?: boolean; // Flag to track if table reduction notice has been dismissed

@@ -352,6 +352,7 @@ function validateAndGroup(
   constr: ConstraintsPairs,
   adj: AdjacencyPairs,
   assignments: AssignmentsIn,
+  isPremium: boolean = false,
 ): {
   groups: any[];
   errors: ValidationError[];
@@ -372,7 +373,7 @@ function validateAndGroup(
 
   // DIAGNOSTIC: Input summary
   console.group('[Algorithm Start]');
-  console.log('Total guests:', guests.length, 'Total people:', guests.reduce((sum, g) => sum + (g.groupSize || 0), 0));
+  console.log('Total guests:', guests.length, 'Total people:', guests.reduce((sum, g) => sum + (g.count || 0), 0));
   console.log('Tables:', tables.map(t => `${t.id}:${getCapacity(t)}seats`).join(', '));
   console.log('Total capacity:', tables.reduce((sum, t) => sum + getCapacity(t), 0));
   console.log('isPremium:', isPremium);
@@ -382,7 +383,7 @@ function validateAndGroup(
   // DIAGNOSTIC: Check guest structure
   if (guests.length > 0) {
     console.log('First guest structure:', JSON.stringify(guests[0]));
-    console.log('Guest groupSize values:', guests.map(g => `${g.name || g.id}: ${g.groupSize || 'undefined'}`).slice(0, 5));
+    console.log('Guest count values:', guests.map(g => `${g.name || g.id}: ${g.count || 'undefined'}`).slice(0, 5));
   }
   console.groupEnd();
 
@@ -816,6 +817,7 @@ export async function generateSeatingPlans(
     constr,
     adj,
     appAssignments,
+    isPremium,
   );
 
   const allErrors = [...initialErrors, ...vErr];

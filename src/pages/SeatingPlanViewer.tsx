@@ -169,7 +169,7 @@ const GUEST_THRESHOLD = 120; // pagination threshold
 const GUESTS_PER_PAGE = 10;
 
 const SeatingPlanViewer: React.FC = () => {
-  const { state, dispatch, mode } = useApp();
+  const { state, dispatch, mode, sessionTag } = useApp();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   
@@ -181,8 +181,6 @@ const SeatingPlanViewer: React.FC = () => {
   const isPremium = mode === 'premium';
 
   const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
-
-  // SEATYR: Viewer is passive; AppContext handles generation centrally.
 
   // Mode-aware: Signal mount to trigger auto-generation (SSoT)
   useEffect(() => {
@@ -209,6 +207,16 @@ const SeatingPlanViewer: React.FC = () => {
     if (!plan) return [];
     return [...plan.tables].sort((a, b) => a.id - b.id);
   }, [plan]);
+  
+  // Loading guard - use state.isReady (single source of truth)
+  if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]" role="status" aria-label="Loading...">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" aria-hidden="true"></div>
+        <span>Loading...</span>
+      </div>
+    );
+  }
 
   // Navigation functions (matching Constraints page)
   const needsPagination = isPremium && state.user && state.guests.length > GUEST_THRESHOLD;
