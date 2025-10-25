@@ -184,6 +184,16 @@ function sanitizeAndMigrateAppState(s: any): AppState {
     adjacents, 
     seatingPlans: s.seatingPlans || [], // CRITICAL: Ensure seatingPlans is never undefined
     currentPlanIndex: s.currentPlanIndex || 0, // CRITICAL: Ensure currentPlanIndex is never undefined
+    warnings: s.warnings || [],
+    conflictWarnings: s.conflictWarnings || [],
+    duplicateGuests: s.duplicateGuests || [],
+    assignmentSignature: s.assignmentSignature || '',
+    lastGeneratedSignature: s.lastGeneratedSignature || null,
+    hideTableReductionNotice: s.hideTableReductionNotice || false,
+    userSetTables: s.userSetTables || false,
+    loadedRestoreDecision: s.loadedRestoreDecision || false,
+    isReady: s.isReady || false,
+    regenerationNeeded: s.regenerationNeeded !== undefined ? s.regenerationNeeded : true,
     timestamp: new Date().toISOString() 
   };
 }
@@ -205,6 +215,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'SET_TRIAL': return { ...state, trial: action.payload };
     case 'SET_LOADED_RESTORE_DECISION': return { ...state, loadedRestoreDecision: action.payload };
     case 'SET_READY': return { ...state, isReady: true };
+    case 'SEATING_PAGE_MOUNTED': {
+      // Auto-generate seating plans if none exist and we have guests/tables
+      if (state.seatingPlans.length === 0 && state.guests.length > 0 && state.tables.length > 0) {
+        console.log('[SeatingPage] Auto-generating seating plans on page mount');
+        return { ...state, regenerationNeeded: true };
+      }
+      return state;
+    }
 
     case 'SET_GUESTS': {
       const payload = action.payload;
@@ -526,6 +544,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [fatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
   
+  // Autosave memos - moved before saveToLocalStorage to prevent hoisting issues
+  const autosavePayload = useMemo(() => {
+    // CRITICAL: Exclude timestamp from hash but include all other important state
+    const { timestamp, ...rest } = state;
+    return {
+      guests: rest.guests || [],
+      tables: rest.tables || [],
+      constraints: rest.constraints || {},
+      adjacents: rest.adjacents || {},
+      assignments: rest.assignments || {},
+      userSetTables: rest.userSetTables || false,
+      seatingPlans: rest.seatingPlans || [],
+      currentPlanIndex: rest.currentPlanIndex || 0,
+      warnings: rest.warnings || [],
+      conflictWarnings: rest.conflictWarnings || [],
+      duplicateGuests: rest.duplicateGuests || [],
+      assignmentSignature: rest.assignmentSignature || '',
+      lastGeneratedSignature: rest.lastGeneratedSignature || null,
+      hideTableReductionNotice: rest.hideTableReductionNotice || false,
+    };
+  }, [state]);
+
+  const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);
+  const lastAutosaveSigRef = useRef<string>("");
+  
+  // Manual save function for better control
+  const saveToLocalStorage = useCallback(() => {
+    try {
+      const stateToSave = {
+        ...autosavePayload,
+        timestamp: new Date().toISOString(),
+        sessionTag: sessionTag,
+        isReady: state.isReady,
+        loadedRestoreDecision: state.loadedRestoreDecision,
+        regenerationNeeded: state.regenerationNeeded,
+      };
+      
+      localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
+      console.log('[Manual Save] State saved to localStorage');
+    } catch (err) {
+      console.warn('[Manual Save] Failed to save:', err);
+    }
+  }, [autosavePayload, sessionTag, state.isReady, state.loadedRestoreDecision, state.regenerationNeeded]);
+  
   // State management
   const stateRef = useRef(state);
   const genRef = useRef(0); // Generation counter
@@ -538,6 +600,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // CRITICAL: Keep stateRef synced
   useEffect(() => { stateRef.current = state; }, [state]);
+  
+  // Trigger manual save on important state changes
+  useEffect(() => {
+    if (state.isReady && state.loadedRestoreDecision) {
+      // Save when guests, tables, or seating plans change
+      const timeoutId = setTimeout(() => {
+        saveToLocalStorage();
+      }, 200);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [state.guests.length, state.tables.length, state.seatingPlans.length, state.isReady, state.loadedRestoreDecision, saveToLocalStorage]);
 
   // Mounted lifecycle effect
   useEffect(() => {
@@ -584,7 +658,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               console.log('[Auth] Data guests:', data?.guests);
               console.log('[Auth] Data guests length:', data?.guests?.length);
               
-              if (isMountedRef.current && data?.guests?.length > 0) {
+              if (isMountedRef.current && data?.guests?.length && data.guests.length > 0) {
                 console.log('[Auth] Setting most recent state and showing modal');
                 setMostRecentState(data);
                 setShowRecentModal(true); // RESTORE MODAL
@@ -622,22 +696,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => { authSub.unsubscribe(); };
   }, []); // FIX: Remove state.user dependency to prevent re-subscription
 
-  // Autosave memos
-  const autosavePayload = useMemo(() => {
-    // CRITICAL: Exclude timestamp from hash
-    const { timestamp, ...rest } = state;
-    return {
-      guests: rest.guests,
-      tables: rest.tables,
-      constraints: rest.constraints,
-      adjacents: rest.adjacents,
-      assignments: rest.assignments,
-      userSetTables: rest.userSetTables,
-    };
-  }, [state.guests, state.tables, state.constraints, state.adjacents, state.assignments, state.userSetTables]);
-
-  const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);
-  const lastAutosaveSigRef = useRef<string>("");
 
   const isPremium = useMemo(
     () => isPremiumSubscription(state.subscription, state.trial),
@@ -675,23 +733,40 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearTimeout(t);
   }, [state, autosaveSignature, showRecentModal, isPremium]);
 
-  // Anonymous persistence
+  // Enhanced persistence for both anonymous and authenticated users
   useEffect(() => {
-    if (sessionTag !== 'ANON') return;
     if (autosaveSignature === lastAutosaveSigRef.current) return;
 
     const t = setTimeout(() => {
       try {
-        // Use the minimal payload (which excludes timestamp)
-        localStorage.setItem('seatyr_app_state', JSON.stringify(autosavePayload));
+        // Save complete state to localStorage for persistence across reloads
+        const stateToSave = {
+          ...autosavePayload,
+          timestamp: new Date().toISOString(),
+          sessionTag: sessionTag,
+          isReady: state.isReady,
+          loadedRestoreDecision: state.loadedRestoreDecision,
+          regenerationNeeded: state.regenerationNeeded,
+        };
+        
+        localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
         lastAutosaveSigRef.current = autosaveSignature;
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Persistence] Saved state to localStorage:', {
+            guests: stateToSave.guests.length,
+            tables: stateToSave.tables.length,
+            seatingPlans: stateToSave.seatingPlans.length,
+            sessionTag: stateToSave.sessionTag
+          });
+        }
       } catch (err) {
-        console.warn('[Anonymous Persist] Failed to save:', err);
+        console.warn('[Persistence] Failed to save:', err);
       }
     }, 100);
 
     return () => clearTimeout(t);
-  }, [sessionTag, autosaveSignature, autosavePayload]);
+  }, [autosaveSignature, sessionTag]);
 
   // Debounced plan generation - use useCallback to prevent recreation
   const debouncedGeneratePlans = useCallback(() => {
