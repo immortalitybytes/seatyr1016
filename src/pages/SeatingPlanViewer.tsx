@@ -179,8 +179,12 @@ const SeatingPlanViewer: React.FC = () => {
   
   // Get premium status from subscription
   const isPremium = mode === 'premium';
+  
+  // CRITICAL: Safety check to prevent crashes
+  const safeSeatingPlans = state.seatingPlans || [];
+  const safeCurrentPlanIndex = state.currentPlanIndex || 0;
 
-  const plan = state.seatingPlans?.[state.currentPlanIndex] ?? null;
+  const plan = safeSeatingPlans[safeCurrentPlanIndex] ?? null;
 
   // Mode-aware: Signal mount to trigger auto-generation (SSoT)
   useEffect(() => {
@@ -238,7 +242,7 @@ const SeatingPlanViewer: React.FC = () => {
       // Wait a moment for the algorithm to complete
       setTimeout(() => {
         setIsGenerating(false);
-        if (state.seatingPlans.length === 0) {
+        if (safeSeatingPlans.length === 0) {
           setErrors([{ type: 'error', message: 'No valid seating plans could be generated. Try relaxing constraints.' }]);
         }
       }, 2000);
@@ -272,7 +276,7 @@ const SeatingPlanViewer: React.FC = () => {
 
   const handleNavigatePlan = (delta: number) => {
     const newIndex = state.currentPlanIndex + delta;
-    if (newIndex >= 0 && newIndex < state.seatingPlans.length) {
+    if (newIndex >= 0 && newIndex < safeSeatingPlans.length) {
       dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: newIndex });
     }
   };
@@ -364,21 +368,21 @@ const SeatingPlanViewer: React.FC = () => {
               </div>
           )}
       </Card>
-      <Card title={`Current Plan (${state.currentPlanIndex + 1} of ${state.seatingPlans.length})`}>
+      <Card title={`Current Plan (${safeCurrentPlanIndex + 1} of ${safeSeatingPlans.length})`}>
         {/* Upper-right: Simple 2-button Previous/Next for plan navigation */}
-        {state.seatingPlans.length > 1 && (
+        {safeSeatingPlans.length > 1 && (
           <div className="flex justify-end space-x-2 mb-4">
             <button
               className="danstyle1c-btn"
               onClick={() => handleNavigatePlan(-1)}
-              disabled={state.currentPlanIndex <= 0}
+              disabled={safeCurrentPlanIndex <= 0}
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Previous
             </button>
             <button
               className="danstyle1c-btn"
               onClick={() => handleNavigatePlan(1)}
-              disabled={state.currentPlanIndex >= state.seatingPlans.length - 1}
+              disabled={safeCurrentPlanIndex >= safeSeatingPlans.length - 1}
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
             </button>
@@ -388,22 +392,22 @@ const SeatingPlanViewer: React.FC = () => {
         {renderCurrentPlan()}
         
         {/* Below grid (centered): 3-button Previous/Page#/Next for plan navigation */}
-        {state.seatingPlans.length > 1 && (
+        {safeSeatingPlans.length > 1 && (
           <div className="flex justify-center items-center gap-3 mt-4">
             <button
               className="danstyle1c-btn"
               onClick={() => handleNavigatePlan(-1)}
-              disabled={state.currentPlanIndex <= 0}
+              disabled={safeCurrentPlanIndex <= 0}
             >
               <ChevronLeft className="w-4 h-4 mr-1" /> Previous
             </button>
             <button className="danstyle1c-btn selected">
-              {state.currentPlanIndex + 1}
+              {safeCurrentPlanIndex + 1}
             </button>
             <button
               className="danstyle1c-btn"
               onClick={() => handleNavigatePlan(1)}
-              disabled={state.currentPlanIndex >= state.seatingPlans.length - 1}
+              disabled={safeCurrentPlanIndex >= safeSeatingPlans.length - 1}
             >
               Next <ChevronRight className="w-4 h-4 ml-1" />
             </button>

@@ -176,7 +176,16 @@ function sanitizeAndMigrateAppState(s: any): AppState {
   
   const { constraints, adjacents } = migrateState({ guests, constraints: s.constraints, adjacents: s.adjacents });
   const migratedAssignments = migrateAssignmentsToIdKeys(s.assignments || {}, guests);
-  return { ...s, guests, assignments: migratedAssignments, constraints, adjacents, timestamp: new Date().toISOString() };
+  return { 
+    ...s, 
+    guests, 
+    assignments: migratedAssignments, 
+    constraints, 
+    adjacents, 
+    seatingPlans: s.seatingPlans || [], // CRITICAL: Ensure seatingPlans is never undefined
+    currentPlanIndex: s.currentPlanIndex || 0, // CRITICAL: Ensure currentPlanIndex is never undefined
+    timestamp: new Date().toISOString() 
+  };
 }
 
 const initialState: AppState = {
