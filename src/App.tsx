@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import Header from './components/Header';
 import GuestManager from './pages/GuestManager';
 import ConstraintManager from './pages/ConstraintManager';
@@ -78,6 +80,7 @@ function App() {
             </main>
             <Footer />
           </div>
+          <ToastContainer position="top-right" autoClose={7000} />
         </AppProvider>
       </Router>
     </ErrorBoundary>

@@ -104,7 +104,9 @@ export interface AppState {
   duplicateGuests?: string[]; // List of duplicate guest names for warnings
   assignmentSignature: string; // Stable signature for assignment changes to trigger effects
   conflictWarnings: string[]; // SURGICAL ADDITION: User-facing conflict warnings
-  warnings: string[]; // Non-blocking warnings for display
+  warnings: string[]; // Non-blocking warnings for display (engine/capacity errors)
   lastGeneratedSignature: string | null; // Signature of last generated plan
   lastGeneratedPlanSig: string | null; // Plan signature of last generated plan
+  sessionVersion: number; // NEW: Monotonic counter, increments on ANY state change
+  persistenceVersion: string; // NEW: Schema version for migrations
 }

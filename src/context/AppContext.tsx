@@ -14,9 +14,10 @@ import type {
 import { getMostRecentState, saveMostRecentState } from '../lib/mostRecentState';
 import { countHeads } from '../utils/formatters';
 import { getCapacity } from '../utils/tables';
-import { migrateState, migrateAssignmentsToIdKeys, parseAssignmentIds } from '../utils/assignments';
+import { parseAssignmentIds } from '../utils/assignments';
 import { generateSeatingPlans as engineGenerate } from '../utils/seatingAlgorithm';
 import MostRecentChoiceModal from '../components/MostRecentChoiceModal';
+import { saveAppState, loadAppState, exportAppState, importAppState, clearAllSavedData, getStorageStats, sanitizeAndMigrateAppState, saveLKG } from '../utils/persistence';
 
 // Inline debounce utility (no external file)
 // FIXED: Use ReturnType<typeof setTimeout> for cross-platform compatibility
@@ -142,58 +143,33 @@ function reconcileTables(tables: Table[], guests: Guest[], assignments: Assignme
   const add: Table[] = Array.from({ length: delta }, (_, i) => ({ id: maxId + i + 1, seats: DEFAULT_TABLE_CAPACITY }));
   return [...tables, ...add];
 }
-function sanitizeAndMigrateAppState(s: any): AppState {
+// Wrapper to preserve app-level flags while using imported sanitizer
+function applySanitizedState(s: any): AppState {
   console.log('[State Migration] Raw saved state:', s);
-  console.log('[State Migration] Raw guests:', s.guests);
   
-  // DIAGNOSTIC: Check first few guest structures
-  if (s.guests && s.guests.length > 0) {
-    console.log('[State Migration] First guest structure:', s.guests[0]);
-    console.log('[State Migration] Guest fields check:', {
-      hasId: !!s.guests[0].id,
-      hasName: !!s.guests[0].name,
-      idValue: s.guests[0].id,
-      nameValue: s.guests[0].name,
-      allFields: Object.keys(s.guests[0])
-    });
-  }
+  // Use the imported pure sanitizeAndMigrateAppState
+  const sanitized = sanitizeAndMigrateAppState(s);
   
-  // FIX: More lenient filtering - check for any identifier field
-  const guests = (s.guests || []).filter((g: any) => {
-    const hasId = g && (g.id || g.guestId || g.key);
-    const hasName = g && (g.name || g.guestName || g.displayName);
-    console.log(`[State Migration] Guest filter check:`, { 
-      guest: g, 
-      hasId, 
-      hasName, 
-      passes: hasId && hasName 
-    });
-    return hasId && hasName;
-  });
-  
-  console.log('[State Migration] Filtered guests:', guests);
-  console.log('[State Migration] Guest count:', guests.length);
-  
-  const { constraints, adjacents } = migrateState({ guests, constraints: s.constraints, adjacents: s.adjacents });
-  const migratedAssignments = migrateAssignmentsToIdKeys(s.assignments || {}, guests);
+  // Apply app-level flags from existing state (if present)
   return { 
     ...s, 
-    guests, 
-    assignments: migratedAssignments, 
-    constraints, 
-    adjacents, 
-    seatingPlans: s.seatingPlans || [], // CRITICAL: Ensure seatingPlans is never undefined
-    currentPlanIndex: s.currentPlanIndex || 0, // CRITICAL: Ensure currentPlanIndex is never undefined
-    warnings: s.warnings || [],
+    ...sanitized,
+    seatingPlans: s.seatingPlans || sanitized.seatingPlans || [],
+    currentPlanIndex: s.currentPlanIndex ?? sanitized.currentPlanIndex ?? 0,
+    warnings: s.warnings || sanitized.warnings || [],
     conflictWarnings: s.conflictWarnings || [],
     duplicateGuests: s.duplicateGuests || [],
     assignmentSignature: s.assignmentSignature || '',
     lastGeneratedSignature: s.lastGeneratedSignature || null,
     hideTableReductionNotice: s.hideTableReductionNotice || false,
     userSetTables: s.userSetTables || false,
-    loadedRestoreDecision: s.loadedRestoreDecision || false,
-    isReady: s.isReady || false,
+    // Preserve readiness flags if they exist
+    loadedRestoreDecision: s.loadedRestoreDecision ?? false,
+    isReady: s.isReady ?? false,
     regenerationNeeded: s.regenerationNeeded !== undefined ? s.regenerationNeeded : true,
+    // CRITICAL FIX: Preserve sessionVersion from saved state if it exists and is valid
+    sessionVersion: typeof s.sessionVersion === 'number' && s.sessionVersion >= 0 ? s.sessionVersion : 0,
+    persistenceVersion: s.persistenceVersion || '1.0.0',
     timestamp: new Date().toISOString() 
   };
 }
@@ -205,7 +181,7 @@ const initialState: AppState = {
   regenerationNeeded: true, isReady: false, timestamp: new Date().toISOString(),
   isSupabaseConnected: !!supabase, duplicateGuests: [], assignmentSignature: '',
   warnings: [], lastGeneratedSignature: null, hideTableReductionNotice: false,
-  conflictWarnings: [], lastGeneratedPlanSig: null,
+  conflictWarnings: [], lastGeneratedPlanSig: null, sessionVersion: 0, persistenceVersion: '1.0.0',
 };
 
 const reducer = (state: AppState, action: AppAction): AppState => {
@@ -236,7 +212,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         guests: [...state.guests, guest], 
         regenerationNeeded: true,
         seatingPlans: [], 
-        currentPlanIndex: 0 
+        currentPlanIndex: 0,
+        sessionVersion: state.sessionVersion + 1
       };
     }
     case 'REMOVE_GUEST': {
@@ -258,13 +235,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         adjacents, 
         regenerationNeeded: true,
         seatingPlans: [], 
-        currentPlanIndex: 0 
+        currentPlanIndex: 0,
+        sessionVersion: state.sessionVersion + 1
       };
     }
     case 'RENAME_GUEST': {
       const { id, name } = action.payload;
       const guests = state.guests.map(g => g.id === id ? { ...g, name, count: countHeads(name) } : g);
-      return { ...state, guests, seatingPlans: [], currentPlanIndex: 0 };
+      return { ...state, guests, seatingPlans: [], currentPlanIndex: 0, sessionVersion: state.sessionVersion + 1 };
     }
     case 'UPDATE_ASSIGNMENT': {
       const { guestId, raw } = action.payload || {};
@@ -289,7 +267,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         assignmentSignature: signature, 
         regenerationNeeded: isStricter ? true : state.regenerationNeeded,
         seatingPlans: isStricter ? [] : state.seatingPlans, 
-        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex 
+        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex,
+        sessionVersion: state.sessionVersion + 1
       };
     }
     case 'SET_SEATING_PLANS': {
@@ -312,7 +291,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         warnings: [...new Set([...(state.warnings || []), ...warnings])],
         currentPlanIndex: plans.length ? Math.min(state.currentPlanIndex, plans.length - 1) : 0,
         lastGeneratedSignature: state.assignmentSignature,
-        regenerationNeeded: false // Reset flag after generation
+        regenerationNeeded: false, // Reset flag after generation
+        sessionVersion: state.sessionVersion + 1
       };
     }
     case 'SET_CURRENT_PLAN_INDEX': return { ...state, currentPlanIndex: action.payload };
@@ -322,7 +302,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         ...state, 
         regenerationNeeded: true,
         seatingPlans: [], 
-        currentPlanIndex: 0 
+        currentPlanIndex: 0,
+        sessionVersion: state.sessionVersion + 1
       };
     case 'AUTO_RECONCILE_TABLES': return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case 'ADD_TABLE': {
@@ -332,7 +313,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       return { 
         ...state, 
         tables: [...state.tables, newTable], 
-        userSetTables: true
+        userSetTables: true,
+        sessionVersion: state.sessionVersion + 1
         // Do NOT set regenerationNeeded or clear plans (looser change)
       };
     }
@@ -357,7 +339,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         userSetTables: true,
         regenerationNeeded: true,
         seatingPlans: [],
-        currentPlanIndex: 0
+        currentPlanIndex: 0,
+        sessionVersion: state.sessionVersion + 1
       };
     }
     case 'UPDATE_TABLE': {
@@ -379,7 +362,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
           userSetTables: true, 
           regenerationNeeded: true,
           seatingPlans: [], 
-          currentPlanIndex: 0 
+          currentPlanIndex: 0,
+          sessionVersion: state.sessionVersion + 1
         };
       } else {
         // Name change or capacity increase - preserve plans
@@ -387,7 +371,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         return { 
           ...state, 
           tables: updatedTables, 
-          userSetTables: true
+          userSetTables: true,
+          sessionVersion: state.sessionVersion + 1
         };
       }
     }
@@ -431,6 +416,11 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         finalTablesLength: tablesToUse.length
       });
       
+      // CRITICAL FIX: Preserve sessionVersion from incoming BEFORE spreading initialState
+      const preservedSessionVersion = typeof incoming.sessionVersion === 'number' && incoming.sessionVersion >= 0 
+        ? incoming.sessionVersion 
+        : state.sessionVersion || 0;
+      
       return {
         ...initialState,
         ...incoming,
@@ -444,11 +434,27 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         seatingPlans: [],
         currentPlanIndex: 0,
         warnings: [],
+        // CRITICAL FIX: Override sessionVersion after spreading
+        sessionVersion: preservedSessionVersion,
+        persistenceVersion: incoming.persistenceVersion || '1.0.0'
       };
     }
 
     case 'RESET_APP_STATE': 
       console.log('[AppContext] RESET_APP_STATE called - clearing all data');
+      // CRITICAL: NEVER reset during initialization, even if state.isReady is true
+      // because LOAD_SAVED_SETTING sets isReady=true but that doesn't mean we should reset
+      if (!state.loadedRestoreDecision) {
+        console.log('[AppContext] RESET_APP_STATE blocked - loadedRestoreDecision not set, preserving data');
+        return state; // Return unchanged state
+      }
+      
+      // Additional safety: Don't reset if we have guests loaded
+      if (state.guests && state.guests.length > 0) {
+        console.log('[AppContext] RESET_APP_STATE blocked - guests exist, preserving data');
+        return state;
+      }
+      
       return { 
         ...initialState, 
         user: null, 
@@ -507,7 +513,8 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         adjacents: newAdjacents, 
         regenerationNeeded: isStricter ? true : state.regenerationNeeded,
         seatingPlans: isStricter ? [] : state.seatingPlans,
-        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex
+        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex,
+        sessionVersion: state.sessionVersion + 1
       };
     }
 
@@ -517,32 +524,20 @@ const reducer = (state: AppState, action: AppAction): AppState => {
 
 const AppContext = createContext<{
   state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag; isPremium: boolean;
+  // Persistence utilities
+  exportData: () => void;
+  importData: (file: File) => Promise<{ success: boolean; error?: string; data?: AppState }>;
+  clearAllData: () => void;
+  getStorageStats: () => { localStorage: number; backups: number; indexedDBAvailable: boolean };
+  isInitialized: boolean;
 } | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Use useMemo to prevent the initialization function from being recreated on every render
-  const initializeState = useMemo(() => (init: AppState): AppState => {
-    console.log('[AppProvider] Initializing reducer with localStorage check...');
-    try {
-      const saved = localStorage.getItem('seatyr_app_state');
-      console.log('[AppProvider] localStorage data exists:', !!saved);
-      if (saved) {
-        console.log('[AppProvider] Calling sanitizeAndMigrateAppState...');
-        const result = sanitizeAndMigrateAppState(JSON.parse(saved));
-        console.log('[AppProvider] sanitizeAndMigrateAppState result:', result);
-        return result;
-      }
-    } catch (err) {
-      console.error('[AppProvider] localStorage parse error:', err);
-    }
-    console.log('[AppProvider] Using initial state');
-    return init;
-  }, []); // Empty dependency array means this function is only created once
-
-  const [state, dispatch] = useReducer(reducer, initialState, initializeState);
+  const [state, dispatch] = useReducer(reducer, initialState);
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
   const [fatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Autosave memos - moved before saveToLocalStorage to prevent hoisting issues
   const autosavePayload = useMemo(() => {
@@ -569,20 +564,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const autosaveSignature = useMemo(() => fnv1a32(JSON.stringify(autosavePayload)), [autosavePayload]);
   const lastAutosaveSigRef = useRef<string>("");
   
-  // Manual save function for better control
-  const saveToLocalStorage = useCallback(() => {
+  // Manual save function for better control - now uses robust persistence
+  const saveToLocalStorage = useCallback(async () => {
     try {
-      const stateToSave = {
-        ...autosavePayload,
+      const stateToSave: AppState = {
+        ...state,
         timestamp: new Date().toISOString(),
-        sessionTag: sessionTag,
-        isReady: state.isReady,
-        loadedRestoreDecision: state.loadedRestoreDecision,
-        regenerationNeeded: state.regenerationNeeded,
       };
       
-      localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
-      console.log('[Manual Save] State saved to localStorage');
+      // Use robust persistence system
+      const result = await saveAppState(stateToSave);
+      if (result.success) {
+        console.log('[Manual Save] State saved successfully with robust persistence');
+      } else {
+        console.warn('[Manual Save] Robust persistence failed, falling back to localStorage:', result.error);
+        // Fallback to old method
+        localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
+      }
     } catch (err) {
       console.warn('[Manual Save] Failed to save:', err);
     }
@@ -600,6 +598,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // CRITICAL: Keep stateRef synced
   useEffect(() => { stateRef.current = state; }, [state]);
+  
+  // Async initialization with robust persistence
+  useEffect(() => {
+    const initializeApp = async () => {
+      console.log('[AppProvider] Starting robust persistence initialization...');
+      try {
+        // Try to load from robust persistence system
+        const result = await loadAppState();
+        if (result.success && result.data) {
+          console.log('[AppProvider] Loaded data from robust persistence system');
+          const migratedData = applySanitizedState(result.data);
+          dispatch({ type: 'LOAD_SAVED_SETTING', payload: migratedData });
+        } else {
+          // Fallback to old localStorage method
+          const saved = localStorage.getItem('seatyr_app_state');
+          console.log('[AppProvider] localStorage data exists:', !!saved);
+          if (saved) {
+            console.log('[AppProvider] Loading from localStorage fallback...');
+            const fallbackResult = applySanitizedState(JSON.parse(saved));
+            dispatch({ type: 'LOAD_SAVED_SETTING', payload: fallbackResult });
+          }
+        }
+      } catch (err) {
+        console.error('[AppProvider] Persistence load error:', err);
+      } finally {
+        setIsInitialized(true);
+        dispatch({ type: 'SET_READY' });
+        dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+      }
+    };
+    
+    initializeApp();
+  }, []);
   
   // Trigger manual save on important state changes
   useEffect(() => {
@@ -621,17 +652,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Single-flight entitlements + auth FSM
   useEffect(() => {
+    let hasInitialized = false;
+    
     // FIX: Rename to avoid shadowing
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMountedRef.current) return;
 
+      console.log('[Auth] Auth state change:', event, 'Session exists:', !!session, 'Has initialized:', hasInitialized, 'SessionTag:', sessionTag);
+
       if (event === 'SIGNED_OUT') {
-        // Existing reset logic
+        // CRITICAL: Never reset data during initialization
+        if (sessionTag === 'INITIALIZING' || !hasInitialized) {
+          console.log('[Auth] Sign-out during initialization, preserving data - NO RESET');
+          setSessionTag('ANON');
+          dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+          dispatch({ type: 'SET_READY' });
+          hasInitialized = true;
+          return;
+        }
+        
+        // Only reset on actual sign-out after initialization
+        console.log('[Auth] Actual sign-out detected, clearing data');
         try { localStorage.removeItem('seatyr_app_state'); } catch {}
         dispatch({ type: 'RESET_APP_STATE' });
         setSessionTag('ANON');
         dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
-        dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for anonymous users
+        dispatch({ type: 'SET_READY' });
+        hasInitialized = true;
         return;
       }
 
@@ -667,11 +714,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 console.log('[Auth] No recent state or no guests, skipping modal');
                 dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
                 dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready when no modal
+                hasInitialized = true;
               }
             } else {
               console.log('[Auth] Not premium user, skipping recent state fetch');
               dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
               dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for non-premium users
+              hasInitialized = true;
             }
 
           } catch (err) {
@@ -683,13 +732,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             dispatch({ type: 'SET_TRIAL', payload: null });
             dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
             dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready even on error
+            hasInitialized = true;
           }
         } else {
           // Anonymous
           setSessionTag('ANON');
           dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
           dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready for anonymous users
+          hasInitialized = true;
         }
+        
+        // Enable reset after successful initialization (REMOVED phantom timer)
       }
     });
 
@@ -733,32 +786,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => clearTimeout(t);
   }, [state, autosaveSignature, showRecentModal, isPremium]);
 
-  // Enhanced persistence for both anonymous and authenticated users
+  // Enhanced persistence for both anonymous and authenticated users - now uses robust system
   useEffect(() => {
     if (autosaveSignature === lastAutosaveSigRef.current) return;
 
-    const t = setTimeout(() => {
+    const t = setTimeout(async () => {
       try {
-        // Save complete state to localStorage for persistence across reloads
+        // Save complete state using robust persistence system
         const stateToSave = {
-          ...autosavePayload,
+          ...state,
           timestamp: new Date().toISOString(),
-          sessionTag: sessionTag,
-          isReady: state.isReady,
-          loadedRestoreDecision: state.loadedRestoreDecision,
-          regenerationNeeded: state.regenerationNeeded,
         };
         
-        localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
-        lastAutosaveSigRef.current = autosaveSignature;
-        
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Persistence] Saved state to localStorage:', {
-            guests: stateToSave.guests.length,
-            tables: stateToSave.tables.length,
-            seatingPlans: stateToSave.seatingPlans.length,
-            sessionTag: stateToSave.sessionTag
-          });
+        const result = await saveAppState(stateToSave as any);
+        if (result.success) {
+          lastAutosaveSigRef.current = autosaveSignature;
+          
+          // NEW: Save LKG after successful primary save
+          saveLKG(stateToSave as any);
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Persistence] Saved state with robust persistence:', {
+              guests: stateToSave.guests.length,
+              tables: stateToSave.tables.length,
+              seatingPlans: stateToSave.seatingPlans.length,
+              sessionVersion: stateToSave.sessionVersion
+            });
+          }
+        } else {
+          console.warn('[Persistence] Robust persistence failed, falling back to localStorage:', result.error);
+          localStorage.setItem('seatyr_app_state', JSON.stringify(stateToSave));
+          lastAutosaveSigRef.current = autosaveSignature;
         }
       } catch (err) {
         console.warn('[Persistence] Failed to save:', err);
@@ -837,7 +895,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [state.guests.length, state.assignmentSignature, state.userSetTables]);
 
   const mode = useMemo(() => deriveMode(state.user, state.subscription, state.trial), [state.user, state.subscription, state.trial]);
-  const value = useMemo(() => ({ state, dispatch, mode, sessionTag, isPremium }), [state, mode, sessionTag, isPremium]);
+  const value = useMemo(() => ({ 
+    state, dispatch, mode, sessionTag, isPremium,
+    // Add persistence utilities
+    exportData: () => exportAppState(state),
+    importData: importAppState,
+    clearAllData: clearAllSavedData,
+    getStorageStats,
+    isInitialized
+  }), [state, mode, sessionTag, isPremium, isInitialized]);
 
   // Show loading screen during initialization instead of invisible gate (fixes blank screen on reload)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') {
