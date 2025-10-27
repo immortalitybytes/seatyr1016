@@ -310,7 +310,8 @@ const SeatingPlanViewer: React.FC = () => {
             {Array.from({ length: maxCapacity }).map((_, rowIndex) => (
               <tr key={`row-${rowIndex}`}>
                 {tablesNormalized.map(table => {
-                  const capacity = capacityById.get(table.id) ?? 0;
+                  // CRITICAL FIX: Use plan's table capacity, not state.tables capacity
+                  const capacity = table.capacity ?? capacityById.get(table.id) ?? 0;
                   if (rowIndex >= capacity) {
                     return <td key={`cell-blackout-${table.id}-${rowIndex}`} className="p-2 border border-gray-700 bg-black" aria-hidden="true" style={{ pointerEvents: 'none' }} />;
                   }

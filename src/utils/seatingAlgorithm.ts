@@ -131,7 +131,7 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
             const appTable = tables.find((at) => String(at.id) === String(t.tableId));
             return {
               id: Number(t.tableId),
-              capacity: appTable?.seats ?? 0,
+              capacity: appTable ? getCapacity(appTable) : 0, // FIX: Use getCapacity, not seats
               seats: Array.isArray(t.seats) ? t.seats : [],
             };
           })
