@@ -151,8 +151,32 @@ const TableManager: React.FC = () => {
   const [assignmentWarnings, setAssignmentWarnings] = useState<Record<string, string[]>>({});
   const [rawAssignmentInput, setRawAssignmentInput] = useState<Record<string, string>>({});
   
+  // E1: Local warning state + mount re-validation
+  const isPremium = useMemo(() => mode === "premium", [mode]);
+
+  // Canonical signature as dependency (no heavy stringify in steady state)
+  const assignmentsSignature = state.assignmentSignature ?? "";
+
+  useEffect(() => {
+    if (!state.isReady || state.tables.length === 0) return;
+    if (!state.assignmentSignature) {
+      console.log("[TableManager] Skipping validation - signature not initialized");
+      return;
+    }
+
+    const next: Record<string, string[]> = {};
+    const lite = state.tables.map(t => ({ id: t.id, name: t.name ?? null }));
+
+    Object.entries(state.assignments || {}).forEach(([guestId, raw]) => {
+      if (!raw) return;
+      const { warnings } = normalizeAssignmentInputToIdsWithWarnings(raw, lite, isPremium);
+      if (warnings.length > 0) next[guestId] = warnings;
+    });
+
+    setAssignmentWarnings(next);
+  }, [state.isReady, state.tables, assignmentsSignature, isPremium]);
+  
   const totalSeats = useMemo(() => state.tables.reduce((sum, t) => sum + getCapacity(t), 0), [state.tables]);
-  const isPremium = mode === 'premium';
 
   // Mode-aware sorting options (SSoT)
   const allowedSortOptions: ('as-entered' | 'first-name' | 'last-name' | 'current-table')[] = mode === 'unsigned'
@@ -187,21 +211,31 @@ const TableManager: React.FC = () => {
     });
   }, []);
 
-  // Handler for commit (blur/Enter) - COMPLETE implementation
+  // E2: Update the assignment commit handler
   const handleAssignmentCommit = useCallback((guestId: string) => {
-    const rawValue = rawAssignmentInput[guestId];
-    const committedValue = state.assignments[guestId] || '';
-    
-    if (rawValue !== undefined && rawValue !== committedValue) {
-      const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(
-        rawValue,
-        state.tables,  // ✅ FIXED: Pass table objects, not just IDs
-        isPremium
-      );
-      
-      dispatch({ type: 'UPDATE_ASSIGNMENT', payload: { guestId, raw: idCsv } });
-      setAssignmentWarnings(prev => ({ ...prev, [guestId]: warnings }));
-    }
+    const rawInput = rawAssignmentInput[guestId] ?? state.assignments[guestId] ?? '';
+    const lite = state.tables.map(t => ({ id: t.id, name: t.name ?? null }));
+    const { idCsv, warnings } = normalizeAssignmentInputToIdsWithWarnings(rawInput, lite, isPremium);
+
+    // Normalize global assignment CSV
+    dispatch({
+      type: "UPDATE_ASSIGNMENT",
+      payload: { guestId, raw: idCsv }
+    });
+
+    // Maintain local warnings precisely; clear on success
+    setAssignmentWarnings(prev => {
+      const copy = { ...prev };
+      if (warnings.length === 0) delete copy[guestId];
+      else copy[guestId] = warnings;
+      return copy;
+    });
+
+    // Clear raw input after commit
+    setRawAssignmentInput(prev => {
+      const { [guestId]: _, ...rest } = prev;
+      return rest;
+    });
   }, [rawAssignmentInput, state.assignments, state.tables, isPremium, dispatch]);
   
   const currentTableKey = (guestId: string, plan: any) => {

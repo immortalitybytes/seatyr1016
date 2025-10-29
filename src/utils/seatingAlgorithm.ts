@@ -94,6 +94,8 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
           console.warn(`Unknown assignment tokens for ${gname}: ${norm.warnings.join(", ")}`);
         }
       }
+      // DIAGNOSTIC: Log assignment mapping
+      console.log(`[Adapter] Guest ${gid}: "${String(raw)}" → "${norm.idCsv}" (warnings: ${norm.warnings.length})`);
     });
 
     const allowedTablesByGuest: Record<string, number[]> = {};

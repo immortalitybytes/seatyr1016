@@ -150,27 +150,65 @@ function applySanitizedState(s: any): AppState {
   // Use the imported pure sanitizeAndMigrateAppState
   const sanitized = sanitizeAndMigrateAppState(s);
   
-  // Apply app-level flags from existing state (if present)
-  return { 
-    ...s, 
+  // Patch C: Replace return construction with integrity-safe sessionVersion handling
+  const MAX_REASONABLE_SESSION_VERSION = 10_000_000;
+  const pickTrusted = (v: any): number =>
+    typeof v === "number" && v >= 0 && v < MAX_REASONABLE_SESSION_VERSION ? v : -1;
+
+  const ssv = pickTrusted(s?.sessionVersion);
+  const zsv = pickTrusted(sanitized?.sessionVersion);
+  const trustedSessionVersion = ssv >= 0 ? ssv : (zsv >= 0 ? zsv : 0);
+
+  // (Test assist) Log the trusted version on load/migration:
+  console.log("[State Migration] Trusted sessionVersion:", trustedSessionVersion);
+
+  return {
+    // Base: sanitized defaults
     ...sanitized,
-    seatingPlans: s.seatingPlans || sanitized.seatingPlans || [],
-    currentPlanIndex: s.currentPlanIndex ?? sanitized.currentPlanIndex ?? 0,
-    warnings: s.warnings || sanitized.warnings || [],
-    conflictWarnings: s.conflictWarnings || [],
-    duplicateGuests: s.duplicateGuests || [],
-    assignmentSignature: s.assignmentSignature || '',
-    lastGeneratedSignature: s.lastGeneratedSignature || null,
-    hideTableReductionNotice: s.hideTableReductionNotice || false,
-    userSetTables: s.userSetTables || false,
-    // Preserve readiness flags if they exist
-    loadedRestoreDecision: s.loadedRestoreDecision ?? false,
-    isReady: s.isReady ?? false,
-    regenerationNeeded: s.regenerationNeeded !== undefined ? s.regenerationNeeded : true,
-    // CRITICAL FIX: Preserve sessionVersion from saved state if it exists and is valid
-    sessionVersion: typeof s.sessionVersion === 'number' && s.sessionVersion >= 0 ? s.sessionVersion : 0,
-    persistenceVersion: s.persistenceVersion || '1.0.0',
-    timestamp: new Date().toISOString() 
+
+    // Explicit field overlay (retain all known AppState keys)
+    guests: Array.isArray(s?.guests) ? s.guests : (sanitized.guests ?? []),
+    tables: Array.isArray(s?.tables) ? s.tables : (sanitized.tables ?? []),
+    constraints: s?.constraints ?? (sanitized.constraints ?? {}),
+    adjacents: s?.adjacents ?? (sanitized.adjacents ?? {}),
+    assignments: s?.assignments ?? (sanitized.assignments ?? {}),
+    seatingPlans: Array.isArray(s?.seatingPlans) ? s.seatingPlans : (sanitized.seatingPlans ?? []),
+    currentPlanIndex: typeof s?.currentPlanIndex === "number" ? s.currentPlanIndex : (sanitized.currentPlanIndex ?? 0),
+
+    warnings: Array.isArray(s?.warnings) ? s.warnings : (sanitized.warnings ?? []),
+    // errors: Array.isArray(s?.errors) ? s.errors : (sanitized.errors ?? []), // COMMENTED: Not in AppState type
+    conflictWarnings: Array.isArray(s?.conflictWarnings) ? s.conflictWarnings : (sanitized.conflictWarnings ?? []),
+    duplicateGuests: Array.isArray(s?.duplicateGuests) ? s.duplicateGuests : (sanitized.duplicateGuests ?? []),
+
+    assignmentSignature: typeof s?.assignmentSignature === "string" ? s.assignmentSignature : (sanitized.assignmentSignature ?? ""),
+    lastGeneratedSignature: s?.lastGeneratedSignature ?? (sanitized.lastGeneratedSignature ?? null),
+
+    hideTableReductionNotice: !!(s?.hideTableReductionNotice ?? sanitized.hideTableReductionNotice ?? false),
+    userSetTables: !!(s?.userSetTables ?? sanitized.userSetTables ?? false),
+
+    loadedRestoreDecision: !!(s?.loadedRestoreDecision ?? sanitized.loadedRestoreDecision ?? false),
+    loadedSavedSetting: !!(s?.loadedSavedSetting ?? sanitized.loadedSavedSetting ?? false),
+    isReady: !!(s?.isReady ?? sanitized.isReady ?? false),
+    regenerationNeeded: typeof s?.regenerationNeeded === "boolean" ? s.regenerationNeeded : (sanitized.regenerationNeeded ?? true),
+
+    // Required AppState fields
+    subscription: s?.subscription ?? sanitized.subscription ?? undefined,
+    trial: s?.trial ?? sanitized.trial ?? null,
+    user: s?.user ?? sanitized.user ?? null,
+    isSupabaseConnected: s?.isSupabaseConnected ?? sanitized.isSupabaseConnected ?? false,
+    lastGeneratedPlanSig: s?.lastGeneratedPlanSig ?? sanitized.lastGeneratedPlanSig ?? null,
+
+    // Additional persistence-related overlays (preserve if present)
+    // NOTE: If your AppState does not include these fields, comment them out.
+    // They are included here for completeness across different app versions.
+    // savedStates: Array.isArray(s?.savedStates) ? s.savedStates : (sanitized.savedStates ?? []), // COMMENTED: Not in AppState type
+    // savedSettings: s?.savedSettings ?? (sanitized.savedSettings ?? {}), // COMMENTED: Not in AppState type
+    // entitlementsETag: typeof s?.entitlementsETag === "string" ? s.entitlementsETag : (sanitized.entitlementsETag ?? ""), // COMMENTED: Not in AppState type
+
+    // Versioning & persistence
+    sessionVersion: trustedSessionVersion,
+    persistenceVersion: s?.persistenceVersion ?? (sanitized.persistenceVersion ?? "1.0.0"),
+    timestamp: new Date().toISOString()
   };
 }
 

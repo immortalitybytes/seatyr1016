@@ -7,49 +7,47 @@ export function normalizeAssignmentInputToIdsWithWarnings(
   isPremium: boolean
 ): { idCsv: string; warnings: string[] } {
   if (!raw) return { idCsv: "", warnings: [] };
+
   const inputStr = Array.isArray(raw) ? raw.join(",") : String(raw);
 
+  const validIds = new Set<number>();
   const nameToId = new Map<string, number>();
-  const idSet = new Set<number>();
   for (const t of tables) {
-    if (t?.id) idSet.add(t.id);
+    if (t && Number.isInteger(t.id)) validIds.add(t.id);
     if (t?.name) nameToId.set(t.name.trim().toLowerCase(), t.id);
   }
+
+  const tokens = inputStr
+    .split(/[,\s]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(tok => tok.replace(/\.$/, ""))
+    .filter(Boolean);
 
   const resolved = new Set<number>();
   const warnings: string[] = [];
 
-  // Enhanced punctuation-tolerant parsing
-  // Handles: "2. 3, College, 5" → ["2", "3", "College", "5"]
-  const tokens = inputStr
-    .split(/[,\s]+/)  // Split on commas and spaces only
-    .map(s => s.trim())
-    .filter(Boolean)
-    .map(token => {
-      // Handle trailing periods: "2." → "2", "College." → "College"
-      return token.replace(/\.$/, '');
-    });
-
   for (const token of tokens) {
-    // Rule: numeric tokens are treated as table IDs
-    const asNum = Number(token);
-    if (Number.isFinite(asNum) && Number.isInteger(asNum) && asNum > 0) {
-      if (idSet.has(asNum)) resolved.add(asNum);
+    const n = Number(token);
+    if (Number.isFinite(n) && Number.isInteger(n) && n > 0) {
+      if (validIds.has(n)) resolved.add(n);
       else warnings.push(`Unknown table ID: "${token}"`);
       continue;
     }
-    // Premium allows resolving by table name
+
     if (isPremium) {
       const id = nameToId.get(token.toLowerCase());
-      if (typeof id === 'number') resolved.add(id);
+      if (typeof id === "number") resolved.add(id);
       else warnings.push(`Unknown table name: "${token}"`);
     } else {
-      warnings.push(`Using table names ("${token}") requires Premium.`);
+      warnings.push(`"${token}" requires Premium (or enter table ID).`);
     }
   }
 
-  const idCsv = Array.from(resolved).sort((a,b)=>a-b).join(',');
-  return { idCsv, warnings };
+  if (resolved.size > 0) {
+    return { idCsv: Array.from(resolved).sort((a, b) => a - b).join(","), warnings };
+  }
+  return { idCsv: "", warnings };
 }
 
 export function normalizeGuestInputToIdsWithWarnings(

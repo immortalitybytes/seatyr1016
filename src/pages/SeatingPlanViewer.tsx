@@ -177,6 +177,10 @@ const SeatingPlanViewer: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   
+  // B1: Add refs for state-driven completion
+  const lastSeenSignatureRef = useRef<string | null>(null);
+  const generationStartTimeRef = useRef<number | null>(null);
+  
   // Get premium status from subscription
   const isPremium = mode === 'premium';
   
@@ -227,26 +231,52 @@ const SeatingPlanViewer: React.FC = () => {
   const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
   const handleNavigatePage = (delta: number) => setCurrentPage(p => Math.max(0, Math.min(totalPages - 1, p + delta)));
 
-  const handleGenerateSeatingPlan = async () => {
-      setIsGenerating(true);
-      setErrors([]);
-      
-      // Let AppContext handle the algorithm call via debouncedGeneratePlans
-      // This ensures consistent state and prevents dual calls
-      console.log('[SeatingPlanViewer] Triggering AppContext algorithm generation');
-      
-      // The AppContext will handle the actual generation via its useEffect
-      // We just need to trigger a state change that will cause regeneration
-      dispatch({ type: 'TRIGGER_REGENERATION' });
-      
-      // Wait a moment for the algorithm to complete
-      setTimeout(() => {
-        setIsGenerating(false);
-        if (safeSeatingPlans.length === 0) {
-          setErrors([{ type: 'error', message: 'No valid seating plans could be generated. Try relaxing constraints.' }]);
-        }
-      }, 2000);
+  // B3: Harden the generation trigger
+  const handleGenerateSeatingPlan = () => {
+    if (state.regenerationNeeded) {
+      console.log("[SeatingPlanViewer] Generation already in progress");
+      return;
+    }
+
+    lastSeenSignatureRef.current = state.lastGeneratedSignature ?? null;
+    generationStartTimeRef.current = Date.now();
+
+    setErrors([]);
+    setIsGenerating(true);
+    dispatch({ type: "TRIGGER_REGENERATION" });
   };
+  
+  // B2: Replace timer-based completion with state-driven effect + safety timeout
+  useEffect(() => {
+    // 30s safety valve prevents infinite spinner if engine never signals completion
+    if (isGenerating && generationStartTimeRef.current !== null) {
+      const elapsed = Date.now() - generationStartTimeRef.current;
+      if (elapsed > 30000) {
+        console.error("[SeatingPlanViewer] Generation timeout after 30s");
+        setIsGenerating(false);
+        setErrors([{ type: "error", message: "Generation took too long. Try simplifying your constraints." }]);
+        generationStartTimeRef.current = null;
+        return;
+      }
+    }
+
+    const completed =
+      state.regenerationNeeded === false &&
+      state.lastGeneratedSignature !== null &&
+      lastSeenSignatureRef.current !== state.lastGeneratedSignature;
+
+    if (!completed) return;
+
+    lastSeenSignatureRef.current = state.lastGeneratedSignature;
+    generationStartTimeRef.current = null;
+
+    setIsGenerating(false);
+    if ((state.seatingPlans?.length ?? 0) === 0) {
+      setErrors([{ type: "error", message: "No valid seating plans could be generated. Try relaxing your constraints." }]);
+    } else {
+      setErrors([]);
+    }
+  }, [isGenerating, state.regenerationNeeded, state.lastGeneratedSignature, state.seatingPlans]);
 
   // Render page numbers function (matching Constraints page)
   const renderPageNumbers = () => {

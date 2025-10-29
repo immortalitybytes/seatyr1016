@@ -412,26 +412,78 @@ export async function saveAppState(
       return { success: false, error: 'Aborted' };
     }
     
-    // Validate sessionVersion is incrementing
+    // Patch D: Replace stale-write check with integrity-safe immutable correction
     const existing = localStorage.getItem(STORAGE_KEY);
+    let parsed: any = null;
     if (existing) {
       try {
-        const parsed = JSON.parse(existing);
-        // ONLY reject if existing is STRICTLY GREATER than incoming (stale data)
-        if (parsed.sessionVersion > data.sessionVersion) {
-          console.warn('[Persistence] Rejecting stale write:', {
-            existing: parsed.sessionVersion,
-            incoming: data.sessionVersion
-          });
-          return { success: false, error: 'Stale sessionVersion' };
-        }
+        parsed = JSON.parse(existing);
       } catch (e) {
         console.warn('[Persistence] Existing data corrupt, overwriting');
       }
     }
+
+    // Assume 'parsed' is the last saved state object, 'data' is the new state to save.
+    const existingVersion = Number(parsed?.sessionVersion ?? -1);
+    const incomingVersion = Number(data?.sessionVersion ?? 0);
+
+    // Tunables (conservative and grounded)
+    const EXTREME_STALE_DELTA     = 10;           // hard reject far-behind regressions
+    const RELOAD_GRACE_MAX        = 5;            // edits allowed within grace while correcting version
+    const RELOAD_GRACE_WINDOW_MS  = 10_000;       // ~10s after last load
+    const ONE_HOUR_MS             = 3_600_000;    // 1 hour (clock-skew tolerance)
+    // const ONE_DAY_MS              = 86_400_000;   // 1 day (unused, kept for documentation)
+    const ONE_WEEK_MS             = 604_800_000;  // 7 days
+
+    // Derive "last load" reference time from persisted timestamp
+    const now = Date.now();
+    let stateLoadedAt = parsed?.timestamp
+      ? new Date(parsed.timestamp).getTime()
+      : now;
+
+    // Defensive timestamp handling:
+    //
+    // - If timestamp is malformed (NaN) OR more than 1h in the future (clock skew),
+    //   assume fresh load and place the reference safely within the grace window.
+    // - Clamp to within the last 7 days to tolerate extended sessions (laptops sleeping,
+    //   long-running tabs) while still bounding the grace window to recent activity.
+    //   Very old sessions (>EXTREME_STALE_DELTA behind) are still rejected by EXTREME_STALE_DELTA.
+    if (Number.isNaN(stateLoadedAt) || stateLoadedAt > now + ONE_HOUR_MS) {
+      stateLoadedAt = now - RELOAD_GRACE_WINDOW_MS + 1000; // safely within grace window
+    }
+    stateLoadedAt = Math.min(Math.max(stateLoadedAt, now - ONE_WEEK_MS), now); // clamp to [now-7d, now]
+
+    const withinGraceWindow = (now - stateLoadedAt) < RELOAD_GRACE_WINDOW_MS;
+
+    // Decide the version to save WITHOUT mutating 'data'
+    let versionToSave = incomingVersion;
+
+    // 1) Extreme stale: never allow regression far behind persisted
+    if (existingVersion > incomingVersion + EXTREME_STALE_DELTA) {
+      console.warn("[Persistence] Rejecting extremely stale write", { existing: existingVersion, incoming: incomingVersion });
+      return { success: false, error: "Version too stale" };
+    }
+
+    // 2) Grace: correct the incoming version to be monotonic (immutable)
+    if (existingVersion > incomingVersion) {
+      if (incomingVersion <= RELOAD_GRACE_MAX && withinGraceWindow) {
+        console.warn("[Persistence] Correcting sessionVersion within grace window", {
+          existing: existingVersion, incoming: incomingVersion, corrected: existingVersion + 1
+        });
+        versionToSave = existingVersion + 1;
+      } else {
+        console.warn("[Persistence] Rejecting stale write (outside grace)", { existing: existingVersion, incoming: incomingVersion });
+        return { success: false, error: "Storage version is newer" };
+      }
+    }
+
+    // 3) Create the final immutable state to save
+    const stateToSave = versionToSave !== incomingVersion
+      ? { ...data, sessionVersion: versionToSave }
+      : data;
     
     // Primary: Atomic write to localStorage
-    const atomicSuccess = atomicLocalStorageWrite(STORAGE_KEY, data);
+    const atomicSuccess = atomicLocalStorageWrite(STORAGE_KEY, stateToSave);
     if (!atomicSuccess) {
       throw new Error('Atomic write failed');
     }
@@ -442,15 +494,15 @@ export async function saveAppState(
     }
     
     // Secondary: Create timestamped backup
-    createLocalStorageBackup(data);
+    createLocalStorageBackup(stateToSave);
     
     // Tertiary: Save to IndexedDB
-    const indexedResult = await saveToIndexedDB(data);
+    const indexedResult = await saveToIndexedDB(stateToSave);
     if (!indexedResult.success) {
       console.warn('[Persistence] IndexedDB backup failed:', indexedResult.error);
     }
     
-    console.log('[Persistence] State saved successfully, sessionVersion:', data.sessionVersion);
+    console.log('[Persistence] State saved successfully, sessionVersion:', stateToSave.sessionVersion);
     return { success: true };
   } catch (error) {
     if (options.signal?.aborted) {
