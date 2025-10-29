@@ -180,6 +180,7 @@ const SeatingPlanViewer: React.FC = () => {
   // B1: Add refs for state-driven completion
   const lastSeenSignatureRef = useRef<string | null>(null);
   const generationStartTimeRef = useRef<number | null>(null);
+  const prevHadPlansRef = useRef<boolean>(false);
   
   // Get premium status from subscription
   const isPremium = mode === 'premium';
@@ -248,33 +249,56 @@ const SeatingPlanViewer: React.FC = () => {
   
   // B2: Replace timer-based completion with state-driven effect + safety timeout
   useEffect(() => {
-    // 30s safety valve prevents infinite spinner if engine never signals completion
+    // 30s safety valve to prevent indefinite spinner during an active generation
     if (isGenerating && generationStartTimeRef.current !== null) {
       const elapsed = Date.now() - generationStartTimeRef.current;
-      if (elapsed > 30000) {
+      if (elapsed > 30_000) {
         console.error("[SeatingPlanViewer] Generation timeout after 30s");
         setIsGenerating(false);
         setErrors([{ type: "error", message: "Generation took too long. Try simplifying your constraints." }]);
         generationStartTimeRef.current = null;
+        prevHadPlansRef.current = (state.seatingPlans?.length ?? 0) > 0;
         return;
       }
     }
 
+    const hasPlans = (state.seatingPlans?.length ?? 0) > 0;
+
+    // Fire the "plans appeared" path only once per active generation cycle
+    const becameValidThisCycle =
+      generationStartTimeRef.current !== null &&
+      hasPlans &&
+      !prevHadPlansRef.current;
+
     const completed =
+      // Only complete during an active generation cycle
+      generationStartTimeRef.current !== null &&
       state.regenerationNeeded === false &&
       state.lastGeneratedSignature !== null &&
-      lastSeenSignatureRef.current !== state.lastGeneratedSignature;
+      (
+        // Normal: signature advanced
+        lastSeenSignatureRef.current !== state.lastGeneratedSignature
+        // Same-signature success: plans newly appeared this cycle
+        || becameValidThisCycle
+      );
+
+    // Track transition before any early return
+    prevHadPlansRef.current = hasPlans;
 
     if (!completed) return;
 
+    // Mark the generation cycle as finished and update refs
     lastSeenSignatureRef.current = state.lastGeneratedSignature;
     generationStartTimeRef.current = null;
 
     setIsGenerating(false);
-    if ((state.seatingPlans?.length ?? 0) === 0) {
-      setErrors([{ type: "error", message: "No valid seating plans could be generated. Try relaxing your constraints." }]);
-    } else {
+
+    if (hasPlans) {
+      // Success path: clear any lingering local errors
       setErrors([]);
+    } else {
+      // Failure path: show the standard message
+      setErrors([{ type: "error", message: "No valid seating plans could be generated. Try relaxing your constraints." }]);
     }
   }, [isGenerating, state.regenerationNeeded, state.lastGeneratedSignature, state.seatingPlans]);
 
@@ -382,7 +406,7 @@ const SeatingPlanViewer: React.FC = () => {
               {isGenerating ? `Generating ${mode === 'premium' ? '30' : '10'} plans...` : `Generate ${mode === 'premium' ? '30' : '10'} Seating Plans`}
             </button>
           </div>
-          {errors.length > 0 && (
+          {errors.length > 0 && (state.seatingPlans?.length ?? 0) === 0 && (
               <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3">
                   <h3 className="flex items-center text-red-800 font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Errors</h3>
                   <ul className="list-disc pl-5 text-red-700 text-sm space-y-1">
@@ -390,7 +414,7 @@ const SeatingPlanViewer: React.FC = () => {
                   </ul>
               </div>
           )}
-          {state.warnings && state.warnings.length > 0 && (
+          {state.warnings && state.warnings.length > 0 && (state.seatingPlans?.length ?? 0) === 0 && (
               <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
                   <h3 className="flex items-center text-yellow-800 font-medium mb-2"><AlertCircle className="w-4 h-4 mr-1" /> Warnings</h3>
                   <ul className="list-disc pl-5 text-yellow-700 text-sm space-y-1">

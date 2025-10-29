@@ -311,26 +311,48 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'SET_SEATING_PLANS': {
       const { plans = [], errors = [] } = action.payload || {};
-      const warnings = errors.map((e: any) => e?.message || String(e)).filter(Boolean);
-      
-      // Show global toast for engine errors
-      if (warnings.length > 0 && typeof window !== 'undefined') {
-        import('react-toastify').then(({ toast }) => {
-          toast.warning(`Generation warnings: ${warnings.join('; ')}`, {
-            position: 'top-right',
-            autoClose: 5000
-          });
-        });
+
+      // Normalize incoming: accept {type,message} or raw strings
+      const incoming = (Array.isArray(errors) ? errors : []).map((e: any) => {
+        if (e && typeof e === 'object') {
+          const t = typeof e.type === 'string' ? e.type : '';
+          const m = e?.message != null ? String(e.message) : '';
+          return { type: t, message: m };
+        }
+        return { type: '', message: String(e ?? '') };
+      });
+
+      // Treat "", "warn", "warning" as warnings; ignore empty
+      const incomingWarnings = incoming
+        .filter((x) => x.message && (x.type === 'warn' || x.type === 'warning' || x.type === ''))
+        .map((x) => x.message);
+
+      // Policy:
+      // - Success with no new warnings → clear stale warnings
+      // - New warnings present → replace (no accumulation)
+      // - No plans and no new warnings → preserve prior warnings
+      let nextWarnings: string[] = [];
+      if (plans.length > 0 && incomingWarnings.length === 0) {
+        nextWarnings = [];
+      } else if (incomingWarnings.length > 0) {
+        nextWarnings = incomingWarnings;
+      } else {
+        nextWarnings = state.warnings || [];
       }
-      
+
+      // Keep index in range if plans exist; else reset to 0
+      const nextPlanIndex = plans.length
+        ? Math.min(Math.max(state.currentPlanIndex ?? 0, 0), plans.length - 1)
+        : 0;
+
       return {
         ...state,
         seatingPlans: plans,
-        warnings: [...new Set([...(state.warnings || []), ...warnings])],
-        currentPlanIndex: plans.length ? Math.min(state.currentPlanIndex, plans.length - 1) : 0,
-        lastGeneratedSignature: state.assignmentSignature,
-        regenerationNeeded: false, // Reset flag after generation
-        sessionVersion: state.sessionVersion + 1
+        warnings: nextWarnings,
+        currentPlanIndex: nextPlanIndex,
+        lastGeneratedSignature: state.assignmentSignature ?? null,
+        regenerationNeeded: false,
+        sessionVersion: (state.sessionVersion ?? 0) + 1
       };
     }
     case 'SET_CURRENT_PLAN_INDEX': return { ...state, currentPlanIndex: action.payload };
