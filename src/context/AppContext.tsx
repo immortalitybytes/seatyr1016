@@ -768,14 +768,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               if (isMountedRef.current && data?.guests?.length && data.guests.length > 0) {
                 console.log('[Auth] Setting most recent state and showing modal');
                 setMostRecentState(data);
-                setShowRecentModal(true); // RESTORE MODAL
-                // Don't set loadedRestoreDecision yet (modal will do it)
-              } else {
-                console.log('[Auth] No recent state or no guests, skipping modal');
-                dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
-                dispatch({ type: 'SET_READY' }); // CRITICAL: Set ready when no modal
-                hasInitialized = true;
+                setShowRecentModal(true);
               }
+
+              // Always set loadedRestoreDecision after mostRecentState check
+              console.log('[Auth] Setting loadedRestoreDecision (modal choice can happen async)');
+              dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+              dispatch({ type: 'SET_READY' });
+              hasInitialized = true;
             } else {
               console.log('[Auth] Not premium user, skipping recent state fetch');
               dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });

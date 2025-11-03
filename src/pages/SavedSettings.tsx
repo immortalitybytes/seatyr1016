@@ -41,7 +41,7 @@ const SavedSettings: React.FC = () => {
     const entitlementsAttempted = state.subscription !== undefined;
 
     if (
-      sessionTag !== 'SIGNED_IN' ||     // 1. Wait for auth
+      sessionTag !== 'ENTITLED' ||      // 1. Wait for auth
       !user?.id ||                      // 2. Wait for user
       !entitlementsAttempted ||         // 3. Wait for entitlements
       !state.loadedRestoreDecision ||   // 4. Wait for restore decision
