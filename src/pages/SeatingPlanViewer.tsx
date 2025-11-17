@@ -216,12 +216,12 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       const ordinalText = getOrdinalText(ordinalNumber);
       // Use normalized format ( + ) instead of ( & ) to match formatted name
       const baseName = baseTokens.join(' + ');
-      // Display: baseName + space + bolded ordinal + " (of N)"
-      // Do NOT include "+" connector before ordinal - ordinals are appended directly
+      // Display: baseName + space + bolded "+" + ordinal + " (of N)"
+      // Include "+" connector before ordinal (e.g., "+1st", "+2nd")
       
       return (
         <span>
-          <BoldedGuestName name={baseName} shouldBold={false} /> <strong>{ordinalText}</strong> (of {totalAdditional})
+          <BoldedGuestName name={baseName} shouldBold={false} /> <strong>+{ordinalText}</strong> (of {totalAdditional})
         </span>
       );
     }
