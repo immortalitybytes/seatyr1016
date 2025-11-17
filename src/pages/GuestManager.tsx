@@ -111,6 +111,7 @@ const GuestManager: React.FC = () => {
   const realtimeSubscriptionRef = useRef<any>(null);
   const pulsingArrowTimeout = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isPremium = mode === 'premium';
   const maxGuests = getMaxGuestLimit(state.subscription);
@@ -504,12 +505,12 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full flex-wrap min-w-0" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
+          <div className="mt-4 flex w-full flex-nowrap min-w-0" style={{ paddingLeft: '3rem', paddingRight: '3rem', gap: '2rem' }}>
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              className="min-w-0 w-full sm:w-[48.3%]"
-              style={{ height: '70.2px' }}
+              className="inline-flex items-center justify-center"
+              style={{ height: '70.2px', width: 'calc(50% - 1rem)', flexShrink: 0 }}
             >
               Add Guests
             </Button>
@@ -525,8 +526,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn inline-flex items-center justify-center min-w-0 w-full sm:w-[48.3%]"
-                  style={{ height: '70.2px' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center"
+                  style={{ height: '70.2px', width: 'calc(50% - 1rem)', flexShrink: 0 }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -588,8 +589,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             </div>
           </Card>
 
-          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px' }}>
-            <div className="flex justify-between items-center w-full mb-4">
+          <Card title="Add Guest Names" className="lg:col-span-2" style={{ minHeight: '280px', minWidth: '400px' }}>
+            <div className="flex justify-between items-center w-full mb-2" style={{ marginTop: '-0.375rem' }}>
               <span></span>
               {!isPremium && (
                 <span className="text-sm text-gray-700 ml-auto text-right whitespace-normal break-words">
@@ -597,7 +598,7 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
                 </span>
               )}
             </div>
-          <div className="space-y-2 mb-2" style={{ paddingLeft: '0' }}>
+          <div className="space-y-2 mb-1" style={{ paddingLeft: '0' }}>
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>Enter guest names separated by commas or line breaks.</p>
             <p className="text-sm text-gray-700" style={{ marginLeft: '0' }}>• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
             <table className="w-full invisible">
@@ -616,19 +617,20 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             </table>
           </div>
           <textarea
+            ref={textareaRef}
             value={guestInput}
             onChange={(e) => setGuestInput(e.target.value)}
             placeholder=" e.g., Alice & Andrew Jones, Bob Smith+1
 Conseula & Cory & Cleon Lee, Darren Winnik+4"
-            className="w-full h-32 p-3 border border-gray-400 rounded-lg resize-none text-black"
+            className="w-full h-24 p-3 border border-gray-400 rounded-lg resize-none text-black"
             style={{ borderColor: 'rgba(0, 0, 0, 0.3)' }}
           />
-          <div className="mt-4 flex w-full flex-wrap min-w-0 justify-center" style={{ paddingLeft: '1rem', paddingRight: '1rem', gap: '1rem' }}>
+          <div className="mt-4 flex w-full flex-nowrap min-w-0" style={{ paddingLeft: '1rem', paddingRight: '1rem', gap: '1rem' }}>
             {!state.user && (
               <button
                 onClick={loadTestGuestList}
-                className="danstyle1c-btn inline-flex items-center justify-center min-w-0 w-full sm:w-[60%]"
-                style={{ height: '70.2px' }}
+                className="danstyle1c-btn inline-flex items-center justify-center"
+                style={{ height: '90px', width: 'calc(60% - 0.5rem)', flexShrink: 0 }}
                 id="loadTestGuestListBtn"
               >
                 <span className="pulsing-arrow" id="leftArrow" style={{ animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}>➡️</span>
@@ -639,8 +641,8 @@ Conseula & Cory & Cleon Lee, Darren Winnik+4"
             <Button 
               onClick={handleAddGuests} 
               disabled={!guestInput.trim()}
-              className="min-w-0 w-full sm:w-[40%]"
-              style={{ height: '70.2px' }}
+              className="inline-flex items-center justify-center"
+              style={{ height: '90px', width: state.user ? '100%' : 'calc(40% - 0.5rem)', flexShrink: 0 }}
             >
               Add Guests
             </Button>
