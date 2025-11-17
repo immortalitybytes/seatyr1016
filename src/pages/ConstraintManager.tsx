@@ -9,6 +9,7 @@ import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
+import { formatGuestUnitName } from '../utils/formatGuestName';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -281,7 +282,7 @@ const ConstraintManager: React.FC = () => {
           data-name={guest.name}
         >
           <div className="max-w-[100px] leading-tight" style={{ minHeight: '3rem', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            <FormatGuestName name={guest.name} />
+            <FormatGuestName name={formatGuestUnitName(guest.name)} />
             {adjacentIndicator}
           </div>
         </th>
@@ -343,12 +344,7 @@ const ConstraintManager: React.FC = () => {
         >
           <div>
             <div className="truncate max-w-[140px]">
-              {guest1.name.includes('%') ? (
-                <>
-                  {guest1.name.split('%')[0]}
-                  <span style={{ color: '#959595' }}>%{guest1.name.split('%')[1]}</span>
-                </>
-              ) : guest1.name}
+              <FormatGuestName name={formatGuestUnitName(guest1.name)} />
               {adjacentIndicator}
             </div>
             {guest1.count > 1 && (

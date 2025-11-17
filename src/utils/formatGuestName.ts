@@ -15,18 +15,22 @@ export function formatGuestUnitName(name: string): string {
   // Match connection character not followed by space
   formatted = formatted.replace(/([&+])([^\s])/g, '$1 $2');
   
-  // Step 2: Normalize connection words with spaces on both sides → +
+  // Step 2: Ensure space after "plus" word if missing (before normalizing to +)
+  // Handle cases like "Johnplus Bob" → "John plus Bob"
+  formatted = formatted.replace(/\bplus([^\s])/gi, 'plus $1');
+  
+  // Step 3: Normalize connection words with spaces on both sides → +
   // Only replace when the word has spaces on BOTH sides (to avoid "Regland", "Balso", etc.)
   formatted = formatted.replace(/\s+(and|also|plus)\s+/gi, ' + ');
   
-  // Step 3: Collapse multiple spaces to single space
+  // Step 4: Collapse multiple spaces to single space
   formatted = formatted.replace(/\s{2,}/g, ' ');
   
-  // Step 4: Deduplicate consecutive connection characters
+  // Step 5: Deduplicate consecutive connection characters
   // Match any combination of & and + (with optional spaces between) and keep only the first
   formatted = formatted.replace(/([&+])\s*[&+]+/g, '$1');
   
-  // Step 5: Final cleanup - ensure no trailing/leading spaces
+  // Step 6: Final cleanup - ensure no trailing/leading spaces
   return formatted.trim();
 }
 

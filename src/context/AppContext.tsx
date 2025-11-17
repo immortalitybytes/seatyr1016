@@ -13,6 +13,7 @@ import type {
 
 import { getMostRecentState, saveMostRecentState } from '../lib/mostRecentState';
 import { countHeads } from '../utils/formatters';
+import { formatGuestUnitName } from '../utils/formatGuestName';
 import { getCapacity } from '../utils/tables';
 import { parseAssignmentIds } from '../utils/assignments';
 import { generateSeatingPlans as engineGenerate } from '../utils/seatingAlgorithm';
@@ -241,7 +242,12 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'SET_GUESTS': {
       const payload = action.payload;
       const guests: Guest[] = Array.isArray(payload) ? payload : payload?.guests || [];
-      return { ...state, guests, duplicateGuests: [], seatingPlans: [], currentPlanIndex: 0 };
+      // Format all guest names to ensure consistent spacing
+      const formattedGuests = guests.map(g => ({
+        ...g,
+        name: formatGuestUnitName(g.name)
+      }));
+      return { ...state, guests: formattedGuests, duplicateGuests: [], seatingPlans: [], currentPlanIndex: 0 };
     }
     case 'ADD_GUEST': {
       const guest: Guest = action.payload;
@@ -279,7 +285,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
     case 'RENAME_GUEST': {
       const { id, name } = action.payload;
-      const guests = state.guests.map(g => g.id === id ? { ...g, name, count: countHeads(name) } : g);
+      // Format the name to ensure consistent spacing (defensive - commitEdit already formats, but this ensures consistency)
+      const formattedName = formatGuestUnitName(name);
+      const guests = state.guests.map(g => g.id === id ? { ...g, name: formattedName, count: countHeads(formattedName) } : g);
       return { ...state, guests, seatingPlans: [], currentPlanIndex: 0, sessionVersion: state.sessionVersion + 1 };
     }
     case 'UPDATE_ASSIGNMENT': {
@@ -464,6 +472,12 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       
       console.log(`[LOAD_MOST_RECENT-${executionId}] Loading guests into state:`, incoming.guests.length, 'guests');
       
+      // Format all guest names to ensure consistent spacing
+      const formattedGuests = incoming.guests.map((g: Guest) => ({
+        ...g,
+        name: formatGuestUnitName(g.name)
+      }));
+      
       // CRITICAL FIX: Preserve current table state if user has made changes
       // Only use incoming tables if user hasn't customized tables locally
       const shouldUseIncomingTables = !state.userSetTables && incoming.tables?.length;
@@ -484,6 +498,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       return {
         ...initialState,
         ...incoming,
+        guests: formattedGuests,
         tables: tablesToUse,
         user: state.user,
         subscription: state.subscription,
@@ -915,6 +930,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }).then(({ plans, errors }) => {
       if (genId === genRef.current) {
         dispatch({ type: 'SET_SEATING_PLANS', payload: { plans, errors } });
+      }
+    }).catch((err) => {
+      console.error('[Generator] Failed:', err);
+      // CRITICAL: Always dispatch to set regenerationNeeded to false, even on error
+      if (genId === genRef.current) {
+        dispatch({ 
+          type: 'SET_SEATING_PLANS', 
+          payload: { 
+            plans: [], 
+            errors: [{ 
+              type: 'error', 
+              message: err instanceof Error ? err.message : 'Failed to generate seating plans' 
+            }] 
+          } 
+        });
       }
     });
   }, [dispatch]);

@@ -9,6 +9,7 @@ import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/forma
 import { computePlanSignature } from '../utils/planSignature';
 import FormatGuestName from '../components/FormatGuestName';
 import { getDisplayName, extractPartySuffix } from '../utils/guestCount';
+import { formatGuestUnitName } from '../utils/formatGuestName';
 import { useApp } from '../context/AppContext'; // SEATYR-CANONICAL-IMPORT
 
 // Helper component to handle both bolding and % marker styling
@@ -78,11 +79,13 @@ const BoldedGuestName: React.FC<{ name: string; shouldBold: boolean }> = ({ name
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
     
-    const originalName = rawName.trim();
+    // Ensure the name is formatted before processing (defensive - should already be formatted)
+    const formattedName = formatGuestUnitName(rawName.trim());
+    const originalName = formattedName;
     
     // Parse the guest name to extract base names and additional guests
-    const baseTokens = seatingTokensFromGuestUnit(rawName);
-    const extraTokens = nOfNTokensFromSuffix(rawName);
+    const baseTokens = seatingTokensFromGuestUnit(formattedName);
+    const extraTokens = nOfNTokensFromSuffix(formattedName);
     
     // Calculate total seats needed
     const totalSeats = baseTokens.length + extraTokens.length;
@@ -92,18 +95,50 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       // This is one of the base name tokens - bold the specific name
       const tokenToBold = baseTokens[seatIndex];
       
-      // Build display with the specific name bolded and % marker styling
-      const parts = originalName.split(tokenToBold);
-      if (parts.length > 1) {
+      // Reconstruct the name with proper spacing using normalized format ( + )
+      // Since formattedName uses normalized spacing ( + ), we use baseTokens directly
+      const tokenIndex = seatIndex;
+      
+      // Build display by reconstructing with proper spacing
+      const beforeParts: string[] = [];
+      const afterParts: string[] = [];
+      
+      // Collect tokens before the one to bold
+      for (let i = 0; i < tokenIndex && i < baseTokens.length; i++) {
+        beforeParts.push(baseTokens[i]);
+      }
+      
+      // Collect tokens after the one to bold
+      for (let i = tokenIndex + 1; i < baseTokens.length; i++) {
+        afterParts.push(baseTokens[i]);
+      }
+      
+      // Reconstruct with normalized spacing ( + )
+      const beforeText = beforeParts.length > 0 ? beforeParts.join(' + ') : '';
+      const afterText = afterParts.length > 0 ? afterParts.join(' + ') : '';
+      
+      // Build the display with proper spacing around connectors
+      if (beforeText && afterText) {
         return (
           <span>
-            <BoldedGuestName name={parts[0]} shouldBold={false} />
-            <BoldedGuestName name={tokenToBold} shouldBold={true} />
-            <BoldedGuestName name={parts[1]} shouldBold={false} />
+            <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
+          </span>
+        );
+      } else if (beforeText) {
+        return (
+          <span>
+            <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} />
+          </span>
+        );
+      } else if (afterText) {
+        return (
+          <span>
+            <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
           </span>
         );
       } else {
-        return <BoldedGuestName name={originalName} shouldBold={true} />;
+        // Single token - just bold it
+        return <BoldedGuestName name={tokenToBold} shouldBold={true} />;
       }
     } else {
       // This is an additional seat - show ordinal number
@@ -114,7 +149,8 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       // Check if this is a single +1 case
       if (totalAdditional === 1) {
         // Single +1: Display as "+ 1" without ordinal format
-        const baseName = baseTokens.join(' & ');
+        // Use normalized format ( + ) instead of ( & )
+        const baseName = baseTokens.join(' + ');
         
         return (
           <span>
@@ -142,8 +178,10 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       };
       
       const ordinalText = getOrdinalText(ordinalNumber);
-      const baseName = baseTokens.join(' & ');
-      const additionalPart = originalName.match(/[&+]|\b(?:and|plus)\b.*$/i)?.[0] || '';
+      // Use normalized format ( + ) instead of ( & ) to match formatted name
+      const baseName = baseTokens.join(' + ');
+      // Match the normalized format: look for " + " followed by numbers
+      const additionalPart = originalName.match(/\s+\+\s+\d+.*$/)?.[0] || '';
       
       return (
         <span>
@@ -376,7 +414,9 @@ const SeatingPlanViewer: React.FC = () => {
                   }
 
                   // Safe type validation (Grok feature)
-                  const safeName = (typeof guestData.name === 'string' && guestData.name.trim()) ? guestData.name.trim() : '';
+                  const rawName = (typeof guestData.name === 'string' && guestData.name.trim()) ? guestData.name.trim() : '';
+                  // Apply formatting to ensure consistent spacing (handles legacy plans with unformatted names)
+                  const safeName = formatGuestUnitName(rawName);
                   const safePartyIndex = Number.isFinite((guestData as any).partyIndex) ? (guestData as any).partyIndex : -1;
 
                   return (
