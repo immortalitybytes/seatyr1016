@@ -118,27 +118,63 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       const afterText = afterParts.length > 0 ? afterParts.join(' + ') : '';
       
       // Build the display with proper spacing around connectors
+      // Check if there are additional guests to append
+      const hasAdditionalGuests = extraTokens.length > 0;
+      let suffixNumber = '';
+      if (hasAdditionalGuests) {
+        if (extraTokens.length === 1) {
+          suffixNumber = '1';
+        } else {
+          const suffixMatch = originalName.match(/\s+\+\s+(\d+)\s*$/);
+          suffixNumber = suffixMatch ? suffixMatch[1] : String(extraTokens.length);
+        }
+      }
+      
       if (beforeText && afterText) {
         return (
           <span>
             <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
+            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else if (beforeText) {
         return (
           <span>
             <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} />
+            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else if (afterText) {
         return (
           <span>
             <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
+            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else {
-        // Single token - just bold it
-        return <BoldedGuestName name={tokenToBold} shouldBold={true} />;
+        // Single token - check if there are additional guests to append
+        if (extraTokens.length > 0) {
+          if (extraTokens.length === 1) {
+            // +1 case: Show "*name* + 1"
+            return (
+              <span>
+                <BoldedGuestName name={tokenToBold} shouldBold={true} /> + 1
+              </span>
+            );
+          } else {
+            // +N case: Show "*name* + N" (where N is the number)
+            const suffixMatch = originalName.match(/\s+\+\s+(\d+)\s*$/);
+            const suffixNumber = suffixMatch ? suffixMatch[1] : String(extraTokens.length);
+            return (
+              <span>
+                <BoldedGuestName name={tokenToBold} shouldBold={true} /> + {suffixNumber}
+              </span>
+            );
+          }
+        } else {
+          // Single token with no additional guests - just bold it
+          return <BoldedGuestName name={tokenToBold} shouldBold={true} />;
+        }
       }
     } else {
       // This is an additional seat - show ordinal number
@@ -148,13 +184,13 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       
       // Check if this is a single +1 case
       if (totalAdditional === 1) {
-        // Single +1: Display as "+ 1" without ordinal format
+        // Single +1: Display as "baseName *+ 1*" (name normal, +1 bolded)
         // Use normalized format ( + ) instead of ( & )
         const baseName = baseTokens.join(' + ');
         
         return (
           <span>
-            <BoldedGuestName name={baseName} shouldBold={false} /> + 1
+            <BoldedGuestName name={baseName} shouldBold={false} /> <strong>+ 1</strong>
           </span>
         );
       }
@@ -180,13 +216,12 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       const ordinalText = getOrdinalText(ordinalNumber);
       // Use normalized format ( + ) instead of ( & ) to match formatted name
       const baseName = baseTokens.join(' + ');
-      // Match the normalized format: look for " + " followed by numbers
-      const additionalPart = originalName.match(/\s+\+\s+\d+.*$/)?.[0] || '';
+      // Display: baseName + space + bolded ordinal + " (of N)"
+      // Do NOT include "+" connector before ordinal - ordinals are appended directly
       
       return (
         <span>
-          <BoldedGuestName name={baseName} shouldBold={false} /> {additionalPart.replace(/\d+/, '').trim()}
-          <strong> {ordinalText}</strong> (of {totalAdditional})
+          <BoldedGuestName name={baseName} shouldBold={false} /> <strong>{ordinalText}</strong> (of {totalAdditional})
         </span>
       );
     }
@@ -285,6 +320,18 @@ const SeatingPlanViewer: React.FC = () => {
     dispatch({ type: "TRIGGER_REGENERATION" });
   };
   
+  // Detect when auto-generation starts (regenerationNeeded becomes true)
+  useEffect(() => {
+    // If regeneration is needed and we're not already tracking a generation, start tracking
+    if (state.regenerationNeeded && generationStartTimeRef.current === null && !isGenerating) {
+      console.log("[SeatingPlanViewer] Auto-generation detected, starting tracking");
+      lastSeenSignatureRef.current = state.lastGeneratedSignature ?? null;
+      generationStartTimeRef.current = Date.now();
+      setIsGenerating(true);
+      setErrors([]);
+    }
+  }, [state.regenerationNeeded, isGenerating, state.lastGeneratedSignature]);
+
   // B2: Replace timer-based completion with state-driven effect + safety timeout
   useEffect(() => {
     // 30s safety valve to prevent indefinite spinner during an active generation
@@ -309,15 +356,16 @@ const SeatingPlanViewer: React.FC = () => {
       !prevHadPlansRef.current;
 
     const completed =
-      // Only complete during an active generation cycle
+      // Complete when regeneration is done (either manual or auto)
       generationStartTimeRef.current !== null &&
       state.regenerationNeeded === false &&
-      state.lastGeneratedSignature !== null &&
       (
         // Normal: signature advanced
-        lastSeenSignatureRef.current !== state.lastGeneratedSignature
+        (state.lastGeneratedSignature !== null && lastSeenSignatureRef.current !== state.lastGeneratedSignature)
         // Same-signature success: plans newly appeared this cycle
         || becameValidThisCycle
+        // Or if we have plans and regeneration completed (fallback for edge cases)
+        || (hasPlans && !state.regenerationNeeded)
       );
 
     // Track transition before any early return

@@ -50,17 +50,16 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   
   const navigate = useNavigate();
 
-  // Effect to fetch settings with 5-point guard
+  // Effect to fetch settings with 4-point guard
   useEffect(() => {
-    // 5-POINT GUARD
+    // 4-POINT GUARD (removed premium requirement - both free and premium users can load settings)
     const entitlementsAttempted = state.subscription !== undefined;
 
     if (
       sessionTag !== 'ENTITLED' ||      // 1. Wait for auth
       !user?.id ||                      // 2. Wait for user
       !entitlementsAttempted ||         // 3. Wait for entitlements
-      !state.loadedRestoreDecision ||   // 4. Wait for restore decision
-      !isPremium                        // 5. Check premium status
+      !state.loadedRestoreDecision      // 4. Wait for restore decision
     ) {
       setSettings([]);
       setLoading(false);
@@ -148,8 +147,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       if (error) {
         if (error.status === 401) {
           console.error('Session expired when loading settings');
-          setSessionError('Your session has expired. Please log in again.');
-          setSessionUser(null);
+          // AppContext handles session state - just dispatch the user reset
           dispatch({ type: 'SET_USER', payload: null });
           throw new Error('Session expired');
         }

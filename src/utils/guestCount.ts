@@ -45,7 +45,10 @@ export function countHeads(raw: string): number {
   const plusNum = s.match(/[&+]\s*(\d+)\s*$/);
   if (plusNum) {
     const baseName = s.replace(/[&+]\s*\d+\s*$/, '').trim();
-    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    // Count actual number of people in base name by splitting on connectors
+    // Use word boundaries to avoid matching "and" inside names like "Anderson"
+    const baseTokens = baseName.split(/\s*(?:&|\+|\b(?:and|plus)\b)\s*/i).filter(Boolean);
+    const baseCount = baseTokens.length > 0 ? baseTokens.length : (baseName ? 1 : 0);
     return Math.max(1, baseCount + parseInt(plusNum[1], 10));
   }
   
@@ -53,15 +56,22 @@ export function countHeads(raw: string): number {
   const plusWord = s.match(/\b(?:plus|and)\s+(\d+)\b/gi);
   if (plusWord) {
     const baseName = s.replace(/\b(?:plus|and)\s+\d+\b/gi, '').trim();
-    const baseCount = baseName ? 1 : 0; // Base person if there's a name
-    return Math.max(1, baseCount + parseInt(plusWord[0].match(/\d+/)[0], 10));
+    // Count actual number of people in base name by splitting on connectors
+    // Use word boundaries to avoid matching "and" inside names like "Anderson"
+    const baseTokens = baseName.split(/\s*(?:&|\+|\b(?:and|plus)\b)\s*/i).filter(Boolean);
+    const baseCount = baseTokens.length > 0 ? baseTokens.length : (baseName ? 1 : 0);
+    const digitMatch = plusWord[0].match(/\d+/);
+    return Math.max(1, baseCount + (digitMatch ? parseInt(digitMatch[0], 10) : 0));
   }
   
   // Check for spelled numbers (like "John plus one")
   const spelled = [...s.matchAll(/\b(?:plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b/gi)];
   if (spelled.length > 0) {
     const baseName = s.replace(/\b(?:plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b/gi, '').trim();
-    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    // Count actual number of people in base name by splitting on connectors
+    // Use word boundaries to avoid matching "and" inside names like "Anderson"
+    const baseTokens = baseName.split(/\s*(?:&|\+|\b(?:and|plus)\b)\s*/i).filter(Boolean);
+    const baseCount = baseTokens.length > 0 ? baseTokens.length : (baseName ? 1 : 0);
     const spelledCount = NUMBER_WORDS[spelled[0][1].toLowerCase()];
     return Math.max(1, baseCount + spelledCount);
   }
