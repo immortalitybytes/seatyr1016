@@ -698,17 +698,7 @@ const TableManager: React.FC = () => {
               )}
             </div>
             
-            <div 
-              className="space-y-4"
-              style={{
-                maxHeight: isPremium && state.guests.length > GUEST_THRESHOLD 
-                  ? 'calc(100vh - 360px)' 
-                  : 'none',
-                overflowY: isPremium && state.guests.length > GUEST_THRESHOLD 
-                  ? 'hidden' 
-                  : 'visible',
-              }}
-            >
+            <div className="space-y-4">
               {displayGuests.map(guest => {
                 const { must, cannot, adjacent } = getGuestConstraints(guest.id);
                 const assignedTables = state.assignments[guest.id] || '';
