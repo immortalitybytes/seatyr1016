@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Save, FolderOpen, Edit2, Copy, Trash2, AlertCircle, Crown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Save, FolderOpen, Edit2, Copy, Trash2, AlertCircle, Crown, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import Card from './Card';
 import Button from './Button';
 import { useApp } from '../context/AppContext';
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { isPremiumSubscription, getMaxSavedSettingsLimit, isSettingLoadable } from '../utils/premium';
 import AuthModal from './AuthModal';
 import { useNavigate } from 'react-router-dom';
+import { exportSettingsToCSV, downloadCSV } from '../utils/exportSettings';
 
 interface SavedSetting {
   id: string;
@@ -392,6 +393,53 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setOperationError('Failed to delete settings: ' + (err.message || 'Unknown error'));
     }
   };
+
+  const handleExportCurrentSettings = () => {
+    try {
+      const exportData = {
+        guests: state.guests,
+        tables: state.tables,
+        constraints: state.constraints,
+        adjacents: state.adjacents,
+        assignments: state.assignments
+      };
+      
+      const csvContent = exportSettingsToCSV(exportData, 'Current Settings');
+      const filename = `seatyr-settings-${new Date().toISOString().split('T')[0]}.txt`;
+      downloadCSV(csvContent, filename);
+    } catch (err) {
+      console.error('Failed to export settings:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError('Failed to export settings: ' + errorMessage);
+    }
+  };
+
+  const handleExportSetting = (setting: SavedSetting, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent loading the setting when clicking the export button
+    
+    try {
+      if (!setting.data) {
+        throw new Error('Saved setting data is missing or corrupted');
+      }
+      
+      const exportData = {
+        guests: setting.data.guests || [],
+        tables: setting.data.tables || [],
+        constraints: setting.data.constraints || {},
+        adjacents: setting.data.adjacents || {},
+        assignments: setting.data.assignments || {}
+      };
+      
+      const csvContent = exportSettingsToCSV(exportData, setting.name);
+      const sanitizedName = setting.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+      const filename = `seatyr-settings-${sanitizedName}-${new Date().toISOString().split('T')[0]}.txt`;
+      downloadCSV(csvContent, filename);
+    } catch (err) {
+      console.error('Failed to export settings:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setOperationError('Failed to export settings: ' + errorMessage);
+    }
+  };
   
   // Start inline editing when double-clicking the setting name
   const handleStartInlineRename = (e: React.MouseEvent, id: string, currentName: string) => {
@@ -552,14 +600,23 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                   )}
                 </div>
 
-                <button
-                  className="danstyle1c-btn"
-                  onClick={() => setShowSaveModal(true)}
-                  disabled={isPremium ? settings.length >= 50 : settings.length >= maxSettings}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Current Settings
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    className="danstyle1c-btn"
+                    onClick={() => setShowSaveModal(true)}
+                    disabled={isPremium ? settings.length >= 50 : settings.length >= maxSettings}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Current Settings
+                  </button>
+                  <button
+                    className="danstyle1c-btn"
+                    onClick={handleExportCurrentSettings}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Current Settings
+                  </button>
+                </div>
 
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-md p-3 flex items-start">
@@ -700,6 +757,15 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                               >
                                 <FolderOpen className="w-4 h-4 mr-2" />
                                 Load
+                              </button>
+                              <button
+                                className="danstyle1c-btn"
+                                onClick={(e) => handleExportSetting(setting, e)}
+                                disabled={clickingDisabled}
+                                title="Export this setting to a CSV file"
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                Export Settings
                               </button>
                               <button
                                 className="danstyle1c-btn"
