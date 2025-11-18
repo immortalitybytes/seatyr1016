@@ -176,7 +176,9 @@ export function exportSettingsToCSV(data: ExportData, settingName?: string): str
   
   // Header with setting name if provided
   if (settingName) {
-    lines.push(`Seatyr Settings Export: ${settingName}`);
+    // Strip newlines from setting name to prevent CSV formatting issues
+    const sanitizedName = settingName.replace(/[\n\r]/g, '');
+    lines.push(`Seatyr Settings Export: ${sanitizedName}`);
     lines.push(`Exported: ${new Date().toLocaleString()}`);
     lines.push('');
   }

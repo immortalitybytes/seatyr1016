@@ -237,18 +237,10 @@ const displayTableLabel = (table: { id: number; name?: string | null }, index: n
 };
 
 
-// Constants for guest pagination (matching Constraints page)
-const GUEST_THRESHOLD = 120; // pagination threshold
-const GUESTS_PER_PAGE = 10;
-
 const SeatingPlanViewer: React.FC = () => {
   const { state, dispatch, mode, sessionTag } = useApp();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
-  
-  // Guest pagination state (matching Constraints page)
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
   
   // B1: Add refs for state-driven completion
   const lastSeenSignatureRef = useRef<string | null>(null);
@@ -268,16 +260,6 @@ const SeatingPlanViewer: React.FC = () => {
   useEffect(() => {
     dispatch({ type: 'SEATING_PAGE_MOUNTED' });
   }, [dispatch]);
-
-  // Guest pagination logic (matching Constraints page)
-  useEffect(() => {
-    setCurrentPage(0);
-    if (isPremium && state.user && state.guests.length > GUEST_THRESHOLD) {
-      setTotalPages(Math.ceil(state.guests.length / GUESTS_PER_PAGE));
-    } else {
-      setTotalPages(1);
-    }
-  }, [state.guests, isPremium, state.user]);
 
   const capacityById = useMemo(() => {
     const map = new Map<number, number>();
@@ -299,11 +281,6 @@ const SeatingPlanViewer: React.FC = () => {
       </div>
     );
   }
-
-  // Navigation functions (matching Constraints page)
-  const needsPagination = isPremium && state.user && state.guests.length > GUEST_THRESHOLD;
-  const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
-  const handleNavigatePage = (delta: number) => setCurrentPage(p => Math.max(0, Math.min(totalPages - 1, p + delta)));
 
   // B3: Harden the generation trigger
   const handleGenerateSeatingPlan = () => {
@@ -387,32 +364,6 @@ const SeatingPlanViewer: React.FC = () => {
       setErrors([{ type: "error", message: "No valid seating plans could be generated. Try relaxing your constraints." }]);
     }
   }, [isGenerating, state.regenerationNeeded, state.lastGeneratedSignature, state.seatingPlans]);
-
-  // Render page numbers function (matching Constraints page)
-  const renderPageNumbers = () => {
-    if (totalPages <= 9) {
-      return Array.from({ length: totalPages }, (_, i) => (
-        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>
-          {i + 1}
-        </button>
-      ));
-    }
-    const buttons: JSX.Element[] = [];
-    for (let i = 0; i < 3; i++) if (i < totalPages) buttons.push(
-      <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
-    );
-    if (currentPage > 2) {
-      buttons.push(<span key="ellipsis1" className="mx-1">...</span>);
-      if (currentPage < totalPages - 3) buttons.push(
-        <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-4">{currentPage + 1}</button>
-      );
-    }
-    if (currentPage < totalPages - 3) buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
-    for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) buttons.push(
-      <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
-    );
-    return buttons;
-  };
 
   const handleNavigatePlan = (delta: number) => {
     const newIndex = state.currentPlanIndex + delta;

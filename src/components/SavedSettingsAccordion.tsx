@@ -51,6 +51,44 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   
   const navigate = useNavigate();
 
+  /**
+   * Validates and sanitizes a setting name
+   * Allows: spaces, apostrophes, dashes, em dashes, underscores, colons, semicolons
+   * Strips: newlines, null bytes
+   * Enforces: 200 character maximum
+   * Returns: sanitized name or null if invalid
+   */
+  const validateSettingName = (name: string): { valid: boolean; sanitized: string; error?: string } => {
+    if (!name || typeof name !== 'string') {
+      return { valid: false, sanitized: '', error: 'Setting name is required' };
+    }
+
+    // Trim whitespace
+    let sanitized = name.trim();
+
+    if (!sanitized) {
+      return { valid: false, sanitized: '', error: 'Setting name cannot be empty' };
+    }
+
+    // Strip newlines and carriage returns
+    sanitized = sanitized.replace(/[\n\r]/g, '');
+
+    // Strip null bytes and other problematic control characters
+    sanitized = sanitized.replace(/\0/g, '');
+
+    // Check if name became empty after stripping problematic characters
+    if (!sanitized) {
+      return { valid: false, sanitized: '', error: 'Setting name cannot be empty' };
+    }
+
+    // Check length (200 character max)
+    if (sanitized.length > 200) {
+      return { valid: false, sanitized: sanitized.substring(0, 200), error: 'Setting name cannot exceed 200 characters' };
+    }
+
+    return { valid: true, sanitized };
+  };
+
   // Effect to fetch settings with 4-point guard
   useEffect(() => {
     // 4-POINT GUARD (removed premium requirement - both free and premium users can load settings)
@@ -233,10 +271,14 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       return;
     }
     
-    if (!newSettingName.trim()) {
-      setError('Please enter a name for your settings');
+    // Validate and sanitize the setting name
+    const validation = validateSettingName(newSettingName);
+    if (!validation.valid) {
+      setError(validation.error || 'Please enter a valid name for your settings');
       return;
     }
+    
+    const sanitizedName = validation.sanitized;
 
     try {
       setSavingSettings(true);
@@ -270,7 +312,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       const { error } = await supabase
         .from('saved_settings')
         .insert({
-          name: newSettingName,
+          name: sanitizedName,
           data: settingData,
           user_id: effectiveUser.id // Explicitly set user_id for RLS
         });
@@ -292,7 +334,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setNewSettingName('');
       
       // Reset current setting name in localStorage
-      localStorage.setItem('seatyr_current_setting_name', newSettingName);
+      localStorage.setItem('seatyr_current_setting_name', sanitizedName);
       
       // Update loadedSavedSetting to true
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
@@ -329,10 +371,16 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         return;
       }
       
+      // Create duplicate name and validate it
+      // Note: validation.sanitized will be truncated to 200 chars if needed
+      const duplicateName = `${setting.name} (Copy)`;
+      const validation = validateSettingName(duplicateName);
+      const finalName = validation.sanitized; // Use sanitized version (may be truncated if > 200 chars)
+      
       const { error } = await supabase
         .from('saved_settings')
         .insert({
-          name: `${setting.name} (Copy)`,
+          name: finalName,
           data: setting.data,
           user_id: effectiveUser.id // Explicitly set user_id for RLS
         });
@@ -455,7 +503,9 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   
   // Handle input change for inline rename
   const handleEditNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditingName(e.target.value);
+    // Prevent newlines from being entered
+    const value = e.target.value.replace(/[\n\r]/g, '');
+    setEditingName(value);
     setNameError(null);
   };
   
@@ -463,14 +513,17 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   const handleSaveInlineRename = async () => {
     if (!editingSettingId) return;
     
-    const trimmedName = editingName.trim();
-    if (!trimmedName) {
-      setEditingSettingId(null);
+    // Validate and sanitize the setting name
+    const validation = validateSettingName(editingName);
+    if (!validation.valid) {
+      setNameError(validation.error || 'Please enter a valid name');
       return;
     }
     
+    const sanitizedName = validation.sanitized;
+    
     const currentSetting = settings.find(s => s.id === editingSettingId);
-    if (!currentSetting || trimmedName === currentSetting.name) {
+    if (!currentSetting || sanitizedName === currentSetting.name) {
       setEditingSettingId(null);
       return;
     }
@@ -480,7 +533,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     try {
       const { error } = await supabase
         .from('saved_settings')
-        .update({ name: trimmedName })
+        .update({ name: sanitizedName })
         .eq('id', editingSettingId)
         .eq('user_id', user.id);
 
@@ -495,7 +548,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       // If we just renamed the currently loaded setting, update the name
       const currentSettingName = localStorage.getItem('seatyr_current_setting_name');
       if (currentSettingName === currentSetting.name) {
-        localStorage.setItem('seatyr_current_setting_name', trimmedName);
+        localStorage.setItem('seatyr_current_setting_name', sanitizedName);
       }
       
       setEditingSettingId(null);
@@ -515,7 +568,9 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
   
   // Handle key press for inline rename
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent Enter from creating newlines (use it to save instead)
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleSaveInlineRename();
     } else if (e.key === 'Escape') {
       setEditingSettingId(null);
@@ -808,7 +863,17 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
                 id="settingName"
                 type="text"
                 value={newSettingName}
-                onChange={(e) => setNewSettingName(e.target.value)}
+                onChange={(e) => {
+                  // Prevent newlines from being entered
+                  const value = e.target.value.replace(/[\n\r]/g, '');
+                  setNewSettingName(value);
+                }}
+                onKeyDown={(e) => {
+                  // Prevent Enter from creating newlines
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78]"
                 placeholder="Enter a name for these settings"
               />

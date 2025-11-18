@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from '../utils/assignments';
-import { isPremiumSubscription } from '../utils/premium';
 import { getCapacity } from '../utils/tables';
+
+const GUEST_THRESHOLD = 120; // Threshold for pagination
+const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -90,7 +92,9 @@ const ConstraintChipsInput: React.FC<{
         onBlur={e => {
           setTimeout(() => {
             if (document.activeElement !== e.currentTarget) {
-              setActiveFieldKey((prev: string | null) => prev === inputKey ? null : prev);
+              if (activeFieldKey === inputKey) {
+                setActiveFieldKey(null);
+              }
             }
           }, 100);
         }}
@@ -151,6 +155,10 @@ const TableManager: React.FC = () => {
   const [assignmentWarnings, setAssignmentWarnings] = useState<Record<string, string[]>>({});
   const [rawAssignmentInput, setRawAssignmentInput] = useState<Record<string, string>>({});
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  
   // E1: Local warning state + mount re-validation
   const isPremium = useMemo(() => mode === "premium", [mode]);
 
@@ -189,6 +197,20 @@ const TableManager: React.FC = () => {
   }, [isPremium]); // eslint-disable-line react-hooks/exhaustive-deps
   
   const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
+  
+  // Pagination effect - compute totalPages when guest count changes
+  useEffect(() => {
+    const guestCount = state.guests.length;
+    const needsPagination = isPremium && guestCount > GUEST_THRESHOLD;
+    if (needsPagination) {
+      const pages = Math.max(1, Math.ceil(guestCount / GUESTS_PER_PAGE));
+      setTotalPages(pages);
+      setCurrentPage(prev => Math.min(prev, pages - 1));
+    } else {
+      setCurrentPage(0);
+      setTotalPages(1);
+    }
+  }, [state.guests.length, isPremium]);
   
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
@@ -264,6 +286,14 @@ const TableManager: React.FC = () => {
       default: return guests;
     }
   }, [state.guests, sortOption, state.seatingPlans, state.currentPlanIndex, state.assignments, currentTableKey]);
+  
+  // Pagination: slice sortedGuests for display (only for rendering, not calculations)
+  const displayGuests = useMemo(() => {
+    const needsPagination = isPremium && sortedGuests.length > GUEST_THRESHOLD;
+    if (!needsPagination) return sortedGuests;
+    const start = currentPage * GUESTS_PER_PAGE;
+    return sortedGuests.slice(start, start + GUESTS_PER_PAGE);
+  }, [sortedGuests, currentPage, isPremium]);
   
   // Loading guard - use state.isReady (single source of truth)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
@@ -638,7 +668,7 @@ const TableManager: React.FC = () => {
             </div>
             
             <div className="space-y-4">
-              {sortedGuests.map(guest => {
+              {displayGuests.map(guest => {
                 const { must, cannot, adjacent } = getGuestConstraints(guest.id);
                 const assignedTables = state.assignments[guest.id] || '';
                 return (
@@ -728,6 +758,29 @@ const TableManager: React.FC = () => {
                 );
               })}
             </div>
+            
+            {/* Pagination controls */}
+            {isPremium && totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <button
+                  className="danstyle1c-btn"
+                  onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                  disabled={currentPage === 0}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+                </button>
+                <button className="danstyle1c-btn selected">
+                  {currentPage + 1}
+                </button>
+                <button
+                  className="danstyle1c-btn"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+                  disabled={currentPage >= totalPages - 1}
+                >
+                  Next <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
