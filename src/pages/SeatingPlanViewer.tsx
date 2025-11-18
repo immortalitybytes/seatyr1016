@@ -87,17 +87,29 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     const baseTokens = seatingTokensFromGuestUnit(formattedName);
     const extraTokens = nOfNTokensFromSuffix(formattedName);
     
+    // Fallback: parse numeric suffix directly from formatted name if token parsing fails
+    const plusSuffixMatch = formattedName.match(/[&+]\s*(\d+)\s*$/);
+    const plusSuffixCount = plusSuffixMatch ? parseInt(plusSuffixMatch[1], 10) : 0;
+    
+    // Prefer extraTokens length, but fall back to numeric suffix if needed
+    const totalAdditional = extraTokens.length > 0
+      ? extraTokens.length
+      : Math.max(0, plusSuffixCount);
+    
     // Calculate total seats needed
-    const totalSeats = baseTokens.length + extraTokens.length;
+    const totalSeats = baseTokens.length + totalAdditional;
+    
+    // Clamp seatIndex to valid range
+    const safeSeatIndex = Math.max(0, Math.min(seatIndex, Math.max(0, totalSeats - 1)));
     
     // Determine what to display based on seat index
-    if (seatIndex < baseTokens.length) {
+    if (safeSeatIndex < baseTokens.length) {
       // This is one of the base name tokens - bold the specific name
-      const tokenToBold = baseTokens[seatIndex];
+      const tokenToBold = baseTokens[safeSeatIndex];
       
       // Reconstruct the name with proper spacing using normalized format ( + )
       // Since formattedName uses normalized spacing ( + ), we use baseTokens directly
-      const tokenIndex = seatIndex;
+      const tokenIndex = safeSeatIndex;
       
       // Build display by reconstructing with proper spacing
       const beforeParts: string[] = [];
@@ -119,14 +131,14 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       
       // Build the display with proper spacing around connectors
       // Check if there are additional guests to append
-      const hasAdditionalGuests = extraTokens.length > 0;
+      const hasAdditionalGuests = totalAdditional > 0;
       let suffixNumber = '';
       if (hasAdditionalGuests) {
-        if (extraTokens.length === 1) {
+        if (totalAdditional === 1) {
           suffixNumber = '1';
         } else {
           const suffixMatch = originalName.match(/\s+\+\s+(\d+)\s*$/);
-          suffixNumber = suffixMatch ? suffixMatch[1] : String(extraTokens.length);
+          suffixNumber = suffixMatch ? suffixMatch[1] : String(totalAdditional);
         }
       }
       
@@ -134,27 +146,27 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
         return (
           <span>
             <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
-            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
+            {hasAdditionalGuests && <>{totalAdditional === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else if (beforeText) {
         return (
           <span>
             <BoldedGuestName name={beforeText} shouldBold={false} /> + <BoldedGuestName name={tokenToBold} shouldBold={true} />
-            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
+            {hasAdditionalGuests && <>{totalAdditional === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else if (afterText) {
         return (
           <span>
             <BoldedGuestName name={tokenToBold} shouldBold={true} /> + <BoldedGuestName name={afterText} shouldBold={false} />
-            {hasAdditionalGuests && <>{extraTokens.length === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
+            {hasAdditionalGuests && <>{totalAdditional === 1 ? ' + 1' : ` + ${suffixNumber}`}</>}
           </span>
         );
       } else {
         // Single token - check if there are additional guests to append
-        if (extraTokens.length > 0) {
-          if (extraTokens.length === 1) {
+        if (totalAdditional > 0) {
+          if (totalAdditional === 1) {
             // +1 case: Show "*name* + 1"
             return (
               <span>
@@ -164,7 +176,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
           } else {
             // +N case: Show "*name* + N" (where N is the number)
             const suffixMatch = originalName.match(/\s+\+\s+(\d+)\s*$/);
-            const suffixNumber = suffixMatch ? suffixMatch[1] : String(extraTokens.length);
+            const suffixNumber = suffixMatch ? suffixMatch[1] : String(totalAdditional);
             return (
               <span>
                 <BoldedGuestName name={tokenToBold} shouldBold={true} /> + {suffixNumber}
@@ -178,16 +190,24 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
       }
     } else {
       // This is an additional seat - show ordinal number
-      const ordinalIndex = seatIndex - baseTokens.length;
+      const ordinalIndex = safeSeatIndex - baseTokens.length;
       const ordinalNumber = ordinalIndex + 1;
-      const totalAdditional = extraTokens.length;
       
-      // Check if this is a single +1 case
+      // Clamp ordinalNumber to [1, totalAdditional]
+      const safeOrdinalNumber = totalAdditional > 0
+        ? Math.min(Math.max(1, ordinalNumber), totalAdditional)
+        : 1;
+      
+      const baseName = baseTokens.join(' + ');
+      
+      // Guard: If we think there are "extra" seats but couldn't parse any extras
+      if (totalAdditional <= 0) {
+        // Fallback: just show the base name
+        return <span>{baseName}</span>;
+      }
+      
+      // +1 case: second seat → "BaseName + *1*" (no "(of X)")
       if (totalAdditional === 1) {
-        // Single +1: Display as "baseName *+ 1*" (name normal, +1 bolded)
-        // Use normalized format ( + ) instead of ( & )
-        const baseName = baseTokens.join(' + ');
-        
         return (
           <span>
             <BoldedGuestName name={baseName} shouldBold={false} /> <strong>+ 1</strong>
@@ -195,7 +215,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
         );
       }
       
-      // Multiple additional guests: Use ordinal format "Xth (of Y)"
+      // totalAdditional > 1 → "+N" case
       // Generate ordinal text (1st, 2nd, 3rd, etc.)
       const getOrdinalText = (num: number): string => {
         const lastDigit = num % 10;
@@ -213,15 +233,12 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
         }
       };
       
-      const ordinalText = getOrdinalText(ordinalNumber);
-      // Use normalized format ( + ) instead of ( & ) to match formatted name
-      const baseName = baseTokens.join(' + ');
-      // Display: baseName + space + bolded "+" + ordinal + " (of N)"
-      // Include "+" connector before ordinal (e.g., "+1st", "+2nd")
+      const ordinalText = getOrdinalText(safeOrdinalNumber);
       
       return (
         <span>
-          <BoldedGuestName name={baseName} shouldBold={false} /> <strong>+{ordinalText}</strong> (of {totalAdditional})
+          <BoldedGuestName name={baseName} shouldBold={false} />{' '}
+          <strong>+{ordinalText}</strong> (of {totalAdditional})
         </span>
       );
     }

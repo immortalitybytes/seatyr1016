@@ -9,7 +9,6 @@ import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from '.
 import { getCapacity } from '../utils/tables';
 
 const GUEST_THRESHOLD = 120; // Threshold for pagination
-const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -158,6 +157,7 @@ const TableManager: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(10); // Dynamic, will be recalculated
   
   // E1: Local warning state + mount re-validation
   const isPremium = useMemo(() => mode === "premium", [mode]);
@@ -198,19 +198,49 @@ const TableManager: React.FC = () => {
   
   const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
   
+  // Compute rowsPerPage from viewport height
+  useEffect(() => {
+    const computeRowsPerPage = () => {
+      const viewportHeight = window.innerHeight;
+      
+      // Approximate "fixed" vertical space: header, nav, explanations, etc.
+      // Adjust this value after visual inspection of your actual layout
+      const headerAndChrome = 360; // Tweak based on your actual header/nav heights
+      
+      const available = Math.max(320, viewportHeight - headerAndChrome);
+      
+      // Conservative average row height in px (guest card + gaps)
+      // Typical guest row: 200-260px depending on content
+      const avgRowHeight = 240; // Adjust in 220-260 range based on testing
+      
+      const raw = Math.floor(available / avgRowHeight);
+      
+      // Clamp to [3, 15] for reasonable UX
+      const clamped = Math.max(3, Math.min(15, raw));
+      
+      setRowsPerPage(clamped);
+    };
+    
+    // Calculate on mount and window resize
+    computeRowsPerPage();
+    window.addEventListener('resize', computeRowsPerPage);
+    return () => window.removeEventListener('resize', computeRowsPerPage);
+  }, []);
+  
   // Pagination effect - compute totalPages when guest count changes
   useEffect(() => {
     const guestCount = state.guests.length;
     const needsPagination = isPremium && guestCount > GUEST_THRESHOLD;
     if (needsPagination) {
-      const pages = Math.max(1, Math.ceil(guestCount / GUESTS_PER_PAGE));
+      const pageSize = rowsPerPage || 10; // Fallback to 10 if not calculated yet
+      const pages = Math.max(1, Math.ceil(guestCount / pageSize));
       setTotalPages(pages);
       setCurrentPage(prev => Math.min(prev, pages - 1));
     } else {
       setCurrentPage(0);
       setTotalPages(1);
     }
-  }, [state.guests.length, isPremium]);
+  }, [state.guests.length, isPremium, rowsPerPage]);
   
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
@@ -291,9 +321,10 @@ const TableManager: React.FC = () => {
   const displayGuests = useMemo(() => {
     const needsPagination = isPremium && sortedGuests.length > GUEST_THRESHOLD;
     if (!needsPagination) return sortedGuests;
-    const start = currentPage * GUESTS_PER_PAGE;
-    return sortedGuests.slice(start, start + GUESTS_PER_PAGE);
-  }, [sortedGuests, currentPage, isPremium]);
+    const pageSize = rowsPerPage || 10;
+    const start = currentPage * pageSize;
+    return sortedGuests.slice(start, start + pageSize);
+  }, [sortedGuests, currentPage, isPremium, rowsPerPage]);
   
   // Loading guard - use state.isReady (single source of truth)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
@@ -667,7 +698,17 @@ const TableManager: React.FC = () => {
               )}
             </div>
             
-            <div className="space-y-4">
+            <div 
+              className="space-y-4"
+              style={{
+                maxHeight: isPremium && state.guests.length > GUEST_THRESHOLD 
+                  ? 'calc(100vh - 360px)' 
+                  : 'none',
+                overflowY: isPremium && state.guests.length > GUEST_THRESHOLD 
+                  ? 'hidden' 
+                  : 'visible',
+              }}
+            >
               {displayGuests.map(guest => {
                 const { must, cannot, adjacent } = getGuestConstraints(guest.id);
                 const assignedTables = state.assignments[guest.id] || '';

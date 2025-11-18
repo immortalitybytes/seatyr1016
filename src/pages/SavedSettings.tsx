@@ -8,6 +8,7 @@ import { isPremiumSubscription, getMaxSavedSettingsLimit, getMaxSavedSettingsLim
 import AuthModal from '../components/AuthModal';
 import { useNavigate } from 'react-router-dom';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
+import { isAbortLikeError } from '../utils/errorUtils';
 
 interface SavedSetting {
   id: string;
@@ -67,8 +68,15 @@ const SavedSettings: React.FC = () => {
       .limit(50)
       .abortSignal(ac.signal)
       .then(({ data, error }) => {
-        if (error && error.name !== 'AbortError') {
-          setError(error.message);
+        if (error) {
+          if (isAbortLikeError(error)) {
+            // Silently ignore - this is expected during unmount/navigation
+            if (process.env.NODE_ENV === 'development') {
+              console.debug('[SavedSettings] Request aborted (expected)', error);
+            }
+            return;
+          }
+          setError(error.message || 'Failed to load saved settings. Please try again.');
         } else if (data) {
           setSettings(data ?? []);
         }
@@ -150,8 +158,9 @@ const SavedSettings: React.FC = () => {
         setting.data.userSetTables = true; // Default to true for saved settings
       }
       
-      // Store the name of the loaded setting in localStorage
+      // Store both name AND ID of the loaded setting in localStorage
       localStorage.setItem('seatyr_current_setting_name', setting.name);
+      localStorage.setItem('seatyr_current_setting_id', setting.id);
       
       // For full replacement, we don't need to check for duplicates
       // Just import the entire state directly
@@ -189,18 +198,11 @@ const SavedSettings: React.FC = () => {
       return;
     }
 
+    const currentId = localStorage.getItem('seatyr_current_setting_id');
+
     try {
       setSavingSettings(true);
       
-      // Check if user is premium
-      const maxSettings = getMaxSavedSettingsLimitByMode(mode);
-      
-      // Check if user has reached their limit
-      if (settings.length >= maxSettings && !isPremium) {
-        setError(`Free users can only save up to ${maxSettings} settings. Upgrade to Premium for unlimited settings.`);
-        return;
-      }
-
       // Ensure we capture the full state including tables and their seats
       const settingData = {
         version: "1.0",
@@ -218,13 +220,50 @@ const SavedSettings: React.FC = () => {
         userSetTables: state.userSetTables
       };
 
-      const { error } = await supabase
-        .from('saved_settings')
-        .insert({
-          name: newSettingName,
-          data: settingData,
-          user_id: effectiveUser.id // Explicitly set user_id for RLS
-        });
+      let error: any = null;
+
+      if (currentId) {
+        // UPDATE existing setting - this is the "edit and save same name" path
+        const { error: updateError } = await supabase
+          .from('saved_settings')
+          .update({
+            name: newSettingName,  // Update name too (supports renaming)
+            data: settingData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentId)
+          .eq('user_id', effectiveUser.id);  // Security: ensure user owns this setting
+        
+        error = updateError;
+      } else {
+        // NEW setting - enforce free tier limits here
+        const maxSettings = getMaxSavedSettingsLimitByMode(mode);
+        
+        // Check if user has reached their limit
+        if (settings.length >= maxSettings && !isPremium) {
+          setError(`Free users can only save up to ${maxSettings} settings. Upgrade to Premium for unlimited settings.`);
+          setSavingSettings(false);
+          return;
+        }
+        
+        // INSERT new setting
+        const { data, error: insertError } = await supabase
+          .from('saved_settings')
+          .insert({
+            name: newSettingName,
+            data: settingData,
+            user_id: effectiveUser.id
+          })
+          .select('id')
+          .single();
+        
+        // Store the new ID for future updates
+        if (!insertError && data?.id) {
+          localStorage.setItem('seatyr_current_setting_id', data.id);
+        }
+        
+        error = insertError;
+      }
 
       if (error) {
         console.error('Error saving settings:', error);
@@ -242,7 +281,7 @@ const SavedSettings: React.FC = () => {
       setShowSaveModal(false);
       setNewSettingName('');
       
-      // Reset current setting name in localStorage
+      // Update localStorage to reflect saved setting
       localStorage.setItem('seatyr_current_setting_name', newSettingName);
       
       // Update loadedSavedSetting to true

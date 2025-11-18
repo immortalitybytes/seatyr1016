@@ -315,7 +315,7 @@ const Header: React.FC = () => {
               <div className="flex flex-col">
                 <div className="relative">
                   <h3 className="text-8xl font-bold text-[#586D78]" style={{ fontSize: "4.3rem", lineHeight: "1" }}>Seatyr</h3>
-                  <span className="text-xs text-[#586D78] absolute" style={{ top: "4.5rem", left: "0", whiteSpace: "nowrap", fontSize: "0.8rem" }}>Preview Version Nov18at1am</span>
+                  <span className="text-xs text-[#586D78] absolute" style={{ top: "4.5rem", left: "0", whiteSpace: "nowrap", fontSize: "0.8rem" }}>Preview Version Nov18at325am</span>
                 </div>
                 <span className="text-2xl italic text-[#586D78]" style={{ marginTop: "2rem", fontSize: "0.9rem" }}>Guaranteed Fewer Headaches...</span>
                 <span className="text-2xl italic text-[#586D78]" style={{ fontSize: "0.9rem", marginTop: "0.3rem", lineHeight: "0.3" }}>*seating-related headaches only.</span>

@@ -8,6 +8,7 @@ import { isPremiumSubscription, getMaxSavedSettingsLimit, isSettingLoadable } fr
 import AuthModal from './AuthModal';
 import { useNavigate } from 'react-router-dom';
 import { exportSettingsToCSV, downloadCSV } from '../utils/exportSettings';
+import { isAbortLikeError } from '../utils/errorUtils';
 
 interface SavedSetting {
   id: string;
@@ -120,8 +121,15 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       .limit(50)
       .abortSignal(ac.signal)
       .then(({ data, error }) => {
-        if (error && error.name !== 'AbortError') {
-          setError(error.message);
+        if (error) {
+          if (isAbortLikeError(error)) {
+            // Silently ignore - this is expected during unmount/navigation
+            if (process.env.NODE_ENV === 'development') {
+              console.debug('[SavedSettings] Request aborted (expected)', error);
+            }
+            return;
+          }
+          setError(error.message || 'Failed to load saved settings. Please try again.');
         } else if (data) {
           setSettings(data ?? []);
         }
@@ -138,6 +146,21 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       inFlightFetch.current = false;
     };
   }, [sessionTag, user?.id, state.subscription, state.loadedRestoreDecision, isPremium, reloadKey]);
+
+  // Pre-fill save modal with current setting name when modal opens
+  useEffect(() => {
+    if (showSaveModal) {
+      const currentName = localStorage.getItem('seatyr_current_setting_name');
+      const currentId = localStorage.getItem('seatyr_current_setting_id');
+      
+      // Pre-fill if we have a loaded setting
+      if (currentId && currentName && currentName !== 'Unsaved') {
+        setNewSettingName(currentName);
+      } else {
+        setNewSettingName('');
+      }
+    }
+  }, [showSaveModal]);
 
   // Removed redundant session checking - AppContext already handles authentication
 
@@ -237,8 +260,9 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         setting.data.userSetTables = true; // Default to true for saved settings
       }
       
-      // Store the name of the loaded setting in localStorage
+      // Store both name AND ID of the loaded setting in localStorage
       localStorage.setItem('seatyr_current_setting_name', setting.name);
+      localStorage.setItem('seatyr_current_setting_id', setting.id);
       
       // Import the state directly with no trimming
       dispatch({ type: 'IMPORT_STATE', payload: setting.data });
@@ -279,19 +303,11 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
     }
     
     const sanitizedName = validation.sanitized;
+    const currentId = localStorage.getItem('seatyr_current_setting_id');
 
     try {
       setSavingSettings(true);
       
-      // Check if user is premium
-    const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
-      
-      // Check if user has reached their limit
-      if (settings.length >= maxSettings && !isPremium) {
-        setError(`Free users can only save up to ${maxSettings} settings. Upgrade to Premium for unlimited settings.`);
-        return;
-      }
-
       // Ensure we capture the full state including tables and their seats
       const settingData = {
         version: "1.0",
@@ -309,13 +325,50 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         userSetTables: state.userSetTables
       };
 
-      const { error } = await supabase
-        .from('saved_settings')
-        .insert({
-          name: sanitizedName,
-          data: settingData,
-          user_id: effectiveUser.id // Explicitly set user_id for RLS
-        });
+      let error: any = null;
+
+      if (currentId) {
+        // UPDATE existing setting - this is the "edit and save same name" path
+        const { error: updateError } = await supabase
+          .from('saved_settings')
+          .update({
+            name: sanitizedName,  // Update name too (supports renaming)
+            data: settingData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentId)
+          .eq('user_id', effectiveUser.id);  // Security: ensure user owns this setting
+        
+        error = updateError;
+      } else {
+        // NEW setting - enforce free tier limits here
+        const maxSettings = getMaxSavedSettingsLimit(isPremium ? { status: 'active' } : null);
+        
+        // Check if user has reached their limit
+        if (settings.length >= maxSettings && !isPremium) {
+          setError(`Free users can only save up to ${maxSettings} settings. Upgrade to Premium for unlimited settings.`);
+          setSavingSettings(false);
+          return;
+        }
+        
+        // INSERT new setting
+        const { data, error: insertError } = await supabase
+          .from('saved_settings')
+          .insert({
+            name: sanitizedName,
+            data: settingData,
+            user_id: effectiveUser.id
+          })
+          .select('id')
+          .single();
+        
+        // Store the new ID for future updates
+        if (!insertError && data?.id) {
+          localStorage.setItem('seatyr_current_setting_id', data.id);
+        }
+        
+        error = insertError;
+      }
 
       if (error) {
         console.error('Error saving settings:', error);
@@ -333,7 +386,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       setShowSaveModal(false);
       setNewSettingName('');
       
-      // Reset current setting name in localStorage
+      // Update localStorage to reflect saved setting
       localStorage.setItem('seatyr_current_setting_name', sanitizedName);
       
       // Update loadedSavedSetting to true
@@ -426,12 +479,14 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         }
       }
       
-      // If we just deleted the currently loaded setting, update the name
+      // If we just deleted the currently loaded setting, update the name and clear ID
       const currentSettingName = localStorage.getItem('seatyr_current_setting_name');
+      const currentSettingId = localStorage.getItem('seatyr_current_setting_id');
       const settingToDelete = settings.find(s => s.id === id);
       
-      if (settingToDelete && currentSettingName === settingToDelete.name) {
+      if (settingToDelete && (currentSettingName === settingToDelete.name || currentSettingId === settingToDelete.id)) {
         localStorage.setItem('seatyr_current_setting_name', 'Unsaved');
+        localStorage.removeItem('seatyr_current_setting_id');
         dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
       }
       
@@ -547,8 +602,10 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
       
       // If we just renamed the currently loaded setting, update the name
       const currentSettingName = localStorage.getItem('seatyr_current_setting_name');
-      if (currentSettingName === currentSetting.name) {
+      const currentSettingId = localStorage.getItem('seatyr_current_setting_id');
+      if (currentSettingName === currentSetting.name || currentSettingId === currentSetting.id) {
         localStorage.setItem('seatyr_current_setting_name', sanitizedName);
+        // ID stays the same when renaming
       }
       
       setEditingSettingId(null);
