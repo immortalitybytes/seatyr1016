@@ -610,6 +610,7 @@ const AppContext = createContext<{
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [sessionTag, setSessionTag] = useState<SessionTag>('INITIALIZING');
+  const sessionTagRef = useRef<SessionTag>('INITIALIZING');
   const [fatalError] = useState<Error | null>(null);
   const userRef = useRef<User | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -725,13 +726,46 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => { isMountedRef.current = false; };
   }, []);
 
+  // Keep sessionTagRef in sync with sessionTag state
+  useEffect(() => {
+    sessionTagRef.current = sessionTag;
+  }, [sessionTag]);
+
   // Single-flight entitlements + auth FSM
   useEffect(() => {
     let hasInitialized = false;
     
+    // CHROME-SPECIFIC FIX: Chrome may delay or block onAuthStateChange callback due to cookie/storage policies
+    // Explicitly call getSession() to trigger the callback, or handle auth state directly if callback doesn't fire
+    const isChrome = typeof navigator !== 'undefined' && /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+    
+    if (isChrome) {
+      console.log('[Auth] Chrome detected - calling getSession() explicitly to trigger auth state');
+      // Call getSession() immediately - this often triggers the onAuthStateChange callback in Chrome
+      // If callback doesn't fire, the fallback timeout will handle it
+      supabase.auth.getSession().catch(err => {
+        console.error('[Auth] Chrome getSession() exception:', err);
+      });
+    }
+    
+    // CRITICAL FIX: Fallback timeout to prevent infinite spinner if auth state change doesn't fire
+    // Shorter timeout for Chrome (1.5s) since we're also calling getSession() explicitly
+    const fallbackTimeout = setTimeout(() => {
+      if (!hasInitialized && isMountedRef.current && sessionTagRef.current === 'INITIALIZING') {
+        console.warn('[Auth] Fallback timeout: Auth state change did not fire within timeout, defaulting to ANON');
+        setSessionTag('ANON');
+        dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+        dispatch({ type: 'SET_READY' });
+        hasInitialized = true;
+      }
+    }, isChrome ? 1500 : 3000); // 1.5s for Chrome, 3s for others
+    
     // FIX: Rename to avoid shadowing
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMountedRef.current) return;
+      
+      // Clear fallback timeout once auth state change fires
+      clearTimeout(fallbackTimeout);
 
       console.log('[Auth] Auth state change:', event, 'Session exists:', !!session, 'Has initialized:', hasInitialized, 'SessionTag:', sessionTag);
 
@@ -821,7 +855,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     });
 
-    return () => { authSub.unsubscribe(); };
+    return () => { 
+      clearTimeout(fallbackTimeout);
+      authSub.unsubscribe(); 
+    };
   }, []); // FIX: Remove state.user dependency to prevent re-subscription
 
 
