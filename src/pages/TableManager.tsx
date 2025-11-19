@@ -8,7 +8,9 @@ import { getLastNameForSorting } from '../utils/formatters';
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from '../utils/assignments';
 import { getCapacity } from '../utils/tables';
 
-const GUEST_THRESHOLD = 120; // Threshold for pagination
+const GUEST_THRESHOLD = 120; // Legacy threshold (kept for backward compatibility if needed)
+const GUEST_DISPLAY_THRESHOLD = 100; // Maximum guest units to display without pagination (scrolling mode)
+const GUESTS_PER_PAGE = 50; // Number of guests per page when pagination is needed
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -157,7 +159,6 @@ const TableManager: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState<number>(10); // Dynamic, will be recalculated
   
   // E1: Local warning state + mount re-validation
   const isPremium = useMemo(() => mode === "premium", [mode]);
@@ -198,49 +199,19 @@ const TableManager: React.FC = () => {
   
   const totalSeatsNeeded = useMemo(() => state.guests.reduce((s, g) => s + Math.max(1, g.count), 0), [state.guests]);
   
-  // Compute rowsPerPage from viewport height
-  useEffect(() => {
-    const computeRowsPerPage = () => {
-      const viewportHeight = window.innerHeight;
-      
-      // Approximate "fixed" vertical space: header, nav, explanations, etc.
-      // Adjust this value after visual inspection of your actual layout
-      const headerAndChrome = 360; // Tweak based on your actual header/nav heights
-      
-      const available = Math.max(320, viewportHeight - headerAndChrome);
-      
-      // Conservative average row height in px (guest card + gaps)
-      // Typical guest row: 200-260px depending on content
-      const avgRowHeight = 240; // Adjust in 220-260 range based on testing
-      
-      const raw = Math.floor(available / avgRowHeight);
-      
-      // Clamp to [3, 15] for reasonable UX
-      const clamped = Math.max(3, Math.min(15, raw));
-      
-      setRowsPerPage(clamped);
-    };
-    
-    // Calculate on mount and window resize
-    computeRowsPerPage();
-    window.addEventListener('resize', computeRowsPerPage);
-    return () => window.removeEventListener('resize', computeRowsPerPage);
-  }, []);
-  
   // Pagination effect - compute totalPages when guest count changes
   useEffect(() => {
     const guestCount = state.guests.length;
-    const needsPagination = isPremium && guestCount > GUEST_THRESHOLD;
+    const needsPagination = guestCount > GUEST_DISPLAY_THRESHOLD;
     if (needsPagination) {
-      const pageSize = rowsPerPage || 10; // Fallback to 10 if not calculated yet
-      const pages = Math.max(1, Math.ceil(guestCount / pageSize));
+      const pages = Math.max(1, Math.ceil(guestCount / GUESTS_PER_PAGE));
       setTotalPages(pages);
       setCurrentPage(prev => Math.min(prev, pages - 1));
     } else {
       setCurrentPage(0);
       setTotalPages(1);
     }
-  }, [state.guests.length, isPremium, rowsPerPage]);
+  }, [state.guests.length]);
   
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
@@ -319,12 +290,11 @@ const TableManager: React.FC = () => {
   
   // Pagination: slice sortedGuests for display (only for rendering, not calculations)
   const displayGuests = useMemo(() => {
-    const needsPagination = isPremium && sortedGuests.length > GUEST_THRESHOLD;
+    const needsPagination = sortedGuests.length > GUEST_DISPLAY_THRESHOLD;
     if (!needsPagination) return sortedGuests;
-    const pageSize = rowsPerPage || 10;
-    const start = currentPage * pageSize;
-    return sortedGuests.slice(start, start + pageSize);
-  }, [sortedGuests, currentPage, isPremium, rowsPerPage]);
+    const start = currentPage * GUESTS_PER_PAGE;
+    return sortedGuests.slice(start, start + GUESTS_PER_PAGE);
+  }, [sortedGuests, currentPage]);
   
   // Loading guard - use state.isReady (single source of truth)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
@@ -791,7 +761,7 @@ const TableManager: React.FC = () => {
             </div>
             
             {/* Pagination controls */}
-            {isPremium && totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-center gap-3 mt-4">
                 <button
                   className="danstyle1c-btn"
