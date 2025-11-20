@@ -215,6 +215,7 @@ const SavedSettings: React.FC = () => {
         constraints: state.constraints,
         adjacents: state.adjacents,
         assignments: state.assignments,
+        lockedTableAssignments: state.lockedTableAssignments || {},
         seatingPlans: state.seatingPlans,
         currentPlanIndex: state.currentPlanIndex,
         userSetTables: state.userSetTables

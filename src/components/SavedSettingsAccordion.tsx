@@ -320,6 +320,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         constraints: state.constraints,
         adjacents: state.adjacents,
         assignments: state.assignments,
+        lockedTableAssignments: state.lockedTableAssignments || {},
         seatingPlans: state.seatingPlans,
         currentPlanIndex: state.currentPlanIndex,
         userSetTables: state.userSetTables
@@ -530,7 +531,8 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         tables: setting.data.tables || [],
         constraints: setting.data.constraints || {},
         adjacents: setting.data.adjacents || {},
-        assignments: setting.data.assignments || {}
+        assignments: setting.data.assignments || {},
+        lockedTableAssignments: setting.data.lockedTableAssignments || {}
       };
       
       const csvContent = exportSettingsToCSV(exportData, setting.name);

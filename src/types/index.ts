@@ -1,4 +1,5 @@
 export type GuestID = string;
+export type TableID = number;
 
 export interface Guest {
   id: GuestID;         // stable internal id, NOT the display name
@@ -30,6 +31,7 @@ export interface SeatingPlan {
 }
 
 export type Assignments = Record<GuestID, string>; // ID-CSV (e.g. "1,3,5")
+export type LockedTableAssignments = Record<TableID, GuestID[]>; // Locked Table Assignments: each tableId maps to an array of guestIds locked to that table
 export type ConstraintValue = 'must' | 'cannot' | '';
 export type Constraints = Record<GuestID, Record<GuestID, ConstraintValue>>;
 export type Adjacents = Record<GuestID, GuestID[]>; // degree <= 2
@@ -88,6 +90,7 @@ export interface AppState {
   constraints: Constraints;
   adjacents: Adjacents;
   assignments: Assignments;
+  lockedTableAssignments: LockedTableAssignments;
   seatingPlans: SeatingPlan[];
   currentPlanIndex: number;
   subscription: UserSubscription | null | undefined;

@@ -74,3 +74,4 @@ For a guestunit "Hugh Hester+2" (party of 3):
   - Cleaned up unused pagination code in SeatingPlanViewer
   - Fixed special character support in saved configuration names (spaces, apostrophes, quotes, dashes, etc.)
 
+

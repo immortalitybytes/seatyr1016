@@ -12,6 +12,7 @@ import {
   Adjacents,
   Assignments,
   GuestID,
+  LockedTableAssignments,
 } from "../types";
 import * as Engine from "./seatingAlgorithm.engine";
 import { normalizeAssignmentInputToIdsWithWarnings, parseAssignmentIds } from "./assignments";
@@ -31,6 +32,7 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
             constraints: (args[0].constraints ?? {}) as Constraints,
             adjacents: (args[0].adjacents ?? {}) as Adjacents,
             assignments: (args[0].assignments ?? {}) as Assignments,
+            lockedTableAssignments: (args[0].lockedTableAssignments ?? {}) as LockedTableAssignments,
             isPremium: !!args[0].isPremium,
           }
         : {
@@ -39,10 +41,11 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
             constraints: (args[2] ?? {}) as Constraints,
             adjacents: (args[3] ?? {}) as Adjacents,
             assignments: (args[4] ?? {}) as Assignments,
-            isPremium: !!args[5],
+            lockedTableAssignments: (args[5] ?? {}) as LockedTableAssignments,
+            isPremium: !!args[6],
           };
 
-    const { guests, tables, constraints, adjacents, assignments, isPremium } = params;
+    const { guests, tables, constraints, adjacents, assignments, lockedTableAssignments, isPremium } = params;
 
     const nameToId = new Map<string, GuestID>();
     const idToName = new Map<GuestID, string>();
@@ -97,6 +100,18 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
       // DIAGNOSTIC: Log assignment mapping
       console.log(`[Adapter] Guest ${gid}: "${String(raw)}" → "${norm.idCsv}" (warnings: ${norm.warnings.length})`);
     });
+
+    // 2) Apply Locked Table assignments (LT) as stricter constraints
+    for (const [tableId, guestIds] of Object.entries(lockedTableAssignments || {})) {
+      if (!Array.isArray(guestIds) || guestIds.length === 0) continue;
+      
+      for (const guestId of guestIds) {
+        if (!guestId) continue;
+        
+        // LT means: this guest must be at this single table
+        engineAssignments[guestId] = tableId;
+      }
+    }
 
     const allowedTablesByGuest: Record<string, number[]> = {};
     Object.entries(engineAssignments).forEach(([gid, csv]) => {

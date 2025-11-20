@@ -85,3 +85,4 @@ lines.push(`Seatyr Settings Export: ${sanitizedName}`);
 
 **No changes needed** - the implementation already supports both characters correctly.
 
+

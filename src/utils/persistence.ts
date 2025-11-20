@@ -159,6 +159,15 @@ export function sanitizeAndMigrateAppState(incoming: any): Partial<AppState> {
         )
       : {},
     
+    lockedTableAssignments: typeof incoming.lockedTableAssignments === 'object' && incoming.lockedTableAssignments !== null
+      ? Object.fromEntries(
+          Object.entries(incoming.lockedTableAssignments).map(([tableId, guestIds]) => [
+            Number(tableId),
+            Array.isArray(guestIds) ? guestIds.map(String) : []
+          ])
+        )
+      : {},
+    
     // NEW: Preserve or initialize sessionVersion
     sessionVersion: typeof incoming.sessionVersion === 'number' && incoming.sessionVersion >= 0
       ? incoming.sessionVersion

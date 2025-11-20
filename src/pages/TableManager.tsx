@@ -685,6 +685,7 @@ const TableManager: React.FC = () => {
                           <input
                             type="text"
                             autoComplete="off"
+                            list={`table-assignment-${guest.id}`}
                             value={rawAssignmentInput[guest.id] ?? assignedTables}
                             onChange={e => handleAssignmentInputChange(guest.id, e.target.value)}
                             onBlur={() => handleAssignmentCommit(guest.id)}
@@ -703,6 +704,14 @@ const TableManager: React.FC = () => {
                             className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm"
                             placeholder={mode === 'premium' ? 'e.g., 1, 3 or Table A' : 'e.g., 1, 3, 5'}
                           />
+                          <datalist id={`table-assignment-${guest.id}`}>
+                            {state.tables.map(table => (
+                              <option key={table.id} value={String(table.id)} />
+                            ))}
+                            {state.tables.filter(t => t.name).map(table => (
+                              <option key={`name-${table.id}`} value={table.name!} />
+                            ))}
+                          </datalist>
                           
                           {/* Inline warnings for input errors */}
                           {assignmentWarnings[guest.id]?.length > 0 && (

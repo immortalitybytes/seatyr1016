@@ -255,7 +255,7 @@ const displayTableLabel = (table: { id: number; name?: string | null }, index: n
 
 
 const SeatingPlanViewer: React.FC = () => {
-  const { state, dispatch, mode, sessionTag } = useApp();
+  const { state, dispatch, mode, sessionTag, lockTableFromCurrentPlan, unlockTable } = useApp();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
   
@@ -288,6 +288,19 @@ const SeatingPlanViewer: React.FC = () => {
     if (!plan) return [];
     return [...plan.tables].sort((a, b) => a.id - b.id);
   }, [plan]);
+
+  // Lock table helpers
+  const isTableLocked = (tableId: number): boolean => {
+    return !!(state.lockedTableAssignments?.[tableId]?.length);
+  };
+
+  const handleLockToggle = (tableId: number) => {
+    if (isTableLocked(tableId)) {
+      unlockTable(tableId);
+    } else {
+      lockTableFromCurrentPlan(tableId);
+    }
+  };
   
   // Loading guard - use state.isReady (single source of truth)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING' || !state.isReady) {
@@ -408,7 +421,18 @@ const SeatingPlanViewer: React.FC = () => {
                 return (
                   <th key={table.id} className="bg-indigo-100 text-[#586D78] font-medium p-2 border border-indigo-200">
                     {displayTableLabel({id: table.id, name: tableInfo?.name }, index)}
-                    <span className="text-xs block text-gray-600">{occupied}/{capacity} seats</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs block text-gray-600">{occupied}/{capacity} seats</span>
+                      <button
+                        type="button"
+                        onClick={() => handleLockToggle(table.id)}
+                        className="inline-flex items-center justify-center text-xs"
+                        aria-label={isTableLocked(table.id) ? 'Unlock table' : 'Lock table'}
+                        aria-pressed={isTableLocked(table.id)}
+                      >
+                        {isTableLocked(table.id) ? '🔓' : '🔒'}
+                      </button>
+                    </div>
                   </th>
                 );
               })}

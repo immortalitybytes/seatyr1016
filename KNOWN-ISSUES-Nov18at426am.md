@@ -29,3 +29,4 @@ This document lists issues identified in version Nov18at426am.
 
 **Note**: Occasional scrolling on a page is now expected and acceptable behavior when content extends past the viewport. This is preferable to inaccessible clipped content.
 
+

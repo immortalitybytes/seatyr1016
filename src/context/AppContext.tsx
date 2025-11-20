@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 import { deriveMode, isPremiumSubscription, type Mode } from '../utils/premium';
 import type {
   AppState, Guest, Table, Assignments, ConstraintValue,
-  UserSubscription, TrialSubscription
+  UserSubscription, TrialSubscription, GuestID, TableID, LockedTableAssignments
 } from '../types';
 
 import { getMostRecentState, saveMostRecentState } from '../lib/mostRecentState';
@@ -173,6 +173,7 @@ function applySanitizedState(s: any): AppState {
     constraints: s?.constraints ?? (sanitized.constraints ?? {}),
     adjacents: s?.adjacents ?? (sanitized.adjacents ?? {}),
     assignments: s?.assignments ?? (sanitized.assignments ?? {}),
+    lockedTableAssignments: s?.lockedTableAssignments ?? (sanitized.lockedTableAssignments ?? {}),
     seatingPlans: Array.isArray(s?.seatingPlans) ? s.seatingPlans : (sanitized.seatingPlans ?? []),
     currentPlanIndex: typeof s?.currentPlanIndex === "number" ? s.currentPlanIndex : (sanitized.currentPlanIndex ?? 0),
 
@@ -215,6 +216,7 @@ function applySanitizedState(s: any): AppState {
 
 const initialState: AppState = {
   guests: [], tables: defaultTables, constraints: {}, adjacents: {}, assignments: {},
+  lockedTableAssignments: {},
   seatingPlans: [], currentPlanIndex: 0, subscription: undefined, trial: null, user: null,
   userSetTables: false, loadedSavedSetting: false, loadedRestoreDecision: false, 
   regenerationNeeded: true, isReady: false, timestamp: new Date().toISOString(),
@@ -373,6 +375,58 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         currentPlanIndex: 0,
         sessionVersion: state.sessionVersion + 1
       };
+    case 'LOCK_TABLE_FROM_PLAN': {
+      const { tableId, planIndex } = action.payload;
+      const { seatingPlans, lockedTableAssignments, guests } = state;
+
+      const plan = seatingPlans[planIndex];
+      if (!plan) {
+        return state; // safe no-op
+      }
+
+      const targetTable = plan.tables.find((t) => t.id === tableId);
+      if (!targetTable) {
+        return state; // table not present in this plan
+      }
+
+      // Map seat names to guest IDs
+      const nameToGuestId = new Map<string, GuestID>(guests.map(g => [g.name, g.id]));
+      const lockedGuestIds: GuestID[] = Array.from(
+        new Set(
+          targetTable.seats
+            .map((seat) => nameToGuestId.get(seat.name))
+            .filter((id): id is GuestID => Boolean(id))
+        )
+      );
+
+      const nextLocked: LockedTableAssignments = {
+        ...lockedTableAssignments,
+      };
+
+      if (lockedGuestIds.length > 0) {
+        nextLocked[tableId] = lockedGuestIds;
+      } else {
+        delete nextLocked[tableId];
+      }
+
+      return {
+        ...state,
+        lockedTableAssignments: nextLocked,
+      };
+    }
+    case 'UNLOCK_TABLE': {
+      const { tableId } = action.payload;
+      const nextLocked: LockedTableAssignments = {
+        ...state.lockedTableAssignments,
+      };
+
+      delete nextLocked[tableId];
+
+      return {
+        ...state,
+        lockedTableAssignments: nextLocked,
+      };
+    }
     case 'AUTO_RECONCILE_TABLES': return { ...state, tables: reconcileTables(state.tables, state.guests, state.assignments, state.userSetTables) };
     case 'ADD_TABLE': {
       const maxId = Math.max(0, ...state.tables.map(t => t.id || 0));
@@ -963,6 +1017,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       constraints: s.constraints,
       adjacents: s.adjacents,
       assignments: s.assignments,
+      lockedTableAssignments: s.lockedTableAssignments || {},
       isPremium: isPremiumSubscription(s.subscription, s.trial)
     }).then(({ plans, errors }) => {
       if (genId === genRef.current) {
@@ -1021,6 +1076,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     dispatch({ type: 'AUTO_RECONCILE_TABLES' });
   }, [state.guests.length, state.assignmentSignature, state.userSetTables]);
 
+  // Helper to get safe current plan index
+  const getSafeCurrentPlanIndex = useCallback((s: AppState): number => {
+    const { currentPlanIndex, seatingPlans } = s;
+    if (seatingPlans.length === 0) return 0;
+    return Math.min(
+      Math.max(currentPlanIndex, 0),
+      seatingPlans.length - 1
+    );
+  }, []);
+
+  // Lock table helper - captures guests from current plan and triggers regeneration
+  const lockTableFromCurrentPlan = useCallback((tableId: TableID) => {
+    const planIndex = getSafeCurrentPlanIndex(state);
+    dispatch({
+      type: 'LOCK_TABLE_FROM_PLAN',
+      payload: { tableId, planIndex },
+    });
+    // Always use the existing generation path (same as Generate button)
+    dispatch({ type: 'TRIGGER_REGENERATION' });
+  }, [state, dispatch, getSafeCurrentPlanIndex]);
+
+  // Unlock table helper - removes lock and triggers regeneration
+  const unlockTable = useCallback((tableId: TableID) => {
+    dispatch({
+      type: 'UNLOCK_TABLE',
+      payload: { tableId },
+    });
+    // Same generator function as above
+    dispatch({ type: 'TRIGGER_REGENERATION' });
+  }, [dispatch]);
+
   const mode = useMemo(() => deriveMode(state.user, state.subscription, state.trial), [state.user, state.subscription, state.trial]);
   const value = useMemo(() => ({ 
     state, dispatch, mode, sessionTag, isPremium,
@@ -1029,8 +1115,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     importData: importAppState,
     clearAllData: clearAllSavedData,
     getStorageStats,
-    isInitialized
-  }), [state, mode, sessionTag, isPremium, isInitialized]);
+    isInitialized,
+    // Lock table helpers
+    lockTableFromCurrentPlan,
+    unlockTable
+  }), [state, mode, sessionTag, isPremium, isInitialized, lockTableFromCurrentPlan, unlockTable]);
 
   // Show loading screen during initialization instead of invisible gate (fixes blank screen on reload)
   if (sessionTag === 'INITIALIZING' || sessionTag === 'AUTHENTICATING') {
@@ -1130,6 +1219,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
 export function useApp(): {
   state: AppState; dispatch: React.Dispatch<AppAction>; mode: Mode; sessionTag: SessionTag; isPremium: boolean;
+  exportData: () => string;
+  importData: typeof importAppState;
+  clearAllData: () => void;
+  getStorageStats: () => { localStorage: number; backups: number; indexedDBAvailable: boolean };
+  isInitialized: boolean;
+  lockTableFromCurrentPlan: (tableId: TableID) => void;
+  unlockTable: (tableId: TableID) => void;
 } {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
