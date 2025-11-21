@@ -632,9 +632,20 @@ const ConstraintManager: React.FC = () => {
     if (mode === 'unsigned') { 
       dispatch({ type: 'SHOW_MODAL', payload: { 
         title: 'Premium Feature', 
-        body: 'Adjacent pairing is available for signed-in users. Sign in to access this feature.' 
+        body: 'Adjacent pairing is a Premium feature. Sign in and upgrade to access ⭐ adjacency.' 
       }}); 
       return; 
+    }
+    // NEW: adjacency is Premium-only; free signed-in users must not enter adjacent cycle
+    if (!isPremium) {
+      dispatch({
+        type: 'SHOW_MODAL',
+        payload: {
+          title: 'Premium Feature',
+          body: 'Adjacent pairing (⭐) is available only on Premium. Upgrade to use adjacency constraints.'
+        }
+      });
+      return;
     }
     
     const guestId = nameToId.get(guestName);

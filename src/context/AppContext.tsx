@@ -647,6 +647,61 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
 
+    case 'SET_CONSTRAINT': {
+      const { guest1, guest2, value } = action.payload as {
+        guest1: string;
+        guest2: string;
+        value: ConstraintValue;
+      };
+
+      if (!guest1 || !guest2 || guest1 === guest2) return state;
+
+      const newConstraints: Record<string, Record<string, ConstraintValue>> =
+        JSON.parse(JSON.stringify(state.constraints));
+      const newAdjacents: Record<string, string[]> =
+        JSON.parse(JSON.stringify(state.adjacents));
+
+      const current = newConstraints[guest1]?.[guest2] || '';
+      const isCurrentlyAdjacent = newAdjacents[guest1]?.includes(guest2);
+
+      const currentForStrictness: ConstraintValue =
+        isCurrentlyAdjacent ? 'must' : current;
+
+      const nextState: ConstraintValue = value ?? '';
+
+      if (newAdjacents[guest1]) {
+        newAdjacents[guest1] = newAdjacents[guest1].filter(id => id !== guest2);
+      }
+      if (newAdjacents[guest2]) {
+        newAdjacents[guest2] = newAdjacents[guest2].filter(id => id !== guest1);
+      }
+
+      if (nextState === '') {
+        if (newConstraints[guest1]) delete newConstraints[guest1][guest2];
+        if (newConstraints[guest2]) delete newConstraints[guest2][guest1];
+      } else {
+        (newConstraints[guest1] ||= {})[guest2] = nextState;
+        (newConstraints[guest2] ||= {})[guest1] = nextState;
+      }
+
+      const changed = (nextState !== current) || isCurrentlyAdjacent;
+      if (!changed) return state;
+
+      const isStricter =
+        (nextState !== '' && currentForStrictness === '') ||
+        (nextState !== '' && currentForStrictness !== '' && nextState !== currentForStrictness);
+
+      return {
+        ...state,
+        constraints: newConstraints,
+        adjacents: newAdjacents,
+        regenerationNeeded: isStricter ? true : state.regenerationNeeded,
+        seatingPlans: isStricter ? [] : state.seatingPlans,
+        currentPlanIndex: isStricter ? 0 : state.currentPlanIndex,
+        sessionVersion: state.sessionVersion + 1,
+      };
+    }
+
     default: return state;
   }
 };
@@ -833,8 +888,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           hasInitialized = true;
           return;
         }
-        
-        // Only reset on actual sign-out after initialization
+        // NEW GUARD:
+        // If we were already anonymous (no prior authenticated user), do NOT wipe local state.
+        const hadUserBefore =
+          !!userRef.current ||
+          !!state.user?.id ||
+          sessionTagRef.current === 'AUTHENTICATING' ||  // Correct SessionTag literal
+          sessionTagRef.current === 'ENTITLED';
+        if (!hadUserBefore) {
+          console.log('[Auth] SIGNED_OUT while already ANON; preserving anonymous data');
+          setSessionTag('ANON');
+          dispatch({ type: 'SET_LOADED_RESTORE_DECISION', payload: true });
+          dispatch({ type: 'SET_READY' });
+          hasInitialized = true;
+          return;
+        }
+        // Only reset on actual sign-out after initialization *from an authenticated state*
         console.log('[Auth] Actual sign-out detected, clearing data');
         try { localStorage.removeItem('seatyr_app_state'); } catch {}
         dispatch({ type: 'RESET_APP_STATE' });

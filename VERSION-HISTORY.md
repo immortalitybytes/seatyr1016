@@ -6,7 +6,69 @@
 
 ## 📚 VERSION TIMELINE
 
-### v1019at331am (October 19, 2025, 3:31 AM) - CURRENT
+### Nov20at1020pm (November 20, 2024, 10:20 PM) - CURRENT
+**Status:** Quite Good - Constraint Inputs Fixed, Saved Settings Issues Remain  
+**Tag:** `Nov20at1020pm`
+
+**Working:**
+- ✅ Normalized name lookup for MUST/CANNOT chips (case/spacing tolerant)
+- ✅ Anonymous data persistence fix (prevents spurious SIGNED_OUT wipe)
+- ✅ Premium-only adjacency gating (prevents corruption)
+- ✅ Dev server port 5173 configuration
+- ✅ Constraint input fixes complete
+
+**Known Issues:**
+- 🟡 Saved Settings do not save ALL possible settings (missing seating plans batch)
+- 🟡 Saved Settings parameter bleeding between settings
+- 🟡 Seating plan does not auto-load after loading saved setting
+- 🟡 Cannot save settings with new parameter changes
+
+**Key Changes:**
+- Added normalized name matching (`squash()` function) to TableManager.tsx
+- Enhanced SIGNED_OUT handler with anonymous data preservation guard
+- Added Premium-only gate for adjacency features in ConstraintManager.tsx
+- Configured vite.config.ts to use explicit port 5173
+
+**Files Modified:**
+- `src/pages/TableManager.tsx` - Normalized name matching
+- `src/context/AppContext.tsx` - Anonymous data preservation
+- `src/pages/ConstraintManager.tsx` - Premium-only adjacency gating
+- `vite.config.ts` - Port configuration
+
+---
+
+### Nov20at155pm (November 20, 2024, 1:55 PM)
+**Status:** Partial Implementation - Table Locking Works, Must Sit With Works, Cannot Sit With In Progress  
+**Tag:** `Nov20at155pm`
+
+**Working:**
+- ✅ Table locking with correct emoji semantics (⛓️‍💥 unlocked, 🔒 locked)
+- ✅ Visual signifiers for locked tables (green borders and background)
+- ✅ Visual signifiers for locked-assignment guests (bullets and green text)
+- ✅ Must Sit With constraint input (chips persist correctly)
+- ✅ SET_CONSTRAINT reducer case implemented
+- ✅ Blur race condition fix for autocomplete
+
+**Known Issues:**
+- 🟡 Cannot Sit With constraint input not working yet
+- ⚠️ Dev server may run on ports 5174/5175 instead of 5173
+
+**Key Changes:**
+- Added SET_CONSTRAINT reducer case to AppContext.tsx
+- Fixed lock emoji toggle to use Broken Chain (⛓️‍💥) for unlocked state
+- Added table-level visual signifiers (thick green borders)
+- Added guest-level visual signifiers with TypeScript-safe detection
+- Implemented no-color-leak rendering (non-locked guests stay standard color)
+- Added preventDefault to autocomplete suggestion clicks
+
+**Files Modified:**
+- `src/context/AppContext.tsx` - SET_CONSTRAINT reducer case
+- `src/pages/TableManager.tsx` - preventDefault fix
+- `src/pages/SeatingPlanViewer.tsx` - Lock emoji and visual signifiers
+
+---
+
+### v1019at331am (October 19, 2025, 3:31 AM)
 **Status:** Deployed, Route-dependent reload issues  
 **Git Tag:** `v1019at331am`  
 **Deploy ID:** `68f493027f664790b5b55dc1`

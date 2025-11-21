@@ -20,6 +20,8 @@ export default defineConfig({
     assetsInlineLimit: 4096,
   },
   server: {
+    port: 5173,
+    strictPort: true,
     headers: {
       'Cache-Control': 'no-store',
       'X-Frame-Options': 'DENY',

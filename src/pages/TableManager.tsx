@@ -132,7 +132,7 @@ const ConstraintChipsInput: React.FC<{
               key={s}
               role="option"
               aria-selected={i === activeIndex}
-              onMouseDown={() => addChip(s)}
+              onMouseDown={(e) => { e.preventDefault(); addChip(s); }}
               className={`px-2 py-1 text-sm cursor-pointer ${i === activeIndex ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
             >
               {s}
@@ -399,6 +399,8 @@ const TableManager: React.FC = () => {
   };
   
   const updateConstraints = (guestId: string, newNames: string[], type: 'must' | 'cannot') => {
+    // Normalize helper: case/spacing tolerant match
+    const squash = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
     // Get old constraint IDs and convert to names
     const oldConstraintIds = Object.entries(state.constraints[guestId] ?? {})
       .filter(([, v]) => v === type)
@@ -406,27 +408,29 @@ const TableManager: React.FC = () => {
     const oldConstraintNames = oldConstraintIds
       .map(id => state.guests.find(g => g.id === id)?.name)
       .filter(Boolean) as string[];
-    
-    // Find what was added/removed
-    const added = newNames.filter(n => !oldConstraintNames.includes(n));
-    const removed = oldConstraintNames.filter(n => !newNames.includes(n));
-    
-    const nameToIdMap = new Map(state.guests.map(g => [g.name, g.id]));
-    
-    added.forEach(name => {
-      const otherId = nameToIdMap.get(name);
+    // Normalize before diffing so manual entry can't silently fail
+    const normOld = oldConstraintNames.map(squash);
+    const normNew = newNames.map(squash);
+    const addedNorm = normNew.filter(n => !normOld.includes(n));
+    const removedNorm = normOld.filter(n => !normNew.includes(n));
+    const nameToIdMap = new Map(state.guests.map(g => [squash(g.name), g.id]));
+    addedNorm.forEach(normName => {
+      const otherId = nameToIdMap.get(normName);
       if (otherId) {
         dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guestId, guest2: otherId, value: type } });
+      } else {
+        console.warn(`[Constraints] Unresolved ${type} guest name:`, normName);
       }
     });
-    removed.forEach(name => {
-      const otherId = nameToIdMap.get(name);
+    removedNorm.forEach(normName => {
+      const otherId = nameToIdMap.get(normName);
       if (otherId) {
         dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guestId, guest2: otherId, value: '' } });
+      } else {
+        console.warn(`[Constraints] Unresolved removed ${type} guest name:`, normName);
       }
     });
-    
-    if (added.length || removed.length) purgePlans();
+    if (addedNorm.length || removedNorm.length) purgePlans();
   };
   
   const getTableList = () => {
