@@ -17,8 +17,10 @@ export function normalizeAssignmentInputToIdsWithWarnings(
     if (t?.name) nameToId.set(t.name.trim().toLowerCase(), t.id);
   }
 
+  // FIXED: Changed tokenizer to only split on commas or semicolons, NOT spaces.
+  // This allows table names like "Head Table" to be parsed correctly.
   const tokens = inputStr
-    .split(/[,\s]+/)
+    .split(/[;,]+/)
     .map(s => s.trim())
     .filter(Boolean)
     .map(tok => tok.replace(/\.$/, ""))

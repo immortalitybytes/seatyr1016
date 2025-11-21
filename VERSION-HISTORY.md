@@ -6,7 +6,36 @@
 
 ## 📚 VERSION TIMELINE
 
-### Nov20at1020pm (November 20, 2024, 10:20 PM) - CURRENT
+### Nov21at438pm (November 21, 2024, 4:38 PM) - CURRENT
+**Status:** Saved Settings Fixes Implemented - Known Issue with Table Deletion  
+**Tag:** `Nov21at438pm`
+
+**Working:**
+- ✅ Preserve seating plans on load (complete fix with all 3 fields)
+- ✅ Remove plan-clearing dispatches in UI layer
+- ✅ Always use incoming tables (prevent parameter bleeding)
+- ✅ Support multi-word table names in assignments
+- ✅ Seating plans appear immediately after loading
+- ✅ Current plan index preserved (user stays on same plan)
+- ✅ No regeneration when plans are loaded
+
+**Known Issues:**
+- 🟡 Problematic when tables are deleted (saved settings may reference deleted tables)
+
+**Key Changes:**
+- Added `hasIncomingPlans` check to preserve seating plans, index, and regeneration flag
+- Removed plan-clearing dispatches from SavedSettings.tsx
+- Changed table loading to always use incoming tables (ignore userSetTables flag)
+- Changed tokenizer regex to support multi-word table names
+
+**Files Modified:**
+- `src/context/AppContext.tsx` - Seating plans preservation and table loading fixes
+- `src/pages/SavedSettings.tsx` - Removed plan-clearing dispatches
+- `src/utils/assignments.ts` - Multi-word table name parsing fix
+
+---
+
+### Nov20at1020pm (November 20, 2024, 10:20 PM)
 **Status:** Quite Good - Constraint Inputs Fixed, Saved Settings Issues Remain  
 **Tag:** `Nov20at1020pm`
 

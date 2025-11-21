@@ -166,8 +166,7 @@ const SavedSettings: React.FC = () => {
       // Just import the entire state directly
       dispatch({ type: 'IMPORT_STATE', payload: setting.data });
       dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: true });
-      dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
-      dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
+      // Seating plans are now preserved via IMPORT_STATE - do not clear them
       
       // Update the setting's last_accessed timestamp
       await supabase

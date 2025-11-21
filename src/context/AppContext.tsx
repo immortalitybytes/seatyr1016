@@ -532,15 +532,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         name: formatGuestUnitName(g.name)
       }));
       
-      // CRITICAL FIX: Preserve current table state if user has made changes
-      // Only use incoming tables if user hasn't customized tables locally
-      const shouldUseIncomingTables = !state.userSetTables && incoming.tables?.length;
-      const tablesToUse = shouldUseIncomingTables ? incoming.tables : state.tables;
+      // CRITICAL FIX: Ensure loaded settings always use their own tables (prevent parameter bleeding)
+      // We prioritize incoming tables if they exist, regardless of the userSetTables flag from prior state
+      const tablesToUse = Array.isArray(incoming.tables) && incoming.tables.length > 0 
+        ? incoming.tables 
+        : state.tables;
       
-      console.log(`[LOAD_MOST_RECENT-${executionId}] Table preservation check:`, {
-        userSetTables: state.userSetTables,
+      console.log(`[LOAD_MOST_RECENT-${executionId}] Table load strategy:`, {
         incomingTablesLength: incoming.tables?.length,
-        shouldUseIncomingTables,
         finalTablesLength: tablesToUse.length
       });
       
@@ -548,6 +547,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const preservedSessionVersion = typeof incoming.sessionVersion === 'number' && incoming.sessionVersion >= 0 
         ? incoming.sessionVersion 
         : state.sessionVersion || 0;
+      
+      // CRITICAL FIX: Preserve incoming seating plans if they exist
+      const hasIncomingPlans = Array.isArray(incoming.seatingPlans) && incoming.seatingPlans.length > 0;
       
       return {
         ...initialState,
@@ -559,10 +561,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         trial: state.trial,
         loadedRestoreDecision: true,
         isReady: true, // Set readiness after load
-        regenerationNeeded: true,
-        seatingPlans: [],
-        currentPlanIndex: 0,
-        warnings: [],
+        // CRITICAL FIX: Preserve plans and index, disable regeneration if plans exist
+        seatingPlans: hasIncomingPlans ? incoming.seatingPlans : [],
+        currentPlanIndex: hasIncomingPlans 
+          ? (typeof incoming.currentPlanIndex === 'number' ? incoming.currentPlanIndex : 0)
+          : 0,
+        // Only regenerate if NO plans were loaded
+        regenerationNeeded: !hasIncomingPlans,
+        warnings: hasIncomingPlans ? (incoming.warnings ?? []) : [],
         // CRITICAL FIX: Override sessionVersion after spreading
         sessionVersion: preservedSessionVersion,
         persistenceVersion: incoming.persistenceVersion || '1.0.0'
