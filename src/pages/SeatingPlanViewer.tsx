@@ -289,6 +289,28 @@ const SeatingPlanViewer: React.FC = () => {
     return [...plan.tables].sort((a, b) => a.id - b.id);
   }, [plan]);
 
+  // Calculate number of guests (seats needed) and total seats available for current plan
+  const planMetrics = useMemo(() => {
+    if (!plan) {
+      return { numberOfGuests: 0, numberOfSeats: 0 };
+    }
+    
+    // Count total guests (sum of all guest.count values from state.guests)
+    // This represents total number of people requiring seats, not just assigned seats in the plan
+    const numberOfGuests = state.guests.reduce((sum, guest) => {
+      return sum + Math.max(1, guest.count ?? 1);
+    }, 0);
+    
+    // Count total seats available from plan tables
+    // Use plan-specific capacity if available (from engine), otherwise fallback to capacityById
+    const numberOfSeats = plan.tables.reduce((sum, table) => {
+      const capacity = (table as any).capacity ?? capacityById.get(table.id) ?? 0;
+      return sum + capacity;
+    }, 0);
+    
+    return { numberOfGuests, numberOfSeats };
+  }, [plan, state.guests, capacityById]);
+
   // Lock table helpers
   const isTableLocked = (tableId: number): boolean => {
     return !!(state.lockedTableAssignments?.[tableId]?.length);
@@ -525,25 +547,32 @@ const SeatingPlanViewer: React.FC = () => {
           )}
       </Card>
       <Card title={`Current Plan (${safeCurrentPlanIndex + 1} of ${safeSeatingPlans.length})`}>
-        {/* Upper-right: Simple 2-button Previous/Next for plan navigation */}
-        {safeSeatingPlans.length > 1 && (
-          <div className="flex justify-end space-x-2 mb-4">
-            <button
-              className="danstyle1c-btn"
-              onClick={() => handleNavigatePlan(-1)}
-              disabled={safeCurrentPlanIndex <= 0}
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" /> Previous
-            </button>
-            <button
-              className="danstyle1c-btn"
-              onClick={() => handleNavigatePlan(1)}
-              disabled={safeCurrentPlanIndex >= safeSeatingPlans.length - 1}
-            >
-              Next <ChevronRight className="w-4 h-4 ml-1" />
-            </button>
+        {/* Guest/Seats count and navigation buttons on same row */}
+        <div className="flex justify-between items-center mb-4">
+          {/* Left-justified: Guest and Seats count */}
+          <div className="text-sm text-[#586D78]">
+            Number of Guests: {planMetrics.numberOfGuests} / Number of Seats: {planMetrics.numberOfSeats}
           </div>
-        )}
+          {/* Right-justified: Previous/Next buttons */}
+          {safeSeatingPlans.length > 1 && (
+            <div className="flex space-x-2">
+              <button
+                className="danstyle1c-btn"
+                onClick={() => handleNavigatePlan(-1)}
+                disabled={safeCurrentPlanIndex <= 0}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+              </button>
+              <button
+                className="danstyle1c-btn"
+                onClick={() => handleNavigatePlan(1)}
+                disabled={safeCurrentPlanIndex >= safeSeatingPlans.length - 1}
+              >
+                Next <ChevronRight className="w-4 h-4 ml-1" />
+              </button>
+            </div>
+          )}
+        </div>
 
         {renderCurrentPlan()}
         

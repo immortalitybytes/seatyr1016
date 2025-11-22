@@ -6,7 +6,27 @@
 
 ## 📚 VERSION TIMELINE
 
-### Nov22at321am (November 22, 2024, 3:21 AM) - CURRENT
+### Nov20at4am (November 20, 2024, 4:00 AM) - CURRENT
+**Status:** Version Verified and Guest/Seats Count Calculations Fixed  
+**Tag:** `Nov20at4am`
+
+**Working:**
+- ✅ Version number verified (Preview Version 0.983)
+- ✅ Guest count now correctly shows total guests from state.guests
+- ✅ Seats count now correctly shows plan-specific table capacities
+- ✅ Display layout correctly positioned (left-justified count, right-justified buttons)
+
+**Key Changes:**
+- Fixed `numberOfGuests` calculation to sum all guest.count values (not just assigned seats)
+- Fixed `numberOfSeats` calculation to use plan.tables capacities (not state.tables)
+- Updated planMetrics dependencies to include state.guests and capacityById
+
+**Files Modified:**
+- `src/pages/SeatingPlanViewer.tsx` - Fixed planMetrics calculation
+
+---
+
+### Nov22at321am (November 22, 2024, 3:21 AM)
 **Status:** Table Renumbering Feature Complete - All Critical Fixes Implemented  
 **Tag:** `Nov22at321am`
 
