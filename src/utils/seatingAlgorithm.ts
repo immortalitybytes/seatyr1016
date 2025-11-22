@@ -47,6 +47,23 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
 
     const { guests, tables, constraints, adjacents, assignments, lockedTableAssignments, isPremium } = params;
 
+    // ADAPTER GUARD: Drop locks to non-existent tables before engine invocation
+    // This is defense-in-depth: even if reducer cleanup misses a lock, we catch it here
+    // Prevents engine crashes from stale locks to deleted tables
+    const validTableIds = new Set(tables.map(t => t.id));
+    const safeLockedAssignments = Object.fromEntries(
+      Object.entries(lockedTableAssignments || {}).filter(([tid]) => validTableIds.has(Number(tid)))
+    );
+
+    // Log warning if we dropped any locks (helps identify reducer gaps)
+    if (Object.keys(lockedTableAssignments || {}).length !== Object.keys(safeLockedAssignments).length) {
+      const droppedCount = Object.keys(lockedTableAssignments || {}).length - Object.keys(safeLockedAssignments).length;
+      console.warn(`[SeatingAlgorithm] Dropped ${droppedCount} lock(s) to non-existent tables`, {
+        original: lockedTableAssignments,
+        cleaned: safeLockedAssignments
+      });
+    }
+
     const nameToId = new Map<string, GuestID>();
     const idToName = new Map<GuestID, string>();
     for (const g of guests) {
@@ -102,7 +119,8 @@ export async function generateSeatingPlans(...args: any[]): Promise<AdapterResul
     });
 
     // 2) Apply Locked Table assignments (LT) as stricter constraints
-    for (const [tableId, guestIds] of Object.entries(lockedTableAssignments || {})) {
+    // Use safeLockedAssignments instead of lockedTableAssignments to prevent crashes
+    for (const [tableId, guestIds] of Object.entries(safeLockedAssignments)) {
       if (!Array.isArray(guestIds) || guestIds.length === 0) continue;
       
       for (const guestId of guestIds) {

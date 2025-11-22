@@ -225,6 +225,38 @@ const initialState: AppState = {
   conflictWarnings: [], lastGeneratedPlanSig: null, sessionVersion: 0, persistenceVersion: '1.0.0',
 };
 
+// Helper function to prune invalid references from assignments and lockedTableAssignments
+// This ensures that any assignments or locks pointing to non-existent tables are removed
+// Called after table deletion, during import/load, and optionally after renumbering
+const pruneInvalidReferences = (state: AppState): Pick<AppState, 'assignments' | 'lockedTableAssignments'> => {
+  // Build set of valid table IDs for fast lookup
+  const validTableIds = new Set(state.tables.map(t => t.id));
+  
+  // Clean assignments: remove any table IDs that don't exist in current tables
+  const assignments = Object.fromEntries(
+    Object.entries(state.assignments || {}).map(([guestId, raw]) => {
+      // If assignment is empty/null, return empty string
+      if (!raw || raw.trim() === '') return [guestId, ''];
+      
+      // Parse assignment IDs and filter to only valid table IDs
+      const ids = parseAssignmentIds(raw).filter(id => validTableIds.has(id));
+      
+      // Return cleaned assignment (empty string if no valid IDs remain)
+      return [guestId, ids.length > 0 ? ids.join(',') : ''];
+    })
+  );
+  
+  // Clean lockedTableAssignments: remove any locks for tables that don't exist
+  const lockedTableAssignments = Object.fromEntries(
+    Object.entries(state.lockedTableAssignments || {}).filter(([tid]) => {
+      const tableId = Number(tid);
+      return validTableIds.has(tableId);
+    })
+  );
+  
+  return { assignments, lockedTableAssignments };
+};
+
 const reducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
     case 'SET_USER': return { ...state, user: action.payload };
@@ -441,23 +473,39 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       };
     }
     case 'REMOVE_TABLE': {
-      const tableId = action.payload;
-      const filteredTables = state.tables.filter(t => t.id !== tableId);
+      const tableIdRaw = action.payload;
       
-      // Remove assignments referencing deleted table
-      const filteredAssignments = Object.fromEntries(
-        Object.entries(state.assignments).map(([guestId, raw]) => {
-          const ids = parseAssignmentIds(raw);
-          const filtered = ids.filter(id => id !== tableId);
-          return [guestId, filtered.join(',')];
-        })
+      // CRITICAL FIX: Coerce tableId to number for consistent comparison
+      // DOM events and React may pass IDs as strings, but parseAssignmentIds returns numbers
+      // JavaScript strict equality does NOT coerce: 2 !== "2" is TRUE
+      const tableIdNum = typeof tableIdRaw === 'string' ? parseInt(tableIdRaw, 10) : Number(tableIdRaw);
+      
+      // Validate that we have a valid numeric table ID
+      if (!Number.isFinite(tableIdNum) || tableIdNum <= 0) {
+        console.error('[REMOVE_TABLE] Invalid table ID:', tableIdRaw, '→ coerced to:', tableIdNum);
+        return state;
+      }
+      
+      // 1. Filter the table out of the definition list
+      const filteredTables = state.tables.filter(t => t.id !== tableIdNum);
+      
+      // 2. Use the Shared Pruning Helper for consistency
+      // Create a temporary state with the table removed, then ask helper to clean up all references
+      // This ensures deletion and import share the exact same safety logic
+      const tempState = { ...state, tables: filteredTables };
+      const cleaned = pruneInvalidReferences(tempState);
+      
+      // Log cleanup details for debugging
+      console.log('[REMOVE_TABLE] Removing table', tableIdNum);
+      console.log('[REMOVE_TABLE] Assignments cleaned via pruning helper');
+      console.log('[REMOVE_TABLE] Lock removed:', 
+        state.lockedTableAssignments?.[tableIdNum] ? 'Yes' : 'No'
       );
-      
-      console.log('[Table Change] Removing table - regenerating plans (constraint addition)');
+
       return {
         ...state,
         tables: filteredTables,
-        assignments: filteredAssignments,
+        ...cleaned,  // Apply sanitized assignments and locks from pruning helper
         userSetTables: true,
         regenerationNeeded: true,
         seatingPlans: [],
@@ -465,6 +513,80 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         sessionVersion: state.sessionVersion + 1
       };
     }
+
+    case 'RENUMBER_TABLES': {
+      // 1. Sort current tables by ID to ensure deterministic, sequential order
+      // This preserves user's logical ordering while closing gaps
+      const sortedTables = [...state.tables].sort((a, b) => a.id - b.id);
+      
+      // 2. Create a map of Old ID -> New ID
+      // This map serves as the translation layer for all foreign keys
+      const idMap = new Map<number, number>();
+      const newTables = sortedTables.map((t, index) => {
+        const newId = index + 1;
+        idMap.set(t.id, newId);
+        // Return new table object with updated ID, preserving Name and Seats
+        return { ...t, id: newId };
+      });
+
+      // 3. Remap Manual Guest Assignments (CSV strings)
+      const newAssignments: Assignments = {};
+      Object.entries(state.assignments || {}).forEach(([guestId, raw]) => {
+        if (!raw || raw.trim() === '') {
+          newAssignments[guestId] = '';
+          return;
+        }
+        // Parse current IDs
+        const oldIds = parseAssignmentIds(raw);
+        // Map to new IDs using the translation map
+        const newIds = oldIds
+          .map(oldId => idMap.get(oldId))
+          .filter((id): id is number => id !== undefined)
+          .sort((a, b) => a - b);
+        
+        // Store remapped assignment (or empty string if nothing remains)
+        newAssignments[guestId] = newIds.length > 0 ? newIds.join(',') : '';
+      });
+
+      // 4. Remap Locked Table Assignments
+      const newLocked: LockedTableAssignments = {};
+      Object.entries(state.lockedTableAssignments || {}).forEach(([oldTidStr, guestIds]) => {
+        const oldTid = parseInt(oldTidStr, 10);
+        const newTid = idMap.get(oldTid);
+        
+        // If the old table ID maps to a new one, move the guest locks to the new ID
+        if (newTid !== undefined) {
+          newLocked[newTid] = guestIds;
+        }
+      });
+
+      console.log('[RENUMBER_TABLES] Re-numbered tables 1..N');
+      console.log('[RENUMBER_TABLES] ID mapping:', Object.fromEntries(idMap));
+
+      // CRITICAL: Build state object for pruning
+      // Apply pruning as defense-in-depth to catch any edge cases in remapping logic
+      const stateAfterRenumber = {
+        ...state,
+        tables: newTables,
+        assignments: newAssignments,
+        lockedTableAssignments: newLocked,
+        userSetTables: true,
+        regenerationNeeded: true,
+        seatingPlans: [],
+        currentPlanIndex: 0,
+        sessionVersion: state.sessionVersion + 1
+      };
+
+      // CRITICAL: Apply pruning to catch any edge cases
+      // This ensures consistency with delete/import paths and catches any remapping errors
+      const cleaned = pruneInvalidReferences(stateAfterRenumber);
+
+      return {
+        ...stateAfterRenumber,
+        ...cleaned  // Apply pruned assignments and locks
+      };
+    }
+
     case 'UPDATE_TABLE': {
       const { id, name, seats } = action.payload;
       const currentTable = state.tables.find(t => t.id === id);
@@ -550,8 +672,10 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       
       // CRITICAL FIX: Preserve incoming seating plans if they exist
       const hasIncomingPlans = Array.isArray(incoming.seatingPlans) && incoming.seatingPlans.length > 0;
-      
-      return {
+
+      // Create new state object with incoming data merged with current state
+      // This temporary state will be used for pruning, then merged into final return
+      const tempStateForPruning = {
         ...initialState,
         ...incoming,
         guests: formattedGuests,
@@ -560,7 +684,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         subscription: state.subscription,
         trial: state.trial,
         loadedRestoreDecision: true,
-        isReady: true, // Set readiness after load
+        isReady: true,
         // CRITICAL FIX: Preserve plans and index, disable regeneration if plans exist
         seatingPlans: hasIncomingPlans ? incoming.seatingPlans : [],
         currentPlanIndex: hasIncomingPlans 
@@ -569,9 +693,20 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         // Only regenerate if NO plans were loaded
         regenerationNeeded: !hasIncomingPlans,
         warnings: hasIncomingPlans ? (incoming.warnings ?? []) : [],
-        // CRITICAL FIX: Override sessionVersion after spreading
         sessionVersion: preservedSessionVersion,
         persistenceVersion: incoming.persistenceVersion || '1.0.0'
+      };
+
+      // CRITICAL FIX: Prune invalid references (assignments/locks to non-existent tables)
+      // This prevents corrupt saved data from poisoning generation
+      // MUST CALL pruneInvalidReferences - this is the missing piece that makes the fix complete
+      const cleaned = pruneInvalidReferences(tempStateForPruning);
+
+      // Return merged state with cleaned assignments and locks
+      // The cleaned object contains only assignments and lockedTableAssignments, which override the tempState values
+      return {
+        ...tempStateForPruning,
+        ...cleaned  // This applies the pruned assignments and lockedTableAssignments
       };
     }
 

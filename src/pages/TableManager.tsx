@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, MapPin, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
@@ -162,6 +162,9 @@ const TableManager: React.FC = () => {
   
   // E1: Local warning state + mount re-validation
   const isPremium = useMemo(() => mode === "premium", [mode]);
+  
+  // Modal state for renumbering prompt
+  const [showRenumberModal, setShowRenumberModal] = useState(false);
 
   // Canonical signature as dependency (no heavy stringify in steady state)
   const assignmentsSignature = state.assignmentSignature ?? "";
@@ -319,10 +322,36 @@ const TableManager: React.FC = () => {
   
   const handleRemoveTable = (id: number) => {
     if (window.confirm('Are you sure you want to remove this table? This will also update any assignments that reference this table.')) {
+      // 1. Set user tables flag to prevent auto-reconciliation from interfering
       dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
+      
+      // 2. Perform the removal (which now safely cleans up locks)
       dispatch({ type: 'REMOVE_TABLE', payload: id });
+      
+      // 3. Clear plans as the topology has changed
       purgePlans();
+      
+      // 4. Show renumber modal if we have remaining tables with gaps
+      // Note: We check against current state BEFORE the dispatch takes effect
+      // The modal will show, and by the time user clicks, state will be updated
+      const remainingTables = state.tables.filter(t => t.id !== id);
+      if (remainingTables.length > 0) {
+        const sortedIds = remainingTables.map(t => t.id).sort((a, b) => a - b);
+        const hasGaps = sortedIds.some((tableId, index) => tableId !== index + 1);
+        if (hasGaps) {
+          setShowRenumberModal(true);
+        }
+      }
     }
+  };
+
+  const confirmRenumber = () => {
+    dispatch({ type: 'RENUMBER_TABLES' });
+    setShowRenumberModal(false);
+  };
+
+  const dismissRenumberModal = () => {
+    setShowRenumberModal(false);
   };
   
   const handleUpdateSeats = (id: number, value: string) => {
@@ -798,6 +827,61 @@ const TableManager: React.FC = () => {
           </div>
         )}
       </div>
+      
+      {/* Re-numbering Confirmation Modal */}
+      {showRenumberModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+          style={{ zIndex: 9999 }}
+          onClick={(e) => {
+            // Close on backdrop click
+            if (e.target === e.currentTarget) {
+              dismissRenumberModal();
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-200">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-gray-800">
+                Table Deleted
+              </h3>
+            </div>
+            
+            <p className="text-gray-700 mb-4 text-base leading-relaxed">
+              Would you like me to re-number the remaining tables?
+            </p>
+            
+            <p className="text-sm text-gray-500 mb-4">
+              This will close gaps in table numbers (e.g., Tables 1, 3, 4 become Tables 1, 2, 3).
+            </p>
+            
+            {/* Premium Feature Note - uses isPremium from useApp hook */}
+            {isPremium && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-6 flex items-start">
+                <Info className="w-5 h-5 text-green-600 mr-2 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-green-800">
+                  <strong>Note:</strong> Your table names will remain.
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button 
+                onClick={dismissRenumberModal}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors w-full sm:w-auto"
+              >
+                No, continue as-is
+              </button>
+              <button 
+                onClick={confirmRenumber}
+                className="px-4 py-2 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors w-full sm:w-auto"
+              >
+                Yes, re-number tables
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <SavedSettingsAccordion isDefaultOpen={false} />
     </div>

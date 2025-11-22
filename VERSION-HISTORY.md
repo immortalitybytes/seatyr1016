@@ -6,7 +6,35 @@
 
 ## 📚 VERSION TIMELINE
 
-### Nov21at438pm (November 21, 2024, 4:38 PM) - CURRENT
+### Nov22at321am (November 22, 2024, 3:21 AM) - CURRENT
+**Status:** Table Renumbering Feature Complete - All Critical Fixes Implemented  
+**Tag:** `Nov22at321am`
+
+**Working:**
+- ✅ Table deletion with proper cleanup (ghost locks removed)
+- ✅ Table renumbering feature (seems to work)
+- ✅ Renumber modal with premium note
+- ✅ Import/load pruning (prevents corrupt saved data)
+- ✅ Adapter guard (defense-in-depth for stale locks)
+- ✅ Type coercion for table IDs (prevents silent failures)
+- ✅ All existing functionality preserved
+
+**Key Changes:**
+- Added `pruneInvalidReferences` helper for consistent cleanup
+- Fixed `REMOVE_TABLE` with type coercion and pruning
+- Applied pruning to import/load cases
+- Added `RENUMBER_TABLES` reducer case with ID remapping
+- Added adapter guard in seatingAlgorithm.ts
+- Added renumber modal UI in TableManager.tsx
+
+**Files Modified:**
+- `src/context/AppContext.tsx` - Pruning helper, REMOVE_TABLE fix, RENUMBER_TABLES case, import pruning
+- `src/utils/seatingAlgorithm.ts` - Adapter guard
+- `src/pages/TableManager.tsx` - Renumber modal
+
+---
+
+### Nov21at438pm (November 21, 2024, 4:38 PM)
 **Status:** Saved Settings Fixes Implemented - Known Issue with Table Deletion  
 **Tag:** `Nov21at438pm`
 

@@ -418,8 +418,9 @@ const SeatingPlanViewer: React.FC = () => {
                 const capacity = capacityById.get(table.id) ?? 0;
                 const occupied = table.seats.length;
                 const tableInfo = state.tables.find(t => t.id === table.id);
+                const locked = isTableLocked(table.id);
                 return (
-                  <th key={table.id} className="bg-indigo-100 text-[#586D78] font-medium p-2 border border-indigo-200">
+                  <th key={table.id} className={`bg-indigo-100 text-[#586D78] font-medium p-2 ${locked ? "border-4 border-green-800 bg-green-50" : "border border-indigo-200"}`}>
                     {displayTableLabel({id: table.id, name: tableInfo?.name }, index)}
                     <div className="flex items-center gap-2">
                       <span className="text-xs block text-gray-600">{occupied}/{capacity} seats</span>
@@ -430,7 +431,7 @@ const SeatingPlanViewer: React.FC = () => {
                         aria-label={isTableLocked(table.id) ? 'Unlock table' : 'Lock table'}
                         aria-pressed={isTableLocked(table.id)}
                       >
-                        {isTableLocked(table.id) ? '🔓' : '🔒'}
+                        {isTableLocked(table.id) ? '🔒' : '⛓️‍💥'}
                       </button>
                     </div>
                   </th>
@@ -449,8 +450,9 @@ const SeatingPlanViewer: React.FC = () => {
                   }
                   
                   const guestData = table.seats[rowIndex];
+                  const locked = isTableLocked(table.id);
                   if (!guestData) {
-                    return <td key={`cell-empty-${table.id}-${rowIndex}`} className="p-2 border border-gray-200 bg-gray-50"><div className="text-xs text-gray-400 text-center">Empty</div></td>;
+                    return <td key={`cell-empty-${table.id}-${rowIndex}`} className={`p-2 ${locked ? "border-4 border-green-800 bg-green-50" : "border border-gray-200 bg-gray-50"}`}><div className="text-xs text-gray-400 text-center">Empty</div></td>;
                   }
 
                   // Safe type validation (Grok feature)
@@ -459,9 +461,28 @@ const SeatingPlanViewer: React.FC = () => {
                   const safeName = formatGuestUnitName(rawName);
                   const safePartyIndex = Number.isFinite((guestData as any).partyIndex) ? (guestData as any).partyIndex : -1;
 
+                  const lockedGuestsForTable = new Set((state.lockedTableAssignments?.[table.id] ?? []).map(String));
+                  
+                  // TypeScript-safe guest identifier detection (per addendum)
+                  const seatAny = guestData as any; // minimal local cast ONLY for optional runtime fields
+                  const seatGuestKey =
+                    seatAny.guestId != null ? String(seatAny.guestId) :
+                    (guestData as any).id != null ? String((guestData as any).id) :
+                    null;
+
+                  const isLockedGuest =
+                    seatGuestKey != null && lockedGuestsForTable.has(seatGuestKey);
+
                   return (
-                    <td key={`cell-guest-${table.id}-${rowIndex}`} className="p-2 border border-indigo-200 align-top">
-                      <div className="font-medium text-[#586D78] text-sm">
+                    <td key={`cell-guest-${table.id}-${rowIndex}`} className={`p-2 ${locked ? "border-4 border-green-800 bg-green-50" : "border border-indigo-200"} align-top`}>
+                      <div
+                        className={`font-medium text-sm ${
+                          isLockedGuest
+                            ? 'text-green-900 font-semibold'
+                            : 'text-[#586D78]'
+                        }`}
+                      >
+                        {isLockedGuest && <span className="mr-1 text-green-900">●</span>}
                         {formatGuestNameForSeat(safeName, safePartyIndex)}
                       </div>
                     </td>
